@@ -1,0 +1,72 @@
+-- A booking: one client, one contract, one set of invoices, one profit-and-loss.
+-- A wedding is one project containing an engagement shoot and the wedding day.
+CREATE TABLE project (
+    id                   TEXT    NOT NULL PRIMARY KEY,
+    studio_id            TEXT    NOT NULL,
+    client_id            TEXT    NOT NULL,
+    name                 TEXT    NOT NULL,
+    service_line         TEXT    NOT NULL,
+    status               TEXT    NOT NULL,
+    service_template_id  TEXT,
+    contract_value_minor INTEGER,
+    contract_currency    TEXT,
+    enquired_at          INTEGER,
+    booked_at            INTEGER,
+    notes                TEXT,
+    created_at           INTEGER NOT NULL,
+    updated_at           INTEGER NOT NULL,
+    deleted_at           INTEGER,
+    version              INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (client_id) REFERENCES client(id)
+);
+
+CREATE INDEX project_studio_idx ON project(studio_id, deleted_at);
+CREATE INDEX project_client_idx ON project(client_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM project
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY created_at DESC;
+
+selectById:
+SELECT *
+FROM project
+WHERE id = :id AND deleted_at IS NULL;
+
+selectByClient:
+SELECT *
+FROM project
+WHERE client_id = :clientId AND deleted_at IS NULL
+ORDER BY created_at DESC;
+
+-- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
+insertOrIgnore:
+INSERT OR IGNORE INTO project(
+    id, studio_id, client_id, name, service_line, status, service_template_id,
+    contract_value_minor, contract_currency, enquired_at, booked_at, notes,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE project
+SET client_id            = :clientId,
+    name                 = :name,
+    service_line         = :serviceLine,
+    status               = :status,
+    service_template_id  = :serviceTemplateId,
+    contract_value_minor = :contractValueMinor,
+    contract_currency    = :contractCurrency,
+    enquired_at          = :enquiredAt,
+    booked_at            = :bookedAt,
+    notes                = :notes,
+    updated_at           = :updatedAt,
+    deleted_at           = :deletedAt,
+    version              = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE project
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

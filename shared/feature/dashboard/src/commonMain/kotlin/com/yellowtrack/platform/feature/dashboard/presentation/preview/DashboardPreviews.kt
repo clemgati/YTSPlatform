@@ -12,6 +12,8 @@ private fun DashboardSuccessPreview() {
         DashboardScreen(
             uiState = DashboardPreviewData.successState,
             onRetry = {},
+            onMarkEnquiryReplied = {},
+            onAddEnquiry = {},
         )
     }
 }
@@ -23,6 +25,8 @@ private fun DashboardLoadingPreview() {
         DashboardScreen(
             uiState = DashboardPreviewData.loadingState,
             onRetry = {},
+            onMarkEnquiryReplied = {},
+            onAddEnquiry = {},
         )
     }
 }
@@ -34,6 +38,8 @@ private fun DashboardEmptyPreview() {
         DashboardScreen(
             uiState = DashboardPreviewData.emptyState,
             onRetry = {},
+            onMarkEnquiryReplied = {},
+            onAddEnquiry = {},
         )
     }
 }
@@ -45,6 +51,8 @@ private fun DashboardErrorPreview() {
         DashboardScreen(
             uiState = DashboardPreviewData.errorState,
             onRetry = {},
+            onMarkEnquiryReplied = {},
+            onAddEnquiry = {},
         )
     }
 }

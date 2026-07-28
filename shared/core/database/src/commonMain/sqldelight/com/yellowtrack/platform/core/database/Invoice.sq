@@ -1,0 +1,138 @@
+-- A demand for payment against a booking.
+--
+-- Lines are held as a JSON array rather than a child table, on the same reasoning as
+-- contact methods in Contact.sq: they are immutable parts of the document, always read
+-- with it, and never referenced independently. They map onto a Postgres JSONB column when
+-- the server arrives. If line-level reporting ever becomes a requirement — tax by rate,
+-- revenue by line description — they should become rows.
+--
+-- Payments are the opposite case and get their own table: each is a separate event with
+-- its own date, method, and audit trail.
+--
+-- Note there is no `paid` column. Whether an invoice is paid, part-paid, or overdue is
+-- derived from its payments and due date. A stored flag and the payments meant to justify
+-- it drift apart, and then a client gets chased for money they already sent.
+CREATE TABLE invoice (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    studio_id  TEXT    NOT NULL,
+    project_id TEXT    NOT NULL,
+    number     TEXT    NOT NULL,
+    kind       TEXT    NOT NULL,
+    status     TEXT    NOT NULL,
+    currency   TEXT    NOT NULL,
+    lines      TEXT    NOT NULL DEFAULT '[]',
+    issued_at  INTEGER,
+    due_at     INTEGER,
+    notes      TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    version    INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX invoice_studio_idx ON invoice(studio_id, deleted_at);
+CREATE INDEX invoice_project_idx ON invoice(project_id, deleted_at);
+CREATE INDEX invoice_due_idx ON invoice(studio_id, due_at);
+
+CREATE TABLE payment (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    studio_id  TEXT    NOT NULL,
+    invoice_id TEXT    NOT NULL,
+    amount_minor    INTEGER NOT NULL,
+    amount_currency TEXT    NOT NULL,
+    paid_at    INTEGER NOT NULL,
+    method     TEXT    NOT NULL,
+    reference  TEXT,
+    notes      TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    version    INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (invoice_id) REFERENCES invoice(id)
+);
+
+CREATE INDEX payment_invoice_idx ON payment(invoice_id, deleted_at);
+CREATE INDEX payment_studio_idx ON payment(studio_id, paid_at);
+
+selectAll:
+SELECT *
+FROM invoice
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY issued_at DESC, created_at DESC;
+
+selectById:
+SELECT *
+FROM invoice
+WHERE id = :id AND deleted_at IS NULL;
+
+selectByProject:
+SELECT *
+FROM invoice
+WHERE project_id = :projectId AND deleted_at IS NULL
+ORDER BY created_at;
+
+selectPaymentsForStudio:
+SELECT *
+FROM payment
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY paid_at;
+
+selectPaymentsForInvoice:
+SELECT *
+FROM payment
+WHERE invoice_id = :invoiceId AND deleted_at IS NULL
+ORDER BY paid_at;
+
+insertOrIgnore:
+INSERT OR IGNORE INTO invoice(
+    id, studio_id, project_id, number, kind, status, currency, lines,
+    issued_at, due_at, notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE invoice
+SET project_id = :projectId,
+    number     = :number,
+    kind       = :kind,
+    status     = :status,
+    currency   = :currency,
+    lines      = :lines,
+    issued_at  = :issuedAt,
+    due_at     = :dueAt,
+    notes      = :notes,
+    updated_at = :updatedAt,
+    deleted_at = :deletedAt,
+    version    = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE invoice
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;
+
+insertOrIgnorePayment:
+INSERT OR IGNORE INTO payment(
+    id, studio_id, invoice_id, amount_minor, amount_currency, paid_at,
+    method, reference, notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updatePayment:
+UPDATE payment
+SET amount_minor    = :amountMinor,
+    amount_currency = :amountCurrency,
+    paid_at         = :paidAt,
+    method          = :method,
+    reference       = :reference,
+    notes           = :notes,
+    updated_at      = :updatedAt,
+    deleted_at      = :deletedAt,
+    version         = :version
+WHERE id = :id;
+
+softDeletePayment:
+UPDATE payment
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

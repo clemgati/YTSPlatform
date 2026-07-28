@@ -1,9 +1,13 @@
 # Yellow Track Platform Architecture
 
+> **Superseded.** The active architecture document is
+> [ARCHITECTURE_V2.md](ARCHITECTURE_V2.md). This file is kept for the reasoning it
+> records; where the two disagree, V2 is correct.
+
 > **Build with intention. Create without friction.**
 
-**Status:** Living Document  
-**Version:** 0.1  
+**Status:** Superseded by ARCHITECTURE_V2.md
+**Version:** 0.1
 **Last Updated:** 2026-07-22
 
 ---

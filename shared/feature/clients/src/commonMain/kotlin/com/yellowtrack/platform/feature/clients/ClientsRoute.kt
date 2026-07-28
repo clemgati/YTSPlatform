@@ -1,32 +1,26 @@
 package com.yellowtrack.platform.feature.clients
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yellowtrack.platform.core.model.client.ClientId
-import com.yellowtrack.platform.feature.clients.data.InMemoryClientRepository
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsScreen
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun ClientsRoute(
     onClientSelected: (ClientId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val viewModel =
-        remember {
-            ClientsViewModel(
-                clientRepository = InMemoryClientRepository(),
-            )
-        }
-
-    val uiState by viewModel.uiState.collectAsState()
+    val viewModel: ClientsViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     ClientsScreen(
         uiState = uiState,
         onRetry = viewModel::retry,
+        onQueryChange = viewModel::onQueryChange,
         onClientSelected = onClientSelected,
         modifier = modifier,
     )

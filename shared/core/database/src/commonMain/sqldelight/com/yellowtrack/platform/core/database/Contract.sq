@@ -1,0 +1,92 @@
+-- The agreement behind a booking.
+--
+-- The usage licence is JSON: it is a value object read only with its contract, and it is
+-- optional — most portrait and wedding work has none, while commercial work always does.
+CREATE TABLE contract (
+    id                     TEXT    NOT NULL PRIMARY KEY,
+    studio_id              TEXT    NOT NULL,
+    project_id             TEXT    NOT NULL,
+    title                  TEXT    NOT NULL,
+    status                 TEXT    NOT NULL,
+    sent_at                INTEGER,
+    signed_at              INTEGER,
+    signer_name            TEXT,
+    signer_email           TEXT,
+    retainer_minor         INTEGER,
+    retainer_currency      TEXT,
+    is_retainer_refundable INTEGER NOT NULL DEFAULT 0,
+    turnaround_days        INTEGER,
+    revision_rounds        INTEGER,
+    cancellation_terms     TEXT,
+    reschedule_terms       TEXT,
+    weather_clause         TEXT,
+    usage_license          TEXT,
+    document_reference     TEXT,
+    notes                  TEXT,
+    created_at             INTEGER NOT NULL,
+    updated_at             INTEGER NOT NULL,
+    deleted_at             INTEGER,
+    version                INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX contract_studio_idx ON contract(studio_id, deleted_at);
+CREATE INDEX contract_project_idx ON contract(project_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM contract
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY created_at DESC;
+
+selectById:
+SELECT *
+FROM contract
+WHERE id = :id AND deleted_at IS NULL;
+
+selectByProject:
+SELECT *
+FROM contract
+WHERE project_id = :projectId AND deleted_at IS NULL
+ORDER BY created_at DESC;
+
+insertOrIgnore:
+INSERT OR IGNORE INTO contract(
+    id, studio_id, project_id, title, status, sent_at, signed_at,
+    signer_name, signer_email, retainer_minor, retainer_currency,
+    is_retainer_refundable, turnaround_days, revision_rounds,
+    cancellation_terms, reschedule_terms, weather_clause,
+    usage_license, document_reference, notes,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE contract
+SET project_id             = :projectId,
+    title                  = :title,
+    status                 = :status,
+    sent_at                = :sentAt,
+    signed_at              = :signedAt,
+    signer_name            = :signerName,
+    signer_email           = :signerEmail,
+    retainer_minor         = :retainerMinor,
+    retainer_currency      = :retainerCurrency,
+    is_retainer_refundable = :isRetainerRefundable,
+    turnaround_days        = :turnaroundDays,
+    revision_rounds        = :revisionRounds,
+    cancellation_terms     = :cancellationTerms,
+    reschedule_terms       = :rescheduleTerms,
+    weather_clause         = :weatherClause,
+    usage_license          = :usageLicense,
+    document_reference     = :documentReference,
+    notes                  = :notes,
+    updated_at             = :updatedAt,
+    deleted_at             = :deletedAt,
+    version                = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE contract
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

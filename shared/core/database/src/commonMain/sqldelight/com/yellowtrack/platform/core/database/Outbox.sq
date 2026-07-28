@@ -1,0 +1,37 @@
+-- Pending local mutations awaiting upload.
+--
+-- Deliberately unused in this milestone. It exists from the first migration so that the
+-- synchronisation layer arrives without a schema migration — see
+-- docs/adr/0006-sync-ready-multi-tenant-schema.md.
+CREATE TABLE outbox (
+    id           TEXT    NOT NULL PRIMARY KEY,
+    studio_id    TEXT    NOT NULL,
+    entity_table TEXT    NOT NULL,
+    entity_id    TEXT    NOT NULL,
+    operation    TEXT    NOT NULL,
+    payload      TEXT,
+    queued_at    INTEGER NOT NULL,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    last_error   TEXT
+);
+
+CREATE INDEX outbox_studio_queued_idx ON outbox(studio_id, queued_at);
+
+selectPending:
+SELECT *
+FROM outbox
+WHERE studio_id = :studioId
+ORDER BY queued_at
+LIMIT :limit;
+
+enqueue:
+INSERT INTO outbox(id, studio_id, entity_table, entity_id, operation, payload, queued_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+delete:
+DELETE FROM outbox WHERE id = :id;
+
+recordFailure:
+UPDATE outbox
+SET attempts = attempts + 1, last_error = :error
+WHERE id = :id;

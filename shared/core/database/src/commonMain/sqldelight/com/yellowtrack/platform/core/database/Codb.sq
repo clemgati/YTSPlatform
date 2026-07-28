@@ -1,0 +1,47 @@
+-- The inputs to a studio's cost of doing business.
+--
+-- One row per studio. Overhead may be stated directly, or left null to be summed from the
+-- studio's unlinked expenses — the override matters because a new photographer needs this
+-- number long before a full year of expenses has been recorded.
+CREATE TABLE codb_profile (
+    id                          TEXT    NOT NULL PRIMARY KEY,
+    studio_id                   TEXT    NOT NULL,
+    currency                    TEXT    NOT NULL,
+    target_annual_salary_minor  INTEGER NOT NULL,
+    billable_days_per_year      INTEGER NOT NULL,
+    tax_rate_basis_points       INTEGER NOT NULL DEFAULT 0,
+    annual_overhead_minor       INTEGER,
+    profit_margin_basis_points  INTEGER NOT NULL DEFAULT 0,
+    created_at                  INTEGER NOT NULL,
+    updated_at                  INTEGER NOT NULL,
+    deleted_at                  INTEGER,
+    version                     INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE UNIQUE INDEX codb_profile_studio_idx ON codb_profile(studio_id);
+
+selectForStudio:
+SELECT *
+FROM codb_profile
+WHERE studio_id = :studioId AND deleted_at IS NULL;
+
+insertOrIgnore:
+INSERT OR IGNORE INTO codb_profile(
+    id, studio_id, currency, target_annual_salary_minor, billable_days_per_year,
+    tax_rate_basis_points, annual_overhead_minor, profit_margin_basis_points,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE codb_profile
+SET currency                   = :currency,
+    target_annual_salary_minor = :targetAnnualSalaryMinor,
+    billable_days_per_year     = :billableDaysPerYear,
+    tax_rate_basis_points      = :taxRateBasisPoints,
+    annual_overhead_minor      = :annualOverheadMinor,
+    profit_margin_basis_points = :profitMarginBasisPoints,
+    updated_at                 = :updatedAt,
+    deleted_at                 = :deletedAt,
+    version                    = :version
+WHERE id = :id;

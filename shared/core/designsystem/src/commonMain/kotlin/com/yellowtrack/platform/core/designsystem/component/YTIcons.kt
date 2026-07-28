@@ -23,6 +23,7 @@ import com.composables.icons.tabler.outline.Mail
 import com.composables.icons.tabler.outline.Phone
 import com.composables.icons.tabler.outline.Photo
 import com.composables.icons.tabler.outline.Plus
+import com.composables.icons.tabler.outline.Receipt
 import com.composables.icons.tabler.outline.Search
 import com.composables.icons.tabler.outline.Settings
 import com.composables.icons.tabler.outline.Stack
@@ -37,6 +38,7 @@ object YTIcons {
     val Clients: ImageVector = Tabler.Outline.Users
     val Sessions: ImageVector = Tabler.Outline.CalendarEvent
     val Studio: ImageVector = Tabler.Outline.Camera
+    val Ledger: ImageVector = Tabler.Outline.Receipt
     val Settings: ImageVector = Tabler.Outline.Settings
 
     // Status

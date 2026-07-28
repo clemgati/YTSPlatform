@@ -1,0 +1,69 @@
+-- A person. Separate from `client`, because a wedding has two decision-makers and a
+-- commercial job has a brief-giver, an approver, and a payer.
+--
+-- Contact methods are stored as JSON arrays rather than in a child table: they are always
+-- loaded with their contact and never queried independently, and the column maps cleanly
+-- onto a Postgres JSONB column when the server arrives.
+CREATE TABLE contact (
+    id          TEXT    NOT NULL PRIMARY KEY,
+    studio_id   TEXT    NOT NULL,
+    first_name  TEXT    NOT NULL,
+    last_name   TEXT    NOT NULL,
+    company     TEXT,
+    job_title   TEXT,
+    emails      TEXT    NOT NULL DEFAULT '[]',
+    phones      TEXT    NOT NULL DEFAULT '[]',
+    notes       TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER,
+    version     INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX contact_studio_idx ON contact(studio_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM contact
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY last_name COLLATE NOCASE, first_name COLLATE NOCASE;
+
+selectById:
+SELECT *
+FROM contact
+WHERE id = :id AND deleted_at IS NULL;
+
+selectByIds:
+SELECT *
+FROM contact
+WHERE id IN :ids AND deleted_at IS NULL;
+
+-- Upsert is expressed as INSERT OR IGNORE followed by UPDATE, run in one transaction,
+-- rather than as ON CONFLICT DO UPDATE. SQLite gained UPSERT in 3.24, which Android only
+-- ships from API 30; this project supports API 24. INSERT OR REPLACE is not an option
+-- either, because it deletes the row first and would trip the foreign keys that reference it.
+insertOrIgnore:
+INSERT OR IGNORE INTO contact(
+    id, studio_id, first_name, last_name, company, job_title,
+    emails, phones, notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE contact
+SET first_name = :firstName,
+    last_name  = :lastName,
+    company    = :company,
+    job_title  = :jobTitle,
+    emails     = :emails,
+    phones     = :phones,
+    notes      = :notes,
+    updated_at = :updatedAt,
+    deleted_at = :deletedAt,
+    version    = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE contact
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

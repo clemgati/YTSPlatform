@@ -15,6 +15,10 @@ import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.feature.clients.ClientDetailsRoute
 import com.yellowtrack.platform.feature.clients.ClientsRoute
 import com.yellowtrack.platform.feature.dashboard.DashboardRoute
+import com.yellowtrack.platform.feature.ledger.LedgerRoute
+import com.yellowtrack.platform.feature.sessions.SessionsRoute
+import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
+import com.yellowtrack.platform.feature.studio.StudioRoute
 
 @Composable
 fun AppShell(
@@ -24,17 +28,12 @@ fun AppShell(
     BoxWithConstraints(
         modifier = modifier.fillMaxSize(),
     ) {
-        val useExpandedNavigation =
-            maxWidth >= ExpandedNavigationBreakpoint
+        val useExpandedNavigation = maxWidth >= ExpandedNavigationBreakpoint
 
         if (useExpandedNavigation) {
-            ExpandedAppShell(
-                appState = appState,
-            )
+            ExpandedAppShell(appState = appState)
         } else {
-            CompactAppShell(
-                appState = appState,
-            )
+            CompactAppShell(appState = appState)
         }
     }
 }
@@ -46,14 +45,12 @@ private fun ExpandedAppShell(appState: AppState) {
         color = YTTheme.colors.background,
         contentColor = YTTheme.colors.onBackground,
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-        ) {
+        Row(modifier = Modifier.fillMaxSize()) {
             ExpandedSidebar(
                 currentDestination = appState.currentDestination,
                 onDestinationSelected = appState::navigateTopLevel,
             )
-            CurrentDestination(
+            CurrentRoute(
                 appState,
                 modifier = Modifier.weight(1f),
             )
@@ -72,65 +69,57 @@ private fun CompactAppShell(appState: AppState) {
             )
         },
     ) { contentPadding ->
-        CurrentDestination(
+        CurrentRoute(
             appState,
             modifier = Modifier.padding(contentPadding),
         )
     }
 }
 
+/**
+ * Renders the top of the back stack.
+ *
+ * Exhaustive over [AppRoute], so adding a destination is a compile error here until it is
+ * wired up — which is how Sessions, Studio, and Settings previously ended up as silently
+ * empty branches.
+ */
 @Composable
-private fun CurrentDestination(
+private fun CurrentRoute(
     appState: AppState,
     modifier: Modifier = Modifier,
 ) {
-    when (appState.currentDestination) {
-        AppDestination.Dashboard ->
-            DashboardRoute(
+    when (val route = appState.currentRoute) {
+        AppRoute.Dashboard -> DashboardRoute(modifier = modifier)
+
+        AppRoute.Clients ->
+            ClientsRoute(
+                onClientSelected = appState::openClient,
                 modifier = modifier,
             )
 
-        AppDestination.Clients ->
-            ClientsDestination(
-                appState = appState,
+        is AppRoute.ClientDetails ->
+            ClientDetailsRoute(
+                clientId = route.clientId,
+                onBack = appState::navigateBack,
+                onScheduleSession = { appState.navigateTopLevel(AppDestination.Sessions) },
+                onEditClient = { /* YTP-013C: open the client editor. */ },
+                onArchiveClient = { /* Future: archive confirmation. */ },
                 modifier = modifier,
             )
 
-        AppDestination.Sessions -> {}
+        AppRoute.Sessions ->
+            SessionsRoute(
+                // Session details arrive with the Shoot Day milestone. Selecting a session
+                // does nothing yet rather than pushing a route with no screen behind it.
+                onSessionSelected = { },
+                modifier = modifier,
+            )
 
-        AppDestination.Studio -> {}
+        AppRoute.Ledger -> LedgerRoute(modifier = modifier)
 
-        AppDestination.Settings -> {}
-    }
-}
+        AppRoute.Studio -> StudioRoute(modifier = modifier)
 
-@Composable
-private fun ClientsDestination(
-    appState: AppState,
-    modifier: Modifier = Modifier,
-) {
-    val selectedClientId = appState.selectedClientId
-
-    if (selectedClientId == null) {
-        ClientsRoute(
-            onClientSelected = appState::openClient,
-            modifier = modifier,
-        )
-    } else {
-        ClientDetailsRoute(
-            clientId = selectedClientId,
-            onBack = appState::closeClientDetails,
-            onScheduleSession = { clientId ->
-                // YTP-014: open session scheduling for clientId.
-            },
-            onEditClient = { clientId ->
-                // YTP-013C: open the client editor for clientId.
-            },
-            onArchiveClient = { clientId ->
-                // Future: show archive confirmation for clientId.
-            },
-            modifier = modifier,
-        )
+        AppRoute.Settings -> SettingsScreen(modifier = modifier)
     }
 }
 

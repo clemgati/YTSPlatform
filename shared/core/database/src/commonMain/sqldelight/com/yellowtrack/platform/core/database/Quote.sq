@@ -1,0 +1,72 @@
+-- A priced proposal. Lines are JSON for the same reason as on invoice.
+CREATE TABLE quote (
+    id          TEXT    NOT NULL PRIMARY KEY,
+    studio_id   TEXT    NOT NULL,
+    project_id  TEXT    NOT NULL,
+    number      TEXT    NOT NULL,
+    status      TEXT    NOT NULL,
+    currency    TEXT    NOT NULL,
+    lines       TEXT    NOT NULL DEFAULT '[]',
+    issued_at   INTEGER,
+    valid_until INTEGER,
+    accepted_at INTEGER,
+    declined_at INTEGER,
+    notes       TEXT,
+    terms       TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER,
+    version     INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX quote_studio_idx ON quote(studio_id, deleted_at);
+CREATE INDEX quote_project_idx ON quote(project_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM quote
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY created_at DESC;
+
+selectById:
+SELECT *
+FROM quote
+WHERE id = :id AND deleted_at IS NULL;
+
+selectByProject:
+SELECT *
+FROM quote
+WHERE project_id = :projectId AND deleted_at IS NULL
+ORDER BY created_at DESC;
+
+insertOrIgnore:
+INSERT OR IGNORE INTO quote(
+    id, studio_id, project_id, number, status, currency, lines,
+    issued_at, valid_until, accepted_at, declined_at, notes, terms,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE quote
+SET project_id  = :projectId,
+    number      = :number,
+    status      = :status,
+    currency    = :currency,
+    lines       = :lines,
+    issued_at   = :issuedAt,
+    valid_until = :validUntil,
+    accepted_at = :acceptedAt,
+    declined_at = :declinedAt,
+    notes       = :notes,
+    terms       = :terms,
+    updated_at  = :updatedAt,
+    deleted_at  = :deletedAt,
+    version     = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE quote
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

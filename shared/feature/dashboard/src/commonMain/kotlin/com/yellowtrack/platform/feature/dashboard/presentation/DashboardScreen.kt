@@ -10,23 +10,45 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.lead.LeadId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardEnquiriesSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardHeader
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardRecentClientsSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardStudioStatusSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardTodaySessionsSection
+import com.yellowtrack.platform.feature.dashboard.presentation.component.EnquiryFormDialog
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSummary
+import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
 
 @Composable
 internal fun DashboardScreen(
     uiState: DashboardUiState,
     onRetry: () -> Unit,
+    onMarkEnquiryReplied: (LeadId) -> Unit,
+    onAddEnquiry: (NewEnquiry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showEnquiryForm by remember { mutableStateOf(false) }
+
+    if (showEnquiryForm) {
+        EnquiryFormDialog(
+            onSave = {
+                onAddEnquiry(it)
+                showEnquiryForm = false
+            },
+            onDismiss = { showEnquiryForm = false },
+        )
+    }
+
     StatefulContent(
         state = uiState.summary,
         modifier = modifier.fillMaxSize(),
@@ -39,6 +61,8 @@ internal fun DashboardScreen(
     ) { summary, contentModifier ->
         DashboardContent(
             summary = summary,
+            onMarkEnquiryReplied = onMarkEnquiryReplied,
+            onAddEnquiry = { showEnquiryForm = true },
             modifier = contentModifier,
         )
     }
@@ -47,6 +71,8 @@ internal fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     summary: DashboardSummary,
+    onMarkEnquiryReplied: (LeadId) -> Unit,
+    onAddEnquiry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -60,7 +86,17 @@ private fun DashboardContent(
                 YTTheme.spacing.large,
             ),
     ) {
-        DashboardHeader()
+        DashboardHeader(today = summary.todayLabel)
+
+        // Placed above the schedule: an unanswered enquiry is the only thing here that
+        // gets worse purely by being left alone. Shown even when empty, so there is always
+        // somewhere to log one from.
+        DashboardEnquiriesSection(
+            enquiries = summary.enquiriesAwaitingReply,
+            onMarkReplied = onMarkEnquiryReplied,
+            onAddEnquiry = onAddEnquiry,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         BoxWithConstraints(
             modifier = Modifier.fillMaxWidth(),

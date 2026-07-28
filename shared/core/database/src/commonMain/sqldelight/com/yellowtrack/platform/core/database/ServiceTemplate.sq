@@ -1,0 +1,71 @@
+-- A reusable definition of a kind of work. This is how one schema serves weddings,
+-- brand video, real estate, and headshots: the business lines differ in these values,
+-- not in code.
+CREATE TABLE service_template (
+    id                             TEXT    NOT NULL PRIMARY KEY,
+    studio_id                      TEXT    NOT NULL,
+    name                           TEXT    NOT NULL,
+    service_line                   TEXT    NOT NULL,
+    default_session_duration_min   INTEGER NOT NULL,
+    default_session_count          INTEGER NOT NULL DEFAULT 1,
+    base_price_minor               INTEGER,
+    base_price_currency            TEXT,
+    default_deliverable_count      INTEGER,
+    default_turnaround_days        INTEGER,
+    default_revision_rounds        INTEGER,
+    notes                          TEXT,
+    created_at                     INTEGER NOT NULL,
+    updated_at                     INTEGER NOT NULL,
+    deleted_at                     INTEGER,
+    version                        INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX service_template_studio_idx ON service_template(studio_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM service_template
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY service_line, name COLLATE NOCASE;
+
+selectById:
+SELECT *
+FROM service_template
+WHERE id = :id AND deleted_at IS NULL;
+
+countForStudio:
+SELECT COUNT(*)
+FROM service_template
+WHERE studio_id = :studioId AND deleted_at IS NULL;
+
+-- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
+insertOrIgnore:
+INSERT OR IGNORE INTO service_template(
+    id, studio_id, name, service_line, default_session_duration_min,
+    default_session_count, base_price_minor, base_price_currency,
+    default_deliverable_count, default_turnaround_days, default_revision_rounds,
+    notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE service_template
+SET name                         = :name,
+    service_line                 = :serviceLine,
+    default_session_duration_min = :defaultSessionDurationMin,
+    default_session_count        = :defaultSessionCount,
+    base_price_minor             = :basePriceMinor,
+    base_price_currency          = :basePriceCurrency,
+    default_deliverable_count    = :defaultDeliverableCount,
+    default_turnaround_days      = :defaultTurnaroundDays,
+    default_revision_rounds      = :defaultRevisionRounds,
+    notes                        = :notes,
+    updated_at                   = :updatedAt,
+    deleted_at                   = :deletedAt,
+    version                      = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE service_template
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

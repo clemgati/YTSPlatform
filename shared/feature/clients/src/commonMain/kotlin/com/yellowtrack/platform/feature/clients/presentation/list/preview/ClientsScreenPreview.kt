@@ -12,6 +12,7 @@ private fun ClientsScreenPreview() {
         ClientsScreen(
             uiState = ClientsPreviewData.successState,
             onRetry = {},
+            onQueryChange = {},
             onClientSelected = {},
         )
     }
@@ -24,6 +25,7 @@ private fun ClientsScreenLoadingPreview() {
         ClientsScreen(
             uiState = ClientsPreviewData.loadingState,
             onRetry = {},
+            onQueryChange = {},
             onClientSelected = {},
         )
     }
@@ -36,6 +38,7 @@ private fun ClientsScreenEmptyPreview() {
         ClientsScreen(
             uiState = ClientsPreviewData.emptyState,
             onRetry = {},
+            onQueryChange = {},
             onClientSelected = {},
         )
     }
@@ -48,6 +51,7 @@ private fun ClientsScreenErrorPreview() {
         ClientsScreen(
             uiState = ClientsPreviewData.errorState,
             onRetry = {},
+            onQueryChange = {},
             onClientSelected = {},
         )
     }

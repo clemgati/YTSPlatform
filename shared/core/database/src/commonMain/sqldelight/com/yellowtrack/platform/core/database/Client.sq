@@ -1,0 +1,112 @@
+-- A client account: an individual, a couple, a company, or an agency.
+CREATE TABLE client (
+    id           TEXT    NOT NULL PRIMARY KEY,
+    studio_id    TEXT    NOT NULL,
+    account_name TEXT    NOT NULL,
+    account_type TEXT    NOT NULL,
+    notes        TEXT,
+    tags         TEXT    NOT NULL DEFAULT '[]',
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL,
+    deleted_at   INTEGER,
+    version      INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX client_studio_idx ON client(studio_id, deleted_at);
+
+-- People belong to accounts through a role, rather than being the account.
+CREATE TABLE client_contact (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    studio_id  TEXT    NOT NULL,
+    client_id  TEXT    NOT NULL,
+    contact_id TEXT    NOT NULL,
+    role       TEXT    NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    version    INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (client_id) REFERENCES client(id),
+    FOREIGN KEY (contact_id) REFERENCES contact(id)
+);
+
+CREATE UNIQUE INDEX client_contact_unique_idx
+    ON client_contact(client_id, contact_id, role);
+
+CREATE INDEX client_contact_client_idx ON client_contact(client_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM client
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY account_name COLLATE NOCASE;
+
+selectById:
+SELECT *
+FROM client
+WHERE id = :id AND deleted_at IS NULL;
+
+search:
+SELECT DISTINCT client.*
+FROM client
+LEFT JOIN client_contact ON client_contact.client_id = client.id AND client_contact.deleted_at IS NULL
+LEFT JOIN contact ON contact.id = client_contact.contact_id AND contact.deleted_at IS NULL
+WHERE client.studio_id = :studioId
+  AND client.deleted_at IS NULL
+  AND (
+      client.account_name LIKE :query ESCAPE '\'
+      OR contact.first_name LIKE :query ESCAPE '\'
+      OR contact.last_name LIKE :query ESCAPE '\'
+      OR contact.company LIKE :query ESCAPE '\'
+  )
+ORDER BY client.account_name COLLATE NOCASE;
+
+-- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
+insertOrIgnore:
+INSERT OR IGNORE INTO client(
+    id, studio_id, account_name, account_type, notes, tags,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE client
+SET account_name = :accountName,
+    account_type = :accountType,
+    notes        = :notes,
+    tags         = :tags,
+    updated_at   = :updatedAt,
+    deleted_at   = :deletedAt,
+    version      = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE client
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;
+
+selectContactsForStudio:
+SELECT contact.*, client_contact.role, client_contact.client_id
+FROM client_contact
+JOIN contact ON contact.id = client_contact.contact_id
+WHERE client_contact.studio_id = :studioId
+  AND client_contact.deleted_at IS NULL
+  AND contact.deleted_at IS NULL;
+
+insertOrIgnoreClientContact:
+INSERT OR IGNORE INTO client_contact(
+    id, studio_id, client_id, contact_id, role,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Revives a link that was previously soft-deleted, keyed on the natural unique triple
+-- rather than the surrogate id, since the caller regenerates ids on each save.
+reviveClientContact:
+UPDATE client_contact
+SET deleted_at = NULL, updated_at = :updatedAt, version = version + 1
+WHERE client_id = :clientId AND contact_id = :contactId AND role = :role;
+
+softDeleteContactsForClient:
+UPDATE client_contact
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE client_id = :clientId AND deleted_at IS NULL;

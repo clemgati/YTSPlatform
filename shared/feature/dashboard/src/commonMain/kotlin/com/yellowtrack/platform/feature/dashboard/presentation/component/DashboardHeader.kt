@@ -8,18 +8,22 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 
+/**
+ * The badge previously read "Genesis" — the codename of the 0.1.0 milestone, left over
+ * from the original scaffold and meaningless to anyone using the application. It now
+ * carries today's date, which is the one piece of context a shoot-day tool should always
+ * be showing.
+ */
 @Composable
-internal fun DashboardHeader(modifier: Modifier = Modifier) {
+internal fun DashboardHeader(
+    today: String,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier,
-        verticalArrangement =
-            Arrangement.spacedBy(
-                YTTheme.spacing.small,
-            ),
+        verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
     ) {
-        YTBadge(
-            text = "Genesis",
-        )
+        YTBadge(text = today)
 
         Text(
             text = "Dashboard",
@@ -28,7 +32,7 @@ internal fun DashboardHeader(modifier: Modifier = Modifier) {
         )
 
         Text(
-            text = "Your sessions, recent clients, and studio readiness at a glance.",
+            text = "Enquiries waiting on you, today's schedule, and recent clients.",
             style = YTTheme.typography.bodyLarge,
             color = YTTheme.colors.onSurfaceVariant,
         )

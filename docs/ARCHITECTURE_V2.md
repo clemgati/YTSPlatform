@@ -42,20 +42,23 @@ shared/
 
     core/
 
-        designsystem/
-        ui/
-        model/
-        data/
-        database/
-        network/
-        preferences/
-        testing/
+        common/        implemented
+        designsystem/  implemented
+        ui/            implemented
+        model/         implemented
+        data/          implemented
+        database/      implemented
+        navigation/    implemented
+        testing/       implemented
+        network/       planned — arrives with the Ktor server
+        preferences/   planned
 
     feature/
 
         dashboard/
         clients/
         sessions/
+        ledger/
         studio/
         settings/
 
@@ -130,29 +133,42 @@ The UI module builds on the Design System.
 
 ---
 
+### core:common
+
+Primitives with no domain meaning.
+
+- `Money` — integer minor units plus an explicit currency, never a floating-point number
+- UUID v7 generation, so records can be created offline
+- `AppClock`, injected rather than called statically so tests can control time
+- `DateFormats`
+- Platform IO dispatchers
+
+---
+
 ### core:model
 
-Shared domain models.
+Shared domain models. See `docs/DOMAIN_MODEL.md` for the full entity graph.
 
-Examples:
+Implemented: `Contact`, `Client`, `ClientContact`, `Project`, `Session`,
+`ServiceTemplate`, `AuditMetadata`, `StudioId`.
 
-- Client
-- Session
-- Equipment
-- Studio
-- Project
-
-Only concepts shared by multiple features belong here.
+**This module must depend on neither Compose nor SQLDelight.** That constraint is what
+allows the Ktor server to depend on the same module, so that one definition of every
+entity is compiled into both the client and the server, and contract drift becomes a
+build failure rather than a production bug.
 
 ---
 
 ### core:data
 
-Repository contracts.
+Repository contracts **and** their implementations, plus the mapping between database
+rows and domain objects.
 
-Contains interfaces only.
+Repositories live here rather than inside a feature because more than one feature needs
+them: Dashboard aggregates clients, projects, and sessions, and features must not depend
+on one another.
 
-Implementations live elsewhere.
+Reads are exposed as `Flow`, so a change made on one screen appears on every other.
 
 ---
 
@@ -162,10 +178,17 @@ Persistence.
 
 Contains:
 
-- Room
-- SQL
-- DAOs
-- Entity mapping
+- SQLDelight schema (`.sq`) and generated queries
+- Platform driver factories for Android, iOS, desktop, and web
+- Versioned schema snapshots under `src/commonMain/sqldelight/databases`
+
+Two consequences worth knowing:
+
+- The generated API is **asynchronous** (`generateAsync`), because the web worker driver
+  is. This keeps one API shape across all four targets rather than forking the data layer.
+- Upserts are expressed as `INSERT OR IGNORE` followed by `UPDATE`, not
+  `ON CONFLICT DO UPDATE`. SQLite gained UPSERT in 3.24, which Android only ships from
+  API 30, and this project supports API 24.
 
 ---
 
@@ -195,6 +218,35 @@ Examples:
 
 ---
 
+### core:navigation
+
+Navigation state, as plain Kotlin.
+
+Contains:
+
+- `BackStack` — an immutable, never-empty navigation stack
+
+Independent of Compose and of any platform navigation framework, per ADR 0005, so that
+navigation behaviour is testable without a UI. `AppState` adapts it into observable
+Compose state.
+
+---
+
+### core:testing
+
+Test support shared by every module.
+
+Contains:
+
+- Fakes for the repository contracts in `core:data`
+- `TestAppClock` — a clock tests can move
+- `TestData` — domain builders whose every parameter has a default
+
+Consumed only by test source sets. Note that `core:testing` depends on `core:data`, so
+`core:data`'s own tests deliberately build their own fixtures to avoid a dependency cycle.
+
+---
+
 # Features
 
 Each feature owns its business logic.
@@ -208,12 +260,30 @@ Feature structure:
 ```
 feature/
 
-    dashboard/
+    clients/
+
+        ClientsRoute.kt          public entry point
+        ClientDetailsRoute.kt
 
         presentation/
-        domain/
-        data/
+
+            list/
+                ClientsScreen.kt
+                ClientsViewModel.kt
+                ClientsUiState.kt
+                mapper/          domain → presentation model
+                model/           presentation-only types
+                component/       screen-specific composables
+                preview/
+            details/
 ```
+
+Features no longer carry their own `data/` or `domain/` packages. Persistence and
+repository contracts live in `core:data`, because more than one feature needs them —
+Dashboard aggregates clients *and* sessions — and features must not depend on each other.
+
+A feature keeps its own presentation models and mappers. `ClientSummary` is shaped for a
+list row and is not a domain type.
 
 ---
 

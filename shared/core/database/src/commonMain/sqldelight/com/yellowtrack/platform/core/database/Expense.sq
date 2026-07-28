@@ -1,0 +1,151 @@
+-- Money the studio spent.
+--
+-- A null project_id means overhead — insurance, software, rent — which feeds the cost of
+-- doing business. A set project_id means a cost of that job, which is subtracted from its
+-- revenue to give real margin. One table answers both questions.
+CREATE TABLE expense (
+    id                 TEXT    NOT NULL PRIMARY KEY,
+    studio_id          TEXT    NOT NULL,
+    category           TEXT    NOT NULL,
+    description        TEXT    NOT NULL,
+    amount_minor       INTEGER NOT NULL,
+    amount_currency    TEXT    NOT NULL,
+    incurred_on        TEXT    NOT NULL,
+    project_id         TEXT,
+    vendor             TEXT,
+    is_tax_deductible  INTEGER NOT NULL DEFAULT 1,
+    receipt_reference  TEXT,
+    notes              TEXT,
+    created_at         INTEGER NOT NULL,
+    updated_at         INTEGER NOT NULL,
+    deleted_at         INTEGER,
+    version            INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX expense_studio_date_idx ON expense(studio_id, incurred_on, deleted_at);
+CREATE INDEX expense_project_idx ON expense(project_id, deleted_at);
+
+-- Journeys made for work. Not money spent but a deduction claimed, which is why the rate
+-- is stored per record: published rates change annually and a journey keeps the rate that
+-- applied when it happened.
+CREATE TABLE mileage (
+    id             TEXT    NOT NULL PRIMARY KEY,
+    studio_id      TEXT    NOT NULL,
+    travelled_on   TEXT    NOT NULL,
+    distance       REAL    NOT NULL,
+    unit           TEXT    NOT NULL,
+    rate_minor     INTEGER NOT NULL,
+    rate_currency  TEXT    NOT NULL,
+    project_id     TEXT,
+    purpose        TEXT,
+    from_location  TEXT,
+    to_location    TEXT,
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    deleted_at     INTEGER,
+    version        INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX mileage_studio_date_idx ON mileage(studio_id, travelled_on, deleted_at);
+CREATE INDEX mileage_project_idx ON mileage(project_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM expense
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY incurred_on DESC;
+
+selectById:
+SELECT *
+FROM expense
+WHERE id = :id AND deleted_at IS NULL;
+
+selectByProject:
+SELECT *
+FROM expense
+WHERE project_id = :projectId AND deleted_at IS NULL
+ORDER BY incurred_on;
+
+-- Overhead only: the input to cost of doing business.
+selectOverheadBetween:
+SELECT *
+FROM expense
+WHERE studio_id = :studioId
+  AND deleted_at IS NULL
+  AND project_id IS NULL
+  AND incurred_on >= :fromInclusive
+  AND incurred_on < :toExclusive
+ORDER BY incurred_on;
+
+insertOrIgnore:
+INSERT OR IGNORE INTO expense(
+    id, studio_id, category, description, amount_minor, amount_currency,
+    incurred_on, project_id, vendor, is_tax_deductible, receipt_reference, notes,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE expense
+SET category          = :category,
+    description       = :description,
+    amount_minor      = :amountMinor,
+    amount_currency   = :amountCurrency,
+    incurred_on       = :incurredOn,
+    project_id        = :projectId,
+    vendor            = :vendor,
+    is_tax_deductible = :isTaxDeductible,
+    receipt_reference = :receiptReference,
+    notes             = :notes,
+    updated_at        = :updatedAt,
+    deleted_at        = :deletedAt,
+    version           = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE expense
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;
+
+selectAllMileage:
+SELECT *
+FROM mileage
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY travelled_on DESC;
+
+selectMileageByProject:
+SELECT *
+FROM mileage
+WHERE project_id = :projectId AND deleted_at IS NULL
+ORDER BY travelled_on;
+
+insertOrIgnoreMileage:
+INSERT OR IGNORE INTO mileage(
+    id, studio_id, travelled_on, distance, unit, rate_minor, rate_currency,
+    project_id, purpose, from_location, to_location,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateMileage:
+UPDATE mileage
+SET travelled_on  = :travelledOn,
+    distance      = :distance,
+    unit          = :unit,
+    rate_minor    = :rateMinor,
+    rate_currency = :rateCurrency,
+    project_id    = :projectId,
+    purpose       = :purpose,
+    from_location = :fromLocation,
+    to_location   = :toLocation,
+    updated_at    = :updatedAt,
+    deleted_at    = :deletedAt,
+    version       = :version
+WHERE id = :id;
+
+softDeleteMileage:
+UPDATE mileage
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;
