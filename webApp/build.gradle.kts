@@ -24,6 +24,8 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
+            // Copies sql.js's wasm binary to the served root — see webpack.config.d/sqljs.js.
+            implementation(devNpm("copy-webpack-plugin", "9.1.0"))
         }
     }
 }

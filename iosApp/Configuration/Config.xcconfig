@@ -5,3 +5,8 @@ PRODUCT_BUNDLE_IDENTIFIER=com.yellowtrack.platform.yellow-track-platform-bootstr
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=1.0
+
+// The Shared framework is static and uses SQLDelight's NativeSqliteDriver, which
+// calls into the system SQLite. A static framework does not bundle those symbols,
+// so the app link step must pull in libsqlite3 or every sqlite3_* symbol is undefined.
+OTHER_LDFLAGS=$(inherited) -lsqlite3
