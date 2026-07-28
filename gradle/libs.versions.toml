@@ -15,7 +15,7 @@ kotlin = "2.4.10"
 kotlinx-coroutines = "1.11.0"
 material3 = "1.11.0-alpha07"
 ktlintGradle = "14.2.0"
-koin = "4.1.0"
+koin = "4.2.2"
 composeMaterialIcons = "1.7.3"
 composeIcons = "2.2.1"
 
