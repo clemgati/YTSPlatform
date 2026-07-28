@@ -1,36 +1,15 @@
-
 plugins {
-    alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidMultiplatformLibrary)
+    id("yellowtrack.kmp.library")
+    alias(libs.plugins.kotlinSerialization)
 }
 
+// Deliberately depends on neither Compose nor SQLDelight. That constraint is what allows
+// the Ktor server to depend on this module, so that one definition of every entity is
+// compiled into both the client and the server.
 kotlin {
-
-    androidLibrary {
-        namespace = "com.yellowtrack.platform.core.model"
-        compileSdk =
-            libs.versions.android.compileSdk
-                .get()
-                .toInt()
-        minSdk =
-            libs.versions.android.minSdk
-                .get()
-                .toInt()
-    }
-
-    jvm("desktop")
-
-    iosArm64()
-    iosSimulatorArm64()
-
-    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
-    wasmJs {
-        browser()
-    }
-
     sourceSets {
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
+        commonMain.dependencies {
+            api(project(":shared:core:common"))
         }
     }
 }

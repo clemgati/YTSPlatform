@@ -28,6 +28,12 @@ enum class AppDestination(
         icon = YTIcons.Sessions,
     ),
 
+    Ledger(
+        route = "ledger",
+        label = "Ledger",
+        icon = YTIcons.Ledger,
+    ),
+
     Studio(
         route = "studio",
         label = "Studio",

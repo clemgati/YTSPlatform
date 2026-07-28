@@ -83,21 +83,79 @@ The roadmap uses semantic versioning and milestone codenames.
 - Release and support process
 
 
-v0.2.x
-✓ Foundation
-✓ Dashboard
-✓ Clients Foundation
+---
 
-v0.3.x
-□ Client Details
-□ Add/Edit Client
-□ Search
+# Current plan
 
-v0.4.x
-□ Sessions
+The sequence below supersedes the version list above, which was written before the domain
+existed. The largest change is that **money moved forward**: the original roadmap reached
+1.0 without quotes, contracts, invoices, or expenses, which are what decide whether a
+photography business survives. See `docs/DOMAIN_MODEL.md`.
 
-v0.5.x
-□ Studio
+## 0.3.0 — Bedrock ✓
 
-v0.6.x
-□ Persistence
+- ✓ Domain model mapped across the whole business
+- ✓ `Client` as an account; `Project` as the booking, `Session` as a day inside it
+- ✓ Local SQLite persistence on all four targets, with a sync-ready schema
+- ✓ Repositories in `core:data`, exposed as `Flow`
+- ✓ Clients list, detail, and search on real data
+- ✓ Sessions list on real data
+- ✓ Service templates per business line
+- ✓ Test infrastructure: repository, ViewModel, and navigation tests
+
+## 0.4.0 — Ledger ✓
+
+The biggest gap in the original roadmap.
+
+- ✓ Lead capture with source attribution and **first-response time**, surfaced on the
+  Dashboard oldest-first
+- ✓ Invoice, retainer, and payment, with payment state derived rather than stored
+- ✓ Expenses and mileage, linked to a project for job costing or left as overhead
+- ✓ **Cost of doing business** → minimum viable session price, with each package measured
+  against the floor
+- ✓ Quote and contract domain models, tables, and usage licensing
+- ✓ First schema migration, with data-survival tests against the committed v1 artefact
+- ✓ Quote and contract repositories, with quotes surfaced on the Ledger and accepting one
+  raising the invoice that collects it
+- ✓ Create forms for leads, quotes, invoices, expenses, and payments
+- □ Contract creation and signing from a screen
+- □ Line editing, so quotes and invoices can carry more than one line
+- □ Editing and deleting existing records
+
+## 0.5.0 — Shoot Day
+
+- Add and edit client, project, and session
+- Shot lists with grouping, for family formals
+- Locations with computed golden hour and sun position — calculable offline from
+  latitude, longitude, and date; no network required
+- Call sheets, crew, and talent releases
+
+## 0.6.0 — Pipeline
+
+- Ingest and 3-2-1 backup tracking across storage volumes
+- Post-production tasks with **estimated versus actual hours**
+- Deliverables with revision rounds and turnaround SLA
+- Gear inventory with serials and purchase prices, packing lists, maintenance
+- Lighting recipes
+
+## 0.7.0 — Cloud
+
+- Ktor server sharing `core:model`, behind Apache, over cloud Postgres
+- Accounts, authentication, and Row Level Security on `studio_id`
+- Object storage for media, via presigned URLs
+- Synchronisation, landing on a schema that has been ready for it since 0.3.0
+
+## 0.8.0 — Collaboration
+
+- Client proofing, selections, and approvals
+- Second shooters and editors, with roles
+
+## 0.9.0 — Release Candidate
+
+- Accessibility, performance, and migration validation
+- Localisation — `DateFormats` is English-only today
+
+## 1.0.0 — Launch
+
+- Production-ready Studio OS
+- Stable data model and documented upgrade path

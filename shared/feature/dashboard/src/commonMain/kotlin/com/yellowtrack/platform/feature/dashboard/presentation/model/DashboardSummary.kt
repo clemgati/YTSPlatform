@@ -4,4 +4,6 @@ internal data class DashboardSummary(
     val todaysSessions: List<DashboardSession>,
     val recentClients: List<DashboardClient>,
     val studioStatus: DashboardStudioStatus,
+    val enquiriesAwaitingReply: List<DashboardEnquiry> = emptyList(),
+    val todayLabel: String = "",
 )

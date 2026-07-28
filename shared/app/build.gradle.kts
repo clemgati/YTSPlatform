@@ -57,14 +57,19 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            implementation(libs.koin.android)
         }
         commonMain.dependencies {
             implementation(project(":shared:core:designsystem"))
             implementation(project(":shared:core:model"))
+            implementation(project(":shared:core:common"))
+            implementation(project(":shared:core:data"))
+            implementation(project(":shared:core:database"))
             implementation(project(":shared:core:navigation"))
 
             implementation(project(":shared:feature:dashboard"))
             implementation(project(":shared:feature:clients"))
+            implementation(project(":shared:feature:ledger"))
             implementation(project(":shared:feature:sessions"))
             implementation(project(":shared:feature:studio"))
             implementation(project(":shared:feature:settings"))
@@ -81,6 +86,9 @@ kotlin {
             implementation(libs.koin.core)
             // Add only when shared Compose code injects dependencies directly.
             implementation(libs.koin.compose)
+            implementation(libs.koin.coreViewmodel)
+            implementation(libs.koin.composeViewmodel)
+            implementation(libs.kotlinx.coroutines.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

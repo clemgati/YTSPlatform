@@ -1,14 +1,14 @@
 package com.yellowtrack.platform.feature.clients
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yellowtrack.platform.core.model.client.ClientId
-import com.yellowtrack.platform.feature.clients.data.InMemoryClientRepository
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsScreen
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsViewModel
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 fun ClientDetailsRoute(
@@ -19,29 +19,20 @@ fun ClientDetailsRoute(
     onArchiveClient: (ClientId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val viewModel =
-        remember(clientId) {
-            ClientDetailsViewModel(
-                clientId = clientId,
-                clientRepository = InMemoryClientRepository(),
-            )
-        }
+    // Keyed on the client so navigating between two clients builds a new ViewModel rather
+    // than reusing one still bound to the previous identifier.
+    val viewModel: ClientDetailsViewModel =
+        koinViewModel(key = clientId.value) { parametersOf(clientId) }
 
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     ClientDetailsScreen(
         uiState = uiState,
         onRetry = viewModel::retry,
         onBack = onBack,
-        onScheduleSession = {
-            onScheduleSession(clientId)
-        },
-        onEditClient = {
-            onEditClient(clientId)
-        },
-        onArchiveClient = {
-            onArchiveClient(clientId)
-        },
+        onScheduleSession = { onScheduleSession(clientId) },
+        onEditClient = { onEditClient(clientId) },
+        onArchiveClient = { onArchiveClient(clientId) },
         modifier = modifier,
     )
 }

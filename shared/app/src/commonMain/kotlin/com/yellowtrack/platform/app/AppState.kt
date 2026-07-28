@@ -6,31 +6,42 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.navigation.BackStack
 
+/**
+ * Top-level navigation state.
+ *
+ * Adapts the platform-independent [BackStack] into observable Compose state. Per ADR 0005
+ * there is a single stack, and selecting a top-level destination resets it.
+ */
 class AppState internal constructor() {
-    var currentDestination by mutableStateOf(AppDestination.Dashboard)
-        private set
+    private var backStack by mutableStateOf(BackStack.of<AppRoute>(AppRoute.Dashboard))
 
-    var selectedClientId by mutableStateOf<ClientId?>(null)
-        private set
+    val currentRoute: AppRoute get() = backStack.current
+
+    val currentDestination: AppDestination get() = currentRoute.destination
+
+    val canNavigateBack: Boolean get() = backStack.canNavigateBack
 
     fun navigateTopLevel(destination: AppDestination) {
-        currentDestination = destination
-        selectedClientId = null
+        backStack =
+            if (destination == currentDestination) {
+                // Tapping the current tab returns to its root rather than doing nothing,
+                // which is the behaviour people expect from a bottom navigation bar.
+                backStack.popToRoot()
+            } else {
+                backStack.resetTo(destination.rootRoute)
+            }
     }
 
     fun openClient(clientId: ClientId) {
-        currentDestination = AppDestination.Clients
-        selectedClientId = clientId
+        backStack = backStack.push(AppRoute.ClientDetails(clientId))
     }
 
-    fun closeClientDetails() {
-        selectedClientId = null
+    fun navigateBack() {
+        backStack = backStack.pop()
     }
 }
 
 @Composable
-fun rememberAppState(): AppState =
-    remember {
-        AppState()
-    }
+fun rememberAppState(): AppState = remember { AppState() }

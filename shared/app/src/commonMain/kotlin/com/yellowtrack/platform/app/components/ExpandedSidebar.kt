@@ -17,7 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.yellowtrack.platform.app.AppDestination
-import com.yellowtrack.platform.core.designsystem.component.YTBadge
+import com.yellowtrack.platform.app.AppInfo
 import com.yellowtrack.platform.core.designsystem.component.YTIcon
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 
@@ -45,8 +45,6 @@ fun ExpandedSidebar(
             color = YTTheme.colors.onSurface,
         )
 
-        YTBadge(text = "Genesis")
-
         Spacer(
             modifier =
                 Modifier.padding(
@@ -69,7 +67,7 @@ fun ExpandedSidebar(
         )
 
         Text(
-            text = "0.1.0",
+            text = AppInfo.VERSION,
             style = YTTheme.typography.labelMedium,
             color = YTTheme.colors.onSurfaceVariant,
         )

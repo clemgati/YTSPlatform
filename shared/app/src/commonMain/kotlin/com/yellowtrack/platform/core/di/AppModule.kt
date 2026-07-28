@@ -1,14 +1,24 @@
 package com.yellowtrack.platform.core.di
 
+import com.yellowtrack.platform.core.data.dataModule
+import com.yellowtrack.platform.feature.clients.clientsModule
+import com.yellowtrack.platform.feature.dashboard.dashboardModule
+import com.yellowtrack.platform.feature.ledger.ledgerModule
+import com.yellowtrack.platform.feature.sessions.sessionsModule
 import org.koin.dsl.module
 
 /**
- * Dependencies whose implementations are shared by every platform.
+ * Dependencies shared by every platform.
  *
- * YTP-009A intentionally leaves this module empty. Services,
- * repositories, and use cases will be registered in later tasks.
+ * Only the app module composes features; features never reference one another.
  */
 val appModule =
     module {
-        // Shared dependencies will be registered here.
+        includes(
+            dataModule,
+            dashboardModule,
+            clientsModule,
+            ledgerModule,
+            sessionsModule,
+        )
     }

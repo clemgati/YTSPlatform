@@ -17,6 +17,7 @@ private fun DashboardHeaderPreview() {
             color = YTTheme.colors.background,
         ) {
             DashboardHeader(
+                today = "Saturday, June 13",
                 modifier =
                     Modifier.padding(
                         YTTheme.spacing.large,

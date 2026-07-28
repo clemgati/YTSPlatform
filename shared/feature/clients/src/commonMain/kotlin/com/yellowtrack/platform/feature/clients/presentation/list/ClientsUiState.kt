@@ -5,4 +5,7 @@ import com.yellowtrack.platform.feature.clients.presentation.list.model.ClientSu
 
 internal data class ClientsUiState(
     val clients: UiState<List<ClientSummary>>,
+    val query: String = "",
+    /** Distinguishes "no clients yet" from "no clients match this search". */
+    val isSearching: Boolean = false,
 )

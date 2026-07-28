@@ -1,0 +1,199 @@
+-- Migration 1 → 2: the ledger.
+--
+-- Adds the money layer: enquiries, quotes, contracts, invoices, payments, expenses,
+-- mileage, and the cost-of-doing-business profile.
+--
+-- Purely additive. No existing table is altered and no existing row is touched, so a
+-- studio that already has clients, projects, and sessions keeps every one of them.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+CREATE TABLE lead (
+    id                    TEXT    NOT NULL PRIMARY KEY,
+    studio_id             TEXT    NOT NULL,
+    name                  TEXT    NOT NULL,
+    source                TEXT    NOT NULL,
+    status                TEXT    NOT NULL,
+    received_at           INTEGER NOT NULL,
+    email                 TEXT,
+    phone                 TEXT,
+    first_response_at     INTEGER,
+    service_line          TEXT,
+    desired_date          TEXT,
+    budget_low_minor      INTEGER,
+    budget_high_minor     INTEGER,
+    budget_currency       TEXT,
+    referred_by           TEXT,
+    lost_reason           TEXT,
+    converted_project_id  TEXT,
+    converted_client_id   TEXT,
+    notes                 TEXT,
+    created_at            INTEGER NOT NULL,
+    updated_at            INTEGER NOT NULL,
+    deleted_at            INTEGER,
+    version               INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX lead_studio_status_idx ON lead(studio_id, status, deleted_at);
+CREATE INDEX lead_received_idx ON lead(studio_id, received_at);
+
+CREATE TABLE quote (
+    id          TEXT    NOT NULL PRIMARY KEY,
+    studio_id   TEXT    NOT NULL,
+    project_id  TEXT    NOT NULL,
+    number      TEXT    NOT NULL,
+    status      TEXT    NOT NULL,
+    currency    TEXT    NOT NULL,
+    lines       TEXT    NOT NULL DEFAULT '[]',
+    issued_at   INTEGER,
+    valid_until INTEGER,
+    accepted_at INTEGER,
+    declined_at INTEGER,
+    notes       TEXT,
+    terms       TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER,
+    version     INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX quote_studio_idx ON quote(studio_id, deleted_at);
+CREATE INDEX quote_project_idx ON quote(project_id, deleted_at);
+
+CREATE TABLE contract (
+    id                     TEXT    NOT NULL PRIMARY KEY,
+    studio_id              TEXT    NOT NULL,
+    project_id             TEXT    NOT NULL,
+    title                  TEXT    NOT NULL,
+    status                 TEXT    NOT NULL,
+    sent_at                INTEGER,
+    signed_at              INTEGER,
+    signer_name            TEXT,
+    signer_email           TEXT,
+    retainer_minor         INTEGER,
+    retainer_currency      TEXT,
+    is_retainer_refundable INTEGER NOT NULL DEFAULT 0,
+    turnaround_days        INTEGER,
+    revision_rounds        INTEGER,
+    cancellation_terms     TEXT,
+    reschedule_terms       TEXT,
+    weather_clause         TEXT,
+    usage_license          TEXT,
+    document_reference     TEXT,
+    notes                  TEXT,
+    created_at             INTEGER NOT NULL,
+    updated_at             INTEGER NOT NULL,
+    deleted_at             INTEGER,
+    version                INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX contract_studio_idx ON contract(studio_id, deleted_at);
+CREATE INDEX contract_project_idx ON contract(project_id, deleted_at);
+
+CREATE TABLE invoice (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    studio_id  TEXT    NOT NULL,
+    project_id TEXT    NOT NULL,
+    number     TEXT    NOT NULL,
+    kind       TEXT    NOT NULL,
+    status     TEXT    NOT NULL,
+    currency   TEXT    NOT NULL,
+    lines      TEXT    NOT NULL DEFAULT '[]',
+    issued_at  INTEGER,
+    due_at     INTEGER,
+    notes      TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    version    INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX invoice_studio_idx ON invoice(studio_id, deleted_at);
+CREATE INDEX invoice_project_idx ON invoice(project_id, deleted_at);
+CREATE INDEX invoice_due_idx ON invoice(studio_id, due_at);
+
+CREATE TABLE payment (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    studio_id  TEXT    NOT NULL,
+    invoice_id TEXT    NOT NULL,
+    amount_minor    INTEGER NOT NULL,
+    amount_currency TEXT    NOT NULL,
+    paid_at    INTEGER NOT NULL,
+    method     TEXT    NOT NULL,
+    reference  TEXT,
+    notes      TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    version    INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (invoice_id) REFERENCES invoice(id)
+);
+
+CREATE INDEX payment_invoice_idx ON payment(invoice_id, deleted_at);
+CREATE INDEX payment_studio_idx ON payment(studio_id, paid_at);
+
+CREATE TABLE expense (
+    id                 TEXT    NOT NULL PRIMARY KEY,
+    studio_id          TEXT    NOT NULL,
+    category           TEXT    NOT NULL,
+    description        TEXT    NOT NULL,
+    amount_minor       INTEGER NOT NULL,
+    amount_currency    TEXT    NOT NULL,
+    incurred_on        TEXT    NOT NULL,
+    project_id         TEXT,
+    vendor             TEXT,
+    is_tax_deductible  INTEGER NOT NULL DEFAULT 1,
+    receipt_reference  TEXT,
+    notes              TEXT,
+    created_at         INTEGER NOT NULL,
+    updated_at         INTEGER NOT NULL,
+    deleted_at         INTEGER,
+    version            INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX expense_studio_date_idx ON expense(studio_id, incurred_on, deleted_at);
+CREATE INDEX expense_project_idx ON expense(project_id, deleted_at);
+
+CREATE TABLE mileage (
+    id             TEXT    NOT NULL PRIMARY KEY,
+    studio_id      TEXT    NOT NULL,
+    travelled_on   TEXT    NOT NULL,
+    distance       REAL    NOT NULL,
+    unit           TEXT    NOT NULL,
+    rate_minor     INTEGER NOT NULL,
+    rate_currency  TEXT    NOT NULL,
+    project_id     TEXT,
+    purpose        TEXT,
+    from_location  TEXT,
+    to_location    TEXT,
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    deleted_at     INTEGER,
+    version        INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX mileage_studio_date_idx ON mileage(studio_id, travelled_on, deleted_at);
+CREATE INDEX mileage_project_idx ON mileage(project_id, deleted_at);
+
+CREATE TABLE codb_profile (
+    id                          TEXT    NOT NULL PRIMARY KEY,
+    studio_id                   TEXT    NOT NULL,
+    currency                    TEXT    NOT NULL,
+    target_annual_salary_minor  INTEGER NOT NULL,
+    billable_days_per_year      INTEGER NOT NULL,
+    tax_rate_basis_points       INTEGER NOT NULL DEFAULT 0,
+    annual_overhead_minor       INTEGER,
+    profit_margin_basis_points  INTEGER NOT NULL DEFAULT 0,
+    created_at                  INTEGER NOT NULL,
+    updated_at                  INTEGER NOT NULL,
+    deleted_at                  INTEGER,
+    version                     INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE UNIQUE INDEX codb_profile_studio_idx ON codb_profile(studio_id);
