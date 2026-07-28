@@ -1,0 +1,36 @@
+version: 2
+
+updates:
+  # Gradle dependencies
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Phoenix"
+
+    open-pull-requests-limit: 5
+
+    commit-message:
+      prefix: "build"
+
+    labels:
+      - "dependencies"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:15"
+      timezone: "America/Phoenix"
+
+    open-pull-requests-limit: 5
+
+    commit-message:
+      prefix: "ci"
+
+    labels:
+      - "dependencies"

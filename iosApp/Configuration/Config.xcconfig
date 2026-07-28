@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=yellow-track-platform-bootstrap
+PRODUCT_BUNDLE_IDENTIFIER=com.yellowtrack.platform.yellow-track-platform-bootstrap$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0

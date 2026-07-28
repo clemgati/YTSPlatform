@@ -1,0 +1,9 @@
+package com.yellowtrack.platform.core.di
+
+import org.koin.core.module.Module
+import org.koin.dsl.module
+
+actual fun platformModule(): Module =
+    module {
+        // Browser-only dependencies will be registered here.
+    }
