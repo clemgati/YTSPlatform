@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.sessions.presentation.details.model
 
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
@@ -60,6 +61,31 @@ internal data class CrewItem(
     val callTimeLabel: String?,
 )
 
+/** One person's permission, as the session page shows it. */
+internal data class ReleaseItem(
+    val id: TalentReleaseId,
+    val personName: String,
+    val kind: String,
+    val statusLabel: String,
+    val isSigned: Boolean,
+    /** Set when something is wrong with an otherwise-signed release. */
+    val problem: String?,
+)
+
+/**
+ * What has been agreed by the people photographed.
+ *
+ * [outstanding] is the figure that matters, because it is the number of photographs that
+ * cannot lawfully be delivered yet.
+ */
+internal data class ReleaseSummary(
+    val releases: List<ReleaseItem>,
+    val outstanding: Int,
+    val refused: Int,
+) {
+    val hasProblem: Boolean get() = outstanding > 0 || refused > 0
+}
+
 internal data class SessionDetailsModel(
     val id: SessionId,
     val title: String,
@@ -83,6 +109,7 @@ internal data class SessionDetailsModel(
     val shotsRemaining: Int,
     /** Everyone working the day, earliest call first. */
     val crew: List<CrewItem>,
+    val releases: ReleaseSummary,
     /** The session as the form takes it, so editing opens showing what is already there. */
     val editable: NewSession,
     val zoneId: String,

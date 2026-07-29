@@ -5,6 +5,8 @@ import com.yellowtrack.platform.core.data.LocalStudioContext
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.release.ReleaseKind
+import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
@@ -14,11 +16,13 @@ import com.yellowtrack.platform.core.testing.FakeCrewRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
+import com.yellowtrack.platform.core.testing.FakeTalentReleaseRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsViewModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import kotlinx.coroutines.Dispatchers
@@ -85,11 +89,13 @@ class SessionDetailsViewModelTest {
 
     private lateinit var shots: FakeShotRepository
     private lateinit var crew: FakeCrewRepository
+    private lateinit var releases: FakeTalentReleaseRepository
 
     private fun harness(existing: Session = session()): Pair<FakeSessionRepository, SessionDetailsViewModel> {
         val sessions = FakeSessionRepository(listOf(existing))
         shots = FakeShotRepository()
         crew = FakeCrewRepository()
+        releases = FakeTalentReleaseRepository()
 
         return sessions to
             SessionDetailsViewModel(
@@ -97,6 +103,7 @@ class SessionDetailsViewModelTest {
                 sessionRepository = sessions,
                 shotRepository = shots,
                 crewRepository = crew,
+                releaseRepository = releases,
                 projectRepository = FakeProjectRepository(),
                 clientRepository = FakeClientRepository(),
                 studioContext = LocalStudioContext(),
@@ -555,5 +562,173 @@ class SessionDetailsViewModelTest {
             viewModel.deleteCrewMember(id)
 
             assertTrue(viewModel.model().crew.isEmpty())
+        }
+
+    // --- Talent releases ---------------------------------------------------------------
+
+    @Test
+    fun `someone photographed is recorded as pending, not as permission already held`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addRelease(NewRelease("Ada Okafor", ReleaseKind.Adult, "", ""))
+
+            val release =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+            assertEquals("Pending", release.statusLabel)
+            assertFalse(release.isSigned, "a form that has not come back is not permission")
+            assertEquals(1, viewModel.model().releases.outstanding)
+        }
+
+    @Test
+    fun `marking a release signed stamps when permission was given`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addRelease(NewRelease("Ada Okafor", ReleaseKind.Adult, "", ""))
+            val id =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+                    .id
+
+            viewModel.setReleaseStatus(id, ReleaseStatus.Signed)
+
+            val stored = assertNotNull(releases.getRelease(id))
+            assertNotNull(stored.signedAt, "a release that cannot say when is a release that cannot be defended")
+            assertTrue(stored.isValid)
+            assertEquals(0, viewModel.model().releases.outstanding)
+        }
+
+    @Test
+    fun `a refusal is recorded as a refusal, and clears any signing date`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addRelease(NewRelease("Ada Okafor", ReleaseKind.Adult, "", ""))
+            val id =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+                    .id
+            viewModel.setReleaseStatus(id, ReleaseStatus.Signed)
+
+            viewModel.setReleaseStatus(id, ReleaseStatus.Refused)
+
+            val stored = assertNotNull(releases.getRelease(id))
+            assertEquals(ReleaseStatus.Refused, stored.status)
+            assertNull(stored.signedAt, "a withdrawn permission must not keep the date it was given")
+            assertTrue(stored.blocksUse)
+            assertEquals(1, viewModel.model().releases.refused)
+        }
+
+    @Test
+    fun `a refusal is not counted as merely outstanding`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addRelease(NewRelease("Ada Okafor", ReleaseKind.Adult, "", ""))
+            val id =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+                    .id
+
+            viewModel.setReleaseStatus(id, ReleaseStatus.Refused)
+
+            val summary = viewModel.model().releases
+            assertEquals(0, summary.outstanding, "someone who said no is not someone still to chase")
+            assertEquals(1, summary.refused)
+        }
+
+    @Test
+    fun `a child's release signed with no guardian named is reported as a problem`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addRelease(NewRelease("Tom Okafor", ReleaseKind.Minor, "", ""))
+            val id =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+                    .id
+
+            viewModel.setReleaseStatus(id, ReleaseStatus.Signed)
+
+            val release =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+            assertFalse(release.isSigned, "a minor's release is void without the adult who signed it")
+            assertEquals(
+                "A child's release needs the parent or guardian who signed it",
+                release.problem,
+            )
+        }
+
+    @Test
+    fun `a child's release with a guardian named stands`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addRelease(NewRelease("Tom Okafor", ReleaseKind.Minor, "", "Ada Okafor"))
+            val id =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+                    .id
+
+            viewModel.setReleaseStatus(id, ReleaseStatus.Signed)
+
+            val release =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .single()
+            assertTrue(release.isSigned)
+            assertNull(release.problem)
+        }
+
+    @Test
+    fun `those still to sign are listed before those who have`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addRelease(NewRelease("Ada Okafor", ReleaseKind.Adult, "", ""))
+            viewModel.addRelease(NewRelease("Ben Idris", ReleaseKind.Adult, "", ""))
+            val first =
+                viewModel
+                    .model()
+                    .releases.releases
+                    .first { it.personName == "Ada Okafor" }
+
+            viewModel.setReleaseStatus(first.id, ReleaseStatus.Signed)
+
+            assertEquals(
+                listOf("Ben Idris", "Ada Okafor"),
+                viewModel
+                    .model()
+                    .releases.releases
+                    .map { it.personName },
+                "the ones still to chase are the ones worth looking at",
+            )
+        }
+
+    @Test
+    fun `a release with no name is not recorded`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addRelease(NewRelease("  ", ReleaseKind.Adult, "", ""))
+
+            assertTrue(
+                viewModel
+                    .model()
+                    .releases.releases
+                    .isEmpty(),
+            )
         }
 }

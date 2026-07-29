@@ -1,0 +1,62 @@
+-- Permission from the person in the photograph; see migration 5.sqm.
+CREATE TABLE talent_release (
+    id                 TEXT    NOT NULL PRIMARY KEY,
+    studio_id          TEXT    NOT NULL,
+    session_id         TEXT    NOT NULL,
+    person_name        TEXT    NOT NULL,
+    kind               TEXT    NOT NULL,
+    status             TEXT    NOT NULL,
+    signed_at          INTEGER,
+    guardian_name      TEXT,
+    email              TEXT,
+    document_reference TEXT,
+    notes              TEXT,
+    created_at         INTEGER NOT NULL,
+    updated_at         INTEGER NOT NULL,
+    deleted_at         INTEGER,
+    version            INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (session_id) REFERENCES session(id)
+);
+
+CREATE INDEX release_session_idx ON talent_release(session_id, deleted_at, status);
+
+-- Outstanding first: the ones still to chase are the ones worth looking at.
+selectBySession:
+SELECT *
+FROM talent_release
+WHERE session_id = :sessionId AND deleted_at IS NULL
+ORDER BY status = 'Signed', person_name;
+
+selectById:
+SELECT *
+FROM talent_release
+WHERE id = :id AND deleted_at IS NULL;
+
+-- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
+insertOrIgnore:
+INSERT OR IGNORE INTO talent_release(
+    id, studio_id, session_id, person_name, kind, status, signed_at, guardian_name,
+    email, document_reference, notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE talent_release
+SET session_id         = :sessionId,
+    person_name        = :personName,
+    kind               = :kind,
+    status             = :status,
+    signed_at          = :signedAt,
+    guardian_name      = :guardianName,
+    email              = :email,
+    document_reference = :documentReference,
+    notes              = :notes,
+    updated_at         = :updatedAt,
+    deleted_at         = :deletedAt,
+    version            = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE talent_release
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

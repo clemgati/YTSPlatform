@@ -20,6 +20,10 @@ import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.release.ReleaseKind
+import com.yellowtrack.platform.core.model.release.ReleaseStatus
+import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -108,8 +112,16 @@ class SessionDetailsRenderTest {
                 crewMember("Alex Reed", CrewRole.Videographer, null, null),
             )
 
+        val releases =
+            listOf(
+                release("Ada Okafor", ReleaseKind.Adult, ReleaseStatus.Signed, signed = true),
+                release("Tom Okafor", ReleaseKind.Minor, ReleaseStatus.Signed, signed = true),
+                release("Ben Idris", ReleaseKind.Adult, ReleaseStatus.Pending),
+                release("Chloe Marsh", ReleaseKind.Adult, ReleaseStatus.Refused),
+            )
+
         val scene =
-            ImageComposeScene(width = 1_280, height = 2_600, density = Density(2f)) {
+            ImageComposeScene(width = 1_280, height = 3_600, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -120,7 +132,7 @@ class SessionDetailsRenderTest {
                                 SessionDetailsUiState(
                                     session =
                                         UiState.Success(
-                                            session.toDetailsModel(project, client, shots, crew, zone),
+                                            session.toDetailsModel(project, client, shots, crew, releases, zone),
                                         ),
                                     today = LocalDate(2026, 7, 28),
                                 ),
@@ -131,6 +143,9 @@ class SessionDetailsRenderTest {
                             onAddShot = {},
                             onAddCrew = {},
                             onRemoveCrew = {},
+                            onAddRelease = {},
+                            onSetReleaseStatus = { _, _ -> },
+                            onRemoveRelease = {},
                             onToggleShot = { _, _ -> },
                             onDeleteShot = {},
                         )
@@ -178,6 +193,24 @@ class SessionDetailsRenderTest {
         role = role,
         phone = phone,
         callTime = callTime?.let { LocalDateTime.parse("2026-08-15T$it").toInstant(zone) },
+        audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+    )
+
+    private fun release(
+        personName: String,
+        kind: ReleaseKind,
+        status: ReleaseStatus,
+        signed: Boolean = false,
+    ) = TalentRelease(
+        id = TalentReleaseId.new(),
+        studioId = LocalStudioContext.LOCAL_STUDIO_ID,
+        sessionId = SessionId.new(),
+        personName = personName,
+        kind = kind,
+        status = status,
+        signedAt = TestAppClock.DEFAULT_NOW.takeIf { signed },
+        // Deliberately left unnamed, so the render shows how a void minor's release reads.
+        guardianName = null,
         audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
     )
 }
