@@ -9,11 +9,15 @@ import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.ShotRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.TalentReleaseRepository
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.release.ReleaseStatus
+import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionStatus
@@ -23,6 +27,7 @@ import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import com.yellowtrack.platform.feature.sessions.presentation.model.coordinates
@@ -52,6 +57,7 @@ internal class SessionDetailsViewModel(
     private val sessionRepository: SessionRepository,
     private val shotRepository: ShotRepository,
     private val crewRepository: CrewRepository,
+    private val releaseRepository: TalentReleaseRepository,
     projectRepository: ProjectRepository,
     clientRepository: ClientRepository,
     private val studioContext: StudioContext,
@@ -71,6 +77,7 @@ internal class SessionDetailsViewModel(
         val session: Session?,
         val shots: List<Shot>,
         val crew: List<CrewMember>,
+        val releases: List<TalentRelease>,
     )
 
     private data class Booking(
@@ -84,6 +91,7 @@ internal class SessionDetailsViewModel(
                 sessionRepository.observeSession(sessionId),
                 shotRepository.observeShotsForSession(sessionId),
                 crewRepository.observeCrewForSession(sessionId),
+                releaseRepository.observeReleasesForSession(sessionId),
                 ::Day,
             ),
             combine(
@@ -105,7 +113,7 @@ internal class SessionDetailsViewModel(
                 SessionDetailsUiState(
                     session =
                         UiState.Success(
-                            session.toDetailsModel(project, client, day.shots, day.crew, deviceZone),
+                            session.toDetailsModel(project, client, day.shots, day.crew, day.releases, deviceZone),
                         ),
                     bookings =
                         booking.projects.map { project ->
@@ -315,6 +323,62 @@ internal class SessionDetailsViewModel(
 
     fun deleteCrewMember(crewMemberId: CrewMemberId) {
         viewModelScope.launch { crewRepository.deleteCrewMember(crewMemberId) }
+    }
+
+    /**
+     * Records that someone was photographed, pending their permission.
+     *
+     * Pending rather than signed: the paper either exists or it does not, and starting at
+     * signed would let a studio believe it holds permission it has never collected.
+     */
+    fun addRelease(release: NewRelease) {
+        viewModelScope.launch {
+            if (release.personName.isBlank()) return@launch
+            val now = clock.now()
+
+            releaseRepository.saveRelease(
+                TalentRelease(
+                    id = TalentReleaseId.new(),
+                    studioId = studioContext.studioId,
+                    sessionId = sessionId,
+                    personName = release.personName.trim(),
+                    kind = release.kind,
+                    status = ReleaseStatus.Pending,
+                    guardianName = release.guardianName.trim().ifBlank { null },
+                    email = release.email.trim().ifBlank { null },
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Moves a release to a new state, stamping the date with the status.
+     *
+     * The date is written when it is marked signed and cleared when it is not, so a
+     * release can never claim permission was given without saying when — the question
+     * asked the moment it is challenged.
+     */
+    fun setReleaseStatus(
+        releaseId: TalentReleaseId,
+        status: ReleaseStatus,
+    ) {
+        viewModelScope.launch {
+            val release = releaseRepository.getRelease(releaseId) ?: return@launch
+            val now = clock.now()
+
+            releaseRepository.saveRelease(
+                release.copy(
+                    status = status,
+                    signedAt = now.takeIf { status == ReleaseStatus.Signed },
+                    audit = release.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    fun deleteRelease(releaseId: TalentReleaseId) {
+        viewModelScope.launch { releaseRepository.deleteRelease(releaseId) }
     }
 
     fun retry() {

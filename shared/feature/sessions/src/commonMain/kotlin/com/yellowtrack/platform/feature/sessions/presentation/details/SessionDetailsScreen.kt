@@ -23,17 +23,22 @@ import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.release.ReleaseStatus
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewSection
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.ReleaseFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.ReleaseSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotListSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionLight
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import kotlinx.datetime.TimeZone
@@ -48,6 +53,9 @@ internal fun SessionDetailsScreen(
     onAddShot: (NewShot) -> Unit,
     onAddCrew: (NewCrewMember) -> Unit,
     onRemoveCrew: (CrewMemberId) -> Unit,
+    onAddRelease: (NewRelease) -> Unit,
+    onSetReleaseStatus: (TalentReleaseId, ReleaseStatus) -> Unit,
+    onRemoveRelease: (TalentReleaseId) -> Unit,
     onToggleShot: (ShotId, Boolean) -> Unit,
     onDeleteShot: (ShotId) -> Unit,
     modifier: Modifier = Modifier,
@@ -55,6 +63,7 @@ internal fun SessionDetailsScreen(
     var editing by remember { mutableStateOf(false) }
     var addingShot by remember { mutableStateOf(false) }
     var addingCrew by remember { mutableStateOf(false) }
+    var addingRelease by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.session,
@@ -104,6 +113,16 @@ internal fun SessionDetailsScreen(
             )
         }
 
+        if (addingRelease) {
+            ReleaseFormDialog(
+                onSave = {
+                    onAddRelease(it)
+                    addingRelease = false
+                },
+                onDismiss = { addingRelease = false },
+            )
+        }
+
         Column(
             modifier =
                 contentModifier
@@ -148,6 +167,13 @@ internal fun SessionDetailsScreen(
                 sessionCallTime = session.callTimeLabel,
                 onAddCrew = { addingCrew = true },
                 onRemoveCrew = onRemoveCrew,
+            )
+
+            ReleaseSection(
+                summary = session.releases,
+                onSetStatus = onSetReleaseStatus,
+                onAddRelease = { addingRelease = true },
+                onRemoveRelease = onRemoveRelease,
             )
 
             ShotListSection(

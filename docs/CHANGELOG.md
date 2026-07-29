@@ -6,6 +6,22 @@ The project follows semantic versioning.
 
 ## Unreleased — 0.5.0 Shoot Day
 
+- **Talent releases** — permission from the people in the photographs, which is what makes
+  a usage licence deliverable. A studio can sign a contract granting a client worldwide
+  rights and still have no lawful way to hand the images over, because the people in them
+  never agreed to it. The licence is the promise; these are whether it can be kept
+- **Refused is a state, not an absence.** Someone who has said no is not the same as
+  someone who has not been asked, and the difference decides whether a photograph may be
+  used at all. A refusal is counted separately from what is still outstanding, and clears
+  any signing date it previously carried
+- **A release marked signed is not always a release that would stand up.** A child's is
+  void without the parent or guardian named, and one with no date cannot say when
+  permission was given — which is exactly the question asked when it is challenged. Both
+  are reported on the row rather than left looking like permission the studio holds
+- Added as pending rather than signed, because "I have their permission" is a claim about
+  a piece of paper that either exists or does not
+- **Schema migration 5 → 6**, purely additive: a new `talent_release` table, `6.db`
+  committed, with tests covering a version-five database keeping its crew
 - **Crew, each with their own call time.** That last part is the feature: hair and make-up
   are called hours before the photographer, the videographer arrives after, and a call
   sheet giving everyone the same time is a call sheet nobody can use. The list is ordered

@@ -7,10 +7,15 @@ import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.release.ReleaseKind
+import com.yellowtrack.platform.core.model.release.ReleaseStatus
+import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.CrewItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.LightRow
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseItem
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionLight
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ShotGroup
@@ -28,6 +33,7 @@ internal fun Session.toDetailsModel(
     client: Client?,
     shots: List<Shot>,
     crew: List<CrewMember>,
+    releases: List<TalentRelease>,
     deviceZone: TimeZone,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
@@ -51,6 +57,7 @@ internal fun Session.toDetailsModel(
         light = light(zone),
         shotGroups = shots.toGroups(),
         shotsRemaining = shots.count { !it.isCaptured },
+        releases = releases.toSummary(),
         crew =
             crew.map { member ->
                 CrewItem(
@@ -210,4 +217,46 @@ private fun List<Shot>.toGroups(): List<ShotGroup> =
                         )
                     },
             )
+        }
+
+/**
+ * The permissions, with what is wrong with each one said plainly.
+ *
+ * A release marked signed is not necessarily a release that would stand up: a minor's
+ * needs the guardian named, and one with no date cannot say when permission was given —
+ * which is precisely the question asked when it is challenged. `TalentRelease.isValid`
+ * decides; this reports why.
+ */
+private fun List<TalentRelease>.toSummary(): ReleaseSummary =
+    ReleaseSummary(
+        releases =
+            map { release ->
+                ReleaseItem(
+                    id = release.id,
+                    personName = release.personName,
+                    kind = release.kind.label,
+                    statusLabel = release.status.name,
+                    isSigned = release.isValid,
+                    problem = release.problem(),
+                )
+            },
+        outstanding = count { it.status.isOutstanding },
+        refused = count { it.status == ReleaseStatus.Refused },
+    )
+
+private fun TalentRelease.problem(): String? =
+    when {
+        status != ReleaseStatus.Signed -> null
+        signedAt == null -> "Signed, but with no date — it cannot say when permission was given"
+        kind == ReleaseKind.Minor && guardianName.isNullOrBlank() ->
+            "A child's release needs the parent or guardian who signed it"
+        else -> null
+    }
+
+private val ReleaseKind.label: String
+    get() =
+        when (this) {
+            ReleaseKind.Adult -> "Adult"
+            ReleaseKind.Minor -> "Minor"
+            ReleaseKind.Property -> "Property"
         }

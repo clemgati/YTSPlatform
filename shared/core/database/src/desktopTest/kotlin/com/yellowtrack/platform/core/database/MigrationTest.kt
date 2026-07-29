@@ -33,6 +33,8 @@ class MigrationTest {
 
     private fun v4Database(): SqlDriver = snapshotDatabase(version = 4)
 
+    private fun v5Database(): SqlDriver = snapshotDatabase(version = 5)
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -240,7 +242,7 @@ class MigrationTest {
             )
 
             // A studio that skipped a release upgrades through every step, not just the last.
-            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 1, newVersion = 5)
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 1, newVersion = 6)
 
             assertEquals(1L, driver.countOf("client"))
             assertEquals("Long-standing Client", driver.scalar("SELECT account_name FROM client"))
@@ -248,6 +250,7 @@ class MigrationTest {
             assertNull(driver.scalar("SELECT latitude FROM session"), "and the 2 → 3 columns must exist")
             assertEquals(0L, driver.countOf("shot"), "and the 3 → 4 table must be laid down")
             assertEquals(0L, driver.countOf("crew_member"), "and the 4 → 5 table too")
+            assertEquals(0L, driver.countOf("talent_release"), "and the 5 → 6 table")
 
             driver.close()
         }
@@ -436,12 +439,107 @@ class MigrationTest {
             driver.close()
         }
 
+    // --- Version five to six: talent releases -------------------------------------------
+
+    @Test
+    fun `a version five database keeps its crew when releases arrive`() =
+        runTest {
+            val driver = v5Database()
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO session(id, studio_id, project_id, title, kind, status,
+                                    starts_at, ends_at, time_zone_id, created_at, updated_at, version)
+                VALUES ('session-1', 'studio-1', 'project-1', 'Shoot day', 'Shoot', 'Confirmed',
+                        2000, 3000, 'Europe/London', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO crew_member(id, studio_id, session_id, name, role,
+                                        created_at, updated_at, version)
+                VALUES ('crew-1', 'studio-1', 'session-1', 'Priya Shah', 'MakeUp', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 5, newVersion = 6)
+
+            assertEquals(1L, driver.countOf("crew_member"), "the crew from 4 → 5 must survive 5 → 6")
+            assertEquals("Priya Shah", driver.scalar("SELECT name FROM crew_member"))
+            assertEquals(0L, driver.countOf("talent_release"), "and the new table is there and empty")
+
+            driver.close()
+        }
+
+    @Test
+    fun `a refused release is stored as a refusal rather than a missing row`() =
+        runTest {
+            val driver = v5Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 5, newVersion = 6)
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO session(id, studio_id, project_id, title, kind, status,
+                                    starts_at, ends_at, time_zone_id, created_at, updated_at, version)
+                VALUES ('session-1', 'studio-1', 'project-1', 'Shoot day', 'Shoot', 'Confirmed',
+                        2000, 3000, 'Europe/London', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO talent_release(id, studio_id, session_id, person_name, kind, status,
+                                           created_at, updated_at, version)
+                VALUES ('release-1', 'studio-1', 'session-1', 'Ada Okafor', 'Adult', 'Refused',
+                        1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals(
+                "Refused",
+                driver.scalar("SELECT status FROM talent_release"),
+                "someone who said no is not the same as someone who was never asked",
+            )
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(5L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(6L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }
