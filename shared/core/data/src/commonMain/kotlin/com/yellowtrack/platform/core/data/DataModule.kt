@@ -8,9 +8,12 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightContractRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightCrewRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightDeliverableRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightExpenseRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightGearRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightLeadRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightLightingRecipeRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightMediaCopyRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightPackingRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightPostProductionRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightQuoteRepository
@@ -44,6 +47,9 @@ val dataModule =
         single<PostProductionRepository> { SqlDelightPostProductionRepository(get(), get(), get(), ioDispatcher) }
         single<DeliverableRepository> { SqlDelightDeliverableRepository(get(), get(), ioDispatcher) }
         single<MediaCopyRepository> { SqlDelightMediaCopyRepository(get(), get(), ioDispatcher) }
+        single<GearRepository> { SqlDelightGearRepository(get(), get(), get(), ioDispatcher) }
+        single<PackingRepository> { SqlDelightPackingRepository(get(), get(), ioDispatcher) }
+        single<LightingRecipeRepository> { SqlDelightLightingRecipeRepository(get(), get(), get(), ioDispatcher) }
         single<ServiceTemplateRepository> { SqlDelightServiceTemplateRepository(get(), get(), get(), ioDispatcher) }
 
         single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }

@@ -41,6 +41,8 @@ class MigrationTest {
 
     private fun v8Database(): SqlDriver = snapshotDatabase(version = 8)
 
+    private fun v9Database(): SqlDriver = snapshotDatabase(version = 9)
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -804,12 +806,152 @@ class MigrationTest {
             driver.close()
         }
 
+    // --- Version nine to ten: what the studio owns --------------------------------------
+
+    @Test
+    fun `a version nine database keeps its file copies when gear arrives`() =
+        runTest {
+            val driver = v9Database()
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO session(id, studio_id, project_id, title, kind, status,
+                                    starts_at, ends_at, time_zone_id, created_at, updated_at, version)
+                VALUES ('session-1', 'studio-1', 'project-1', 'Shoot day', 'Shoot', 'Completed',
+                        2000, 3000, 'Europe/London', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO media_copy(id, studio_id, session_id, volume_name, kind, is_offsite,
+                                       copied_at, created_at, updated_at, version)
+                VALUES ('copy-1', 'studio-1', 'session-1', 'Red Samsung T7', 'ExternalDrive', 0,
+                        2500, 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 9, newVersion = 10)
+
+            assertEquals(1L, driver.countOf("media_copy"), "the copies from 8 → 9 must survive 9 → 10")
+            assertEquals(0L, driver.countOf("gear_item"), "and the new tables are there and empty")
+            assertEquals(0L, driver.countOf("packing_entry"))
+            assertEquals(0L, driver.countOf("lighting_recipe"))
+
+            driver.close()
+        }
+
+    @Test
+    fun `gear arrives owned and unpacked rather than in an unknown state`() =
+        runTest {
+            val driver = v9Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 9, newVersion = 10)
+
+            driver.exec(
+                """
+                INSERT INTO gear_item(id, studio_id, name, category, status,
+                                      created_at, updated_at, version)
+                VALUES ('gear-1', 'studio-1', 'Canon R5 body', 'Camera', 'InService', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertNull(
+                driver.scalar("SELECT serial_number FROM gear_item"),
+                "plenty of gear has no serial, and inventing one is worse than recording none",
+            )
+            assertNull(
+                driver.scalar("SELECT purchase_price_minor FROM gear_item"),
+                "an unknown price must stay unknown rather than read as free",
+            )
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO session(id, studio_id, project_id, title, kind, status,
+                                    starts_at, ends_at, time_zone_id, created_at, updated_at, version)
+                VALUES ('session-1', 'studio-1', 'project-1', 'Shoot day', 'Shoot', 'Booked',
+                        2000, 3000, 'Europe/London', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO packing_entry(id, studio_id, session_id, gear_item_id,
+                                          created_at, updated_at, version)
+                VALUES ('pack-1', 'studio-1', 'session-1', 'gear-1', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals(
+                "0",
+                driver.scalar("SELECT CAST(is_packed AS TEXT) FROM packing_entry"),
+                "adding something to the list is not the same as putting it in the van",
+            )
+            assertEquals(
+                "0",
+                driver.scalar("SELECT CAST(is_returned AS TEXT) FROM packing_entry"),
+            )
+
+            driver.close()
+        }
+
+    @Test
+    fun `a recipe with no lights written down yet reads as empty rather than null`() =
+        runTest {
+            val driver = v9Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 9, newVersion = 10)
+
+            driver.exec(
+                """
+                INSERT INTO lighting_recipe(id, studio_id, name, created_at, updated_at, version)
+                VALUES ('recipe-1', 'studio-1', 'Clamshell headshot', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals(
+                "[]",
+                driver.scalar("SELECT lights FROM lighting_recipe"),
+                "a null would have to be decoded defensively everywhere it is read",
+            )
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(9L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(10L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }
