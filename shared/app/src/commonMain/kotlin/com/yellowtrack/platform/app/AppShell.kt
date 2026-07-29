@@ -108,12 +108,9 @@ private fun CurrentRoute(
             )
 
         AppRoute.Sessions ->
-            SessionsRoute(
-                // Session details arrive with the Shoot Day milestone. Selecting a session
-                // does nothing yet rather than pushing a route with no screen behind it.
-                onSessionSelected = { },
-                modifier = modifier,
-            )
+            // Selecting a session opens its editor, which the feature owns. There is no
+            // separate detail route for the app module to push.
+            SessionsRoute(modifier = modifier)
 
         AppRoute.Ledger -> LedgerRoute(modifier = modifier)
 

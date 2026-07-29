@@ -1,11 +1,17 @@
 package com.yellowtrack.platform.feature.sessions.presentation.component
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import com.yellowtrack.platform.core.designsystem.component.YTDropdownField
 import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
@@ -29,26 +35,39 @@ import kotlinx.datetime.TimeZone
  * The duration is shown back rather than left implicit. A wedding running 14:00 to 01:00
  * is entered exactly as it reads and resolves to eleven hours the next morning; a typo
  * resolves to an implausible number of hours, and says so on the form.
+ *
+ * Pass [initial] to open an existing session. Editing then distinguishes two things the
+ * model already separates: correcting details that were wrong, and a date that has *moved*
+ * — for which the original block is kept, marked Postponed, rather than overwritten. A
+ * cancelled shoot the studio has no record of is a cancelled shoot nobody can be charged
+ * for.
  */
 @Composable
 internal fun SessionFormDialog(
     bookings: List<BookingOption>,
     today: LocalDate,
     zone: TimeZone,
-    onSave: (NewSession) -> Unit,
+    onSave: (NewSession, movedToNewDate: Boolean) -> Unit,
     onDismiss: () -> Unit,
+    initial: NewSession? = null,
 ) {
-    var selectedBooking by remember(bookings) { mutableStateOf(bookings.firstOrNull()) }
-    var title by remember { mutableStateOf("") }
-    var kind by remember { mutableStateOf(SessionKind.Shoot) }
-    var status by remember { mutableStateOf(SessionStatus.Scheduled) }
-    var date by remember { mutableStateOf(today.toString()) }
-    var startTime by remember { mutableStateOf("") }
-    var endTime by remember { mutableStateOf("") }
-    var callTime by remember { mutableStateOf("") }
-    var locationName by remember { mutableStateOf("") }
-    var locationAddress by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var selectedBooking by
+        remember(bookings, initial) {
+            mutableStateOf(
+                bookings.firstOrNull { it.id == initial?.projectId } ?: bookings.firstOrNull(),
+            )
+        }
+    var title by remember { mutableStateOf(initial?.title.orEmpty()) }
+    var kind by remember { mutableStateOf(initial?.kind ?: SessionKind.Shoot) }
+    var status by remember { mutableStateOf(initial?.status ?: SessionStatus.Scheduled) }
+    var date by remember { mutableStateOf(initial?.date ?: today.toString()) }
+    var startTime by remember { mutableStateOf(initial?.startTime.orEmpty()) }
+    var endTime by remember { mutableStateOf(initial?.endTime.orEmpty()) }
+    var callTime by remember { mutableStateOf(initial?.callTime.orEmpty()) }
+    var locationName by remember { mutableStateOf(initial?.locationName.orEmpty()) }
+    var locationAddress by remember { mutableStateOf(initial?.locationAddress.orEmpty()) }
+    var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
+    var movedToNewDate by remember { mutableStateOf(false) }
 
     val booking = selectedBooking
 
@@ -72,8 +91,13 @@ internal fun SessionFormDialog(
     val timing = form?.timing(zone)
 
     YTFormDialog(
-        title = "Schedule a session",
-        confirmLabel = "Save",
+        title = if (initial == null) "Schedule a session" else "Edit session",
+        confirmLabel =
+            when {
+                initial == null -> "Save"
+                movedToNewDate -> "Move it"
+                else -> "Save changes"
+            },
         supportingText =
             if (bookings.isEmpty()) {
                 "A session belongs to a booking, and there are none yet. Open one from a client first."
@@ -81,7 +105,7 @@ internal fun SessionFormDialog(
                 null
             },
         confirmEnabled = form != null && title.isNotBlank() && timing != null,
-        onConfirm = { form?.let(onSave) },
+        onConfirm = { form?.let { onSave(it, movedToNewDate) } },
         onDismiss = onDismiss,
     ) {
         if (booking != null) {
@@ -169,6 +193,35 @@ internal fun SessionFormDialog(
             singleLine = false,
             imeAction = ImeAction.Done,
         )
+
+        if (initial != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+            ) {
+                Checkbox(
+                    checked = movedToNewDate,
+                    onCheckedChange = { movedToNewDate = it },
+                )
+                Text(
+                    text = "The date moved",
+                    style = YTTheme.typography.bodyMedium,
+                    color = YTTheme.colors.onSurface,
+                )
+            }
+
+            Text(
+                text =
+                    if (movedToNewDate) {
+                        "The original day stays on the calendar as postponed, and this is scheduled as a new one."
+                    } else {
+                        "Correcting this day in place. Tick the box if the shoot itself moved to another date."
+                    },
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
 
         if (timing != null) {
             Text(

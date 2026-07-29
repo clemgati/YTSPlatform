@@ -128,8 +128,8 @@ The biggest gap in the original roadmap.
 
 ## 0.5.0 — Shoot Day
 
-- ◐ Add and edit client, project, and session — all three can now be created, and a client
-  corrected. Editing a booking or a session once created is still to come
+- ◐ Add and edit client, project, and session — all three can be created; clients and
+  sessions can be edited. Editing a booking once opened is still to come
 - Shot lists with grouping, for family formals
 - Locations with computed golden hour and sun position — calculable offline from
   latitude, longitude, and date; no network required

@@ -55,8 +55,24 @@ The project follows semantic versioning.
 - Crew call times resolve against the shoot's own day, so 12:30 for a 14:00 start is the
   morning of the shoot rather than the morning after
 
+- **A session can be corrected, and a date can be moved — and those are not the same
+  thing.** Selecting a session opens it for editing; a checkbox says the date itself moved.
+  Correcting edits in place. Moving keeps the original day on the calendar as *Postponed*
+  and schedules the new one beside it, which is what `SessionStatus.Postponed` has meant
+  since 0.3.0: "the original block is kept for history". A client who moved a date twice in
+  a fortnight is a fact about that booking, and a studio charging a reschedule fee needs
+  the record of what moved
+- Editing resolves times against the **session's own zone**, not the device's, so
+  correcting the start of a destination wedding from home does not shift it by the offset
+  between the two clocks. A moved day keeps the zone of the day it replaces
+- Cancelling needs no separate action: the status is on the form, and a cancelled day stays
+  on the record rather than vanishing from it
+
 ### Fixed
 
+- Selecting a session used to do nothing — `onSessionSelected` was wired to an empty lambda
+  in the app shell. It opens the session now, and the app module no longer carries a
+  callback for a detail screen that does not exist
 - **"Edit Client" was a button that did nothing.** It has sat on the client detail page
   since 0.3.0 wired to an empty lambda in the app shell. It now opens the form. Editing
   lives inside the feature, like every other form here, so the app module no longer needs

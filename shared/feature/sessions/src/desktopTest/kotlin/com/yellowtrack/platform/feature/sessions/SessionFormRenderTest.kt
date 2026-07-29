@@ -48,7 +48,7 @@ class SessionFormRenderTest {
                                 ),
                             today = LocalDate(2026, 8, 15),
                             zone = TimeZone.of("Europe/London"),
-                            onSave = {},
+                            onSave = { _, _ -> },
                             onDismiss = {},
                         )
                     }

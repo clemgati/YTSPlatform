@@ -24,6 +24,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
@@ -220,5 +221,126 @@ class SessionSchedulingTest {
                     .single()
                     .status.occupiesCalendar,
             )
+        }
+
+    // --- Correcting and moving ---------------------------------------------------------
+
+    @Test
+    fun `editing corrects the session in place`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+            viewModel.addSession(newSession())
+            val original =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+
+            viewModel.updateSession(
+                original.id,
+                newSession(title = "Wedding day — revised", startTime = "15:00", endTime = "23:30"),
+            )
+
+            val stored =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+            assertEquals(original.id, stored.id, "correcting a day must not mint a second one")
+            assertEquals("Wedding day — revised", stored.title)
+            assertEquals(instant("2026-08-15", "15:00"), stored.startsAt)
+        }
+
+    @Test
+    fun `a moved date keeps the original day on the calendar as postponed`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+            viewModel.addSession(newSession(date = "2026-08-15"))
+            val original =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+
+            viewModel.moveSession(original.id, newSession(date = "2026-09-19"))
+
+            val all = sessions.observeSessions().first()
+            assertEquals(2, all.size, "the day that was held is a fact about the booking")
+
+            val kept = assertNotNull(all.firstOrNull { it.id == original.id })
+            assertEquals(SessionStatus.Postponed, kept.status)
+            assertEquals(instant("2026-08-15", "14:00"), kept.startsAt, "the original day does not move")
+
+            val replacement = assertNotNull(all.firstOrNull { it.id != original.id })
+            assertEquals(instant("2026-09-19", "14:00"), replacement.startsAt)
+            assertEquals(SessionStatus.Scheduled, replacement.status, "the new day is on the calendar again")
+        }
+
+    @Test
+    fun `a moved session keeps the zone of the day it replaces`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+            viewModel.addSession(newSession())
+            val original =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+
+            viewModel.moveSession(original.id, newSession(date = "2026-09-19"))
+
+            val replacement =
+                assertNotNull(
+                    sessions
+                        .observeSessions()
+                        .first()
+                        .firstOrNull { it.id != original.id },
+                )
+            assertEquals(zone.id, replacement.timeZoneId)
+        }
+
+    @Test
+    fun `an edit with an unreadable time leaves the session alone`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+            viewModel.addSession(newSession())
+            val original =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+
+            viewModel.updateSession(original.id, newSession(startTime = "half two"))
+
+            assertEquals(
+                original.startsAt,
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+                    .startsAt,
+            )
+        }
+
+    @Test
+    fun `cancelling is done by editing the status, and keeps the day`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+            viewModel.addSession(newSession())
+            val original =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+
+            viewModel.updateSession(original.id, newSession(status = SessionStatus.Cancelled))
+
+            val stored =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+            assertEquals(SessionStatus.Cancelled, stored.status)
+            assertTrue(!stored.status.occupiesCalendar)
         }
 }

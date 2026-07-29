@@ -16,4 +16,14 @@ internal data class SessionListItem(
     val locationName: String?,
     /** Shown when the session's zone differs from the device's, e.g. a destination wedding. */
     val timeZoneNote: String?,
+    /**
+     * The zone this session happens in.
+     *
+     * Editing resolves its times against this rather than the device, so correcting the
+     * start of a destination wedding from home does not quietly move it by the offset
+     * between the two.
+     */
+    val zoneId: String,
+    /** The session as the form takes it, so editing opens showing what is already there. */
+    val editable: NewSession,
 )

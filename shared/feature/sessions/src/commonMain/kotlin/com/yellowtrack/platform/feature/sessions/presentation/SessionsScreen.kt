@@ -25,27 +25,47 @@ import com.yellowtrack.platform.feature.sessions.presentation.component.SessionF
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionRow
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.SessionGroup
+import com.yellowtrack.platform.feature.sessions.presentation.model.SessionListItem
+import kotlinx.datetime.TimeZone
 
 @Composable
 internal fun SessionsScreen(
     uiState: SessionsUiState,
     onRetry: () -> Unit,
-    onSessionSelected: (SessionId) -> Unit,
     onAddSession: (NewSession) -> Unit,
+    onUpdateSession: (SessionId, NewSession) -> Unit,
+    onMoveSession: (SessionId, NewSession) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showForm by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<SessionListItem?>(null) }
 
     if (showForm && uiState.today != null) {
         SessionFormDialog(
             bookings = uiState.bookings,
             today = uiState.today,
             zone = uiState.zone,
-            onSave = {
-                onAddSession(it)
+            onSave = { session, _ ->
+                onAddSession(session)
                 showForm = false
             },
             onDismiss = { showForm = false },
+        )
+    }
+
+    editing?.let { session ->
+        SessionFormDialog(
+            bookings = uiState.bookings,
+            today = uiState.today ?: return@let,
+            // The session's own zone, so editing a destination booking from home does not
+            // shift it by the offset between the two clocks.
+            zone = TimeZone.of(session.zoneId),
+            initial = session.editable,
+            onSave = { edited, moved ->
+                if (moved) onMoveSession(session.id, edited) else onUpdateSession(session.id, edited)
+                editing = null
+            },
+            onDismiss = { editing = null },
         )
     }
 
@@ -63,7 +83,7 @@ internal fun SessionsScreen(
         SessionsContent(
             groups = groups,
             totalCount = uiState.totalCount,
-            onSessionSelected = onSessionSelected,
+            onSessionSelected = { session -> editing = session },
             onSchedule = { showForm = true },
             modifier = contentModifier,
         )
@@ -85,7 +105,7 @@ private fun ScheduleSessionButton(onClick: () -> Unit) {
 private fun SessionsContent(
     groups: List<SessionGroup>,
     totalCount: Int,
-    onSessionSelected: (SessionId) -> Unit,
+    onSessionSelected: (SessionListItem) -> Unit,
     onSchedule: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -109,7 +129,7 @@ private fun SessionsContent(
                 group.sessions.forEach { session ->
                     SessionRow(
                         session = session,
-                        onClick = onSessionSelected,
+                        onClick = { onSessionSelected(session) },
                     )
                 }
             }
