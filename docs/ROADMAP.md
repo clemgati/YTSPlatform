@@ -130,10 +130,12 @@ The biggest gap in the original roadmap.
 
 - ✓ Add and edit client, project, and session — all three can be created and corrected,
   with bookings listed on the client's own page
-- Shot lists with grouping, for family formals
+- ✓ Shot lists with grouping, for family formals
 - ✓ Locations with computed golden hour and sun position — calculable offline from
   latitude, longitude, and date, stored against the session and shown on it
-- Call sheets, crew, and talent releases
+- ◐ Call sheets, crew, and talent releases — crew with per-person call times, on a session
+  page that now reads as a call sheet. Talent releases, and sending the sheet to anyone,
+  are still to come
 
 ## 0.6.0 — Pipeline
 

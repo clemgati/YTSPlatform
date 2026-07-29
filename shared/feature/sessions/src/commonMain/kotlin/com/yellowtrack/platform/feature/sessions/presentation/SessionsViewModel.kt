@@ -10,7 +10,6 @@ import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
-import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.mapper.buildSessionGroups
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
@@ -110,97 +109,6 @@ internal class SessionsViewModel(
                     coordinates = session.coordinates(),
                     callTime = timing.callTime,
                     notes = session.notes.trim().ifBlank { null },
-                    audit = AuditMetadata.createdAt(now),
-                ),
-            )
-        }
-    }
-
-    /**
-     * Corrects a session in place.
-     *
-     * Times resolve against the session's own zone rather than the device's, so a
-     * destination wedding edited from home stays at the hour it was booked for instead of
-     * sliding by the offset between the two.
-     */
-    fun updateSession(
-        sessionId: SessionId,
-        edited: NewSession,
-    ) {
-        viewModelScope.launch {
-            val existing = sessionRepository.getSession(sessionId) ?: return@launch
-            val zone = TimeZone.of(existing.timeZoneId)
-            if (edited.title.isBlank()) return@launch
-            val timing = edited.timing(zone) ?: return@launch
-            val now = clock.now()
-
-            sessionRepository.saveSession(
-                existing.copy(
-                    projectId = edited.projectId,
-                    title = edited.title.trim(),
-                    kind = edited.kind,
-                    status = edited.status,
-                    startsAt = timing.startsAt,
-                    endsAt = timing.endsAt,
-                    locationName = edited.locationName.trim().ifBlank { null },
-                    locationAddress = edited.locationAddress.trim().ifBlank { null },
-                    coordinates = edited.coordinates(),
-                    callTime = timing.callTime,
-                    notes = edited.notes.trim().ifBlank { null },
-                    audit = existing.audit.touched(now),
-                ),
-            )
-        }
-    }
-
-    /**
-     * Moves a shoot to a new date, keeping the original block.
-     *
-     * This is deliberately not an edit. `SessionStatus.Postponed` exists precisely so the
-     * day that was held can still be seen after it moves — a client who moved a date twice
-     * in a fortnight is a fact about that booking, and a studio charging a reschedule fee
-     * needs the record of what was moved. Overwriting the block would erase both.
-     *
-     * The new day is scheduled in the same zone as the one it replaces.
-     */
-    fun moveSession(
-        sessionId: SessionId,
-        rescheduled: NewSession,
-    ) {
-        viewModelScope.launch {
-            val original = sessionRepository.getSession(sessionId) ?: return@launch
-            val zone = TimeZone.of(original.timeZoneId)
-            if (rescheduled.title.isBlank()) return@launch
-            val timing = rescheduled.timing(zone) ?: return@launch
-            val now = clock.now()
-
-            sessionRepository.saveSession(
-                original.copy(
-                    status = SessionStatus.Postponed,
-                    audit = original.audit.touched(now),
-                ),
-            )
-
-            sessionRepository.saveSession(
-                Session(
-                    id = SessionId.new(),
-                    studioId = studioContext.studioId,
-                    projectId = rescheduled.projectId,
-                    title = rescheduled.title.trim(),
-                    kind = rescheduled.kind,
-                    // A day that has just been moved is on the calendar again, not
-                    // carried over as postponed from the block it replaces.
-                    status =
-                        rescheduled.status.takeIf { it != SessionStatus.Postponed }
-                            ?: SessionStatus.Scheduled,
-                    startsAt = timing.startsAt,
-                    endsAt = timing.endsAt,
-                    timeZoneId = original.timeZoneId,
-                    locationName = rescheduled.locationName.trim().ifBlank { null },
-                    locationAddress = rescheduled.locationAddress.trim().ifBlank { null },
-                    coordinates = rescheduled.coordinates(),
-                    callTime = timing.callTime,
-                    notes = rescheduled.notes.trim().ifBlank { null },
                     audit = AuditMetadata.createdAt(now),
                 ),
             )

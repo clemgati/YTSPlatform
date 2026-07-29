@@ -1,10 +1,16 @@
 package com.yellowtrack.platform.feature.sessions
 
+import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.feature.sessions.presentation.SessionsViewModel
+import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val sessionsModule =
     module {
         viewModel { SessionsViewModel(get(), get(), get(), get(), get()) }
+
+        viewModel { (sessionId: SessionId) ->
+            SessionDetailsViewModel(sessionId, get(), get(), get(), get(), get(), get(), get())
+        }
     }

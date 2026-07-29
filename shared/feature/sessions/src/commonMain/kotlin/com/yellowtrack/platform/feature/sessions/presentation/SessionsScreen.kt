@@ -26,19 +26,16 @@ import com.yellowtrack.platform.feature.sessions.presentation.component.SessionR
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.SessionGroup
 import com.yellowtrack.platform.feature.sessions.presentation.model.SessionListItem
-import kotlinx.datetime.TimeZone
 
 @Composable
 internal fun SessionsScreen(
     uiState: SessionsUiState,
     onRetry: () -> Unit,
+    onSessionSelected: (SessionId) -> Unit,
     onAddSession: (NewSession) -> Unit,
-    onUpdateSession: (SessionId, NewSession) -> Unit,
-    onMoveSession: (SessionId, NewSession) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showForm by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<SessionListItem?>(null) }
 
     if (showForm && uiState.today != null) {
         SessionFormDialog(
@@ -50,22 +47,6 @@ internal fun SessionsScreen(
                 showForm = false
             },
             onDismiss = { showForm = false },
-        )
-    }
-
-    editing?.let { session ->
-        SessionFormDialog(
-            bookings = uiState.bookings,
-            today = uiState.today ?: return@let,
-            // The session's own zone, so editing a destination booking from home does not
-            // shift it by the offset between the two clocks.
-            zone = TimeZone.of(session.zoneId),
-            initial = session.editable,
-            onSave = { edited, moved ->
-                if (moved) onMoveSession(session.id, edited) else onUpdateSession(session.id, edited)
-                editing = null
-            },
-            onDismiss = { editing = null },
         )
     }
 
@@ -83,7 +64,9 @@ internal fun SessionsScreen(
         SessionsContent(
             groups = groups,
             totalCount = uiState.totalCount,
-            onSessionSelected = { session -> editing = session },
+            // Opens the day rather than a form: there is a screen behind this now, and it
+            // has room to show what an edit affects.
+            onSessionSelected = { session -> onSessionSelected(session.id) },
             onSchedule = { showForm = true },
             modifier = contentModifier,
         )

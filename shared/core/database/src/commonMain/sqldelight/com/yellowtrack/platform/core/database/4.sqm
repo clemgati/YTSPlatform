@@ -1,0 +1,32 @@
+-- Migration 4 → 5: who is working the day.
+--
+-- Adds the crew on a session, each with their own call time. That last part is the point:
+-- hair and make-up are called hours before the photographer, the videographer arrives
+-- after, and a call sheet giving everyone the same time is a call sheet nobody can use.
+--
+-- Held per session rather than as a studio directory, because that is how the work
+-- arrives — a second shooter booked for one wedding, a make-up artist the client brought.
+-- A directory of regulars would link to contact and can arrive later without moving this.
+--
+-- Purely additive. A new table, so every row a studio already has is untouched.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+CREATE TABLE crew_member (
+    id          TEXT    NOT NULL PRIMARY KEY,
+    studio_id   TEXT    NOT NULL,
+    session_id  TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
+    role        TEXT    NOT NULL,
+    phone       TEXT,
+    call_time   INTEGER,
+    notes       TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER,
+    version     INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (session_id) REFERENCES session(id)
+);
+
+CREATE INDEX crew_session_idx ON crew_member(session_id, deleted_at, call_time);
