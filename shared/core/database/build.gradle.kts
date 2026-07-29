@@ -27,6 +27,13 @@ kotlin {
             implementation(libs.sqldelight.webWorkerDriver)
             // w3c DOM bindings (Worker) are no longer part of the Kotlin/Wasm stdlib.
             implementation(libs.kotlinx.browser)
+            // The web-worker driver runs SQLite (compiled to wasm by sql.js) inside a
+            // dedicated worker. The worker script and sql.js both come from npm and are
+            // bundled by webpack; the sql-wasm.wasm binary is copied to the served root
+            // by webApp/webpack.config.d/sqljs.js. Keep the worker version pinned to the
+            // SQLDelight version so the message protocol stays in sync.
+            implementation(npm("@cashapp/sqldelight-sqljs-worker", libs.versions.sqldelight.get()))
+            implementation(npm("sql.js", "1.13.0"))
         }
 
         commonTest.dependencies {

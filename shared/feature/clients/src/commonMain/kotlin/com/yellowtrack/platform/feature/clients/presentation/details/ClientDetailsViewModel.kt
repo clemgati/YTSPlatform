@@ -2,26 +2,43 @@ package com.yellowtrack.platform.feature.clients.presentation.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.yellowtrack.platform.core.common.money.CurrencyCode
+import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
+import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.model.client.ClientContact
+import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.contact.ContactMethod
+import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
+import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.mapper.toClientDetailsModel
+import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 internal class ClientDetailsViewModel(
-    clientId: ClientId,
-    clientRepository: ClientRepository,
-    projectRepository: ProjectRepository,
+    private val clientId: ClientId,
+    private val clientRepository: ClientRepository,
+    private val projectRepository: ProjectRepository,
     sessionRepository: SessionRepository,
-    clock: AppClock,
+    private val studioContext: StudioContext,
+    private val clock: AppClock,
+    private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
@@ -41,7 +58,7 @@ internal class ClientDetailsViewModel(
                 val sessions = allSessions.filter { it.projectId in projectIds }
 
                 ClientDetailsUiState(
-                    client = UiState.Success(client.toClientDetailsModel(sessions, clock.now())),
+                    client = UiState.Success(client.toClientDetailsModel(sessions, projects, clock.now())),
                 )
             }
         }.catch { throwable ->
@@ -56,11 +73,175 @@ internal class ClientDetailsViewModel(
             initialValue = ClientDetailsUiState(client = UiState.Loading),
         )
 
+    /**
+     * Opens a booking against this client.
+     *
+     * The status stamp is written with the status rather than after it: a booking recorded
+     * as Booked with no `bookedAt` cannot say when the date was taken, which is the figure
+     * every later question about that job is measured from.
+     */
+    fun addProject(project: NewProject) {
+        viewModelScope.launch {
+            if (project.name.isBlank()) return@launch
+
+            val contractValue =
+                when {
+                    project.contractValue.isBlank() -> null
+                    else -> parseMoney(project.contractValue, currency)?.takeIf { it.isPositive } ?: return@launch
+                }
+
+            val now = clock.now()
+
+            projectRepository.saveProject(
+                Project(
+                    id = ProjectId.new(),
+                    studioId = studioContext.studioId,
+                    clientId = clientId,
+                    name = project.name.trim(),
+                    serviceLine = project.serviceLine,
+                    status = project.status,
+                    contractValue = contractValue,
+                    // Every booking was enquired about at some point, even one entered
+                    // already booked; the enquiry is what the booking rate is measured
+                    // against, so it is never left blank.
+                    enquiredAt = now,
+                    bookedAt = now.takeIf { project.status.isCommitted },
+                    notes = project.notes.trim().ifBlank { null },
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Corrects the account and the person the form shows.
+     *
+     * Everything the form does not show is carried across untouched. That matters more
+     * than it looks: an account may hold a partner, a planner, and an accounts-payable
+     * contact, and this form shows only the primary one. Rebuilding the contact list from
+     * what is on screen would silently delete the other three.
+     */
+    fun updateClient(edited: NewClient) {
+        viewModelScope.launch {
+            if (!edited.hasName) return@launch
+
+            val existing = clientRepository.getClient(clientId) ?: return@launch
+            val now = clock.now()
+
+            // Mirrors Client.primaryContact, so the row the form was filled from is the
+            // row it writes back to.
+            val primary =
+                existing.contacts.firstOrNull { it.role == ClientContactRole.Primary }
+                    ?: existing.contacts.firstOrNull()
+
+            val contacts =
+                when {
+                    primary != null -> {
+                        val updated =
+                            primary.contact.copy(
+                                firstName = edited.contactFirstName.trim(),
+                                lastName = edited.contactLastName.trim(),
+                                company = edited.company.trim().ifBlank { null },
+                                emails = primary.contact.emails.withPrimary(edited.email.trim()),
+                                phones = primary.contact.phones.withPrimary(edited.phone.trim()),
+                                audit = primary.contact.audit.touched(now),
+                            )
+
+                        existing.contacts.map { if (it == primary) it.copy(contact = updated) else it }
+                    }
+
+                    edited.hasContact ->
+                        existing.contacts +
+                            ClientContact(
+                                contact =
+                                    Contact(
+                                        id = ContactId.new(),
+                                        studioId = studioContext.studioId,
+                                        firstName = edited.contactFirstName.trim(),
+                                        lastName = edited.contactLastName.trim(),
+                                        company = edited.company.trim().ifBlank { null },
+                                        emails = emptyList<ContactMethod>().withPrimary(edited.email.trim()),
+                                        phones = emptyList<ContactMethod>().withPrimary(edited.phone.trim()),
+                                        audit = AuditMetadata.createdAt(now),
+                                    ),
+                                role = ClientContactRole.Primary,
+                            )
+
+                    else -> existing.contacts
+                }
+
+            clientRepository.saveClient(
+                existing.copy(
+                    accountName = edited.accountName.trim(),
+                    accountType = edited.accountType,
+                    contacts = contacts,
+                    notes = edited.notes.trim().ifBlank { null },
+                    audit = existing.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Corrects a booking, which is chiefly how a job moves from Enquiry to Booked.
+     *
+     * `bookedAt` is stamped the first time the booking reaches a status that holds studio
+     * time, and never cleared afterwards. A cancelled job keeps the date it was booked on
+     * purpose: that date is what a cancellation fee is measured against, and clearing it
+     * would destroy the evidence at exactly the moment it is needed.
+     */
+    fun updateProject(
+        projectId: ProjectId,
+        edited: NewProject,
+    ) {
+        viewModelScope.launch {
+            if (edited.name.isBlank()) return@launch
+
+            val existing = projectRepository.getProject(projectId) ?: return@launch
+            val contractValue =
+                when {
+                    edited.contractValue.isBlank() -> null
+                    else -> parseMoney(edited.contractValue, currency)?.takeIf { it.isPositive } ?: return@launch
+                }
+
+            val now = clock.now()
+
+            projectRepository.saveProject(
+                existing.copy(
+                    name = edited.name.trim(),
+                    serviceLine = edited.serviceLine,
+                    status = edited.status,
+                    contractValue = contractValue,
+                    bookedAt = existing.bookedAt ?: now.takeIf { edited.status.isCommitted },
+                    notes = edited.notes.trim().ifBlank { null },
+                    audit = existing.audit.touched(now),
+                ),
+            )
+        }
+    }
+
     fun retry() {
         retryTrigger.value += 1
     }
 
     private companion object {
         const val STOP_TIMEOUT_MILLIS = 5_000L
+    }
+}
+
+/**
+ * Replaces the primary entry, keeping every other way of reaching the person.
+ *
+ * A contact may carry a work address and a personal one; the form shows a single field. A
+ * blank value removes the primary entry rather than the list, so clearing one email does
+ * not discard the others.
+ */
+private fun List<ContactMethod>.withPrimary(value: String): List<ContactMethod> {
+    val current = firstOrNull { it.label == ContactMethodLabel.Primary } ?: firstOrNull()
+
+    return when {
+        value.isBlank() -> filterNot { it == current }
+        current == null -> this + ContactMethod(value)
+        else -> map { if (it == current) it.copy(value = value) else it }
     }
 }

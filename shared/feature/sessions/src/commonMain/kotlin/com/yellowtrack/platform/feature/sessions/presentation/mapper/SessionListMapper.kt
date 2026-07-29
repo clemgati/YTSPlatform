@@ -1,12 +1,16 @@
 package com.yellowtrack.platform.feature.sessions.presentation.mapper
 
+import com.yellowtrack.platform.core.common.solar.SolarCalculator
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.SessionGroup
 import com.yellowtrack.platform.feature.sessions.presentation.model.SessionListItem
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
 internal fun buildSessionGroups(
@@ -36,6 +40,9 @@ internal fun buildSessionGroups(
             // Surfaced only when it differs from the device, so a photographer checking a
             // destination booking from home is not misled by their own clock.
             timeZoneNote = timeZoneId.takeIf { zone != deviceZone },
+            zoneId = timeZoneId,
+            editable = toEditableForm(zone),
+            goldenHourLabel = goldenHourLabel(zone),
         )
     }
 
@@ -45,5 +52,62 @@ internal fun buildSessionGroups(
     return buildList {
         if (upcoming.isNotEmpty()) add(SessionGroup("Upcoming", upcoming.map { it.toItem() }))
         if (past.isNotEmpty()) add(SessionGroup("Past", past.map { it.toItem() }))
+    }
+}
+
+/** The session's own values, as the form holds them, read in the zone it happens in. */
+private fun Session.toEditableForm(zone: TimeZone): NewSession {
+    val start = startsAt.toLocalDateTime(zone)
+
+    return NewSession(
+        projectId = projectId,
+        title = title,
+        kind = kind,
+        status = status,
+        date = start.date.toString(),
+        startTime = start.time.hourAndMinute(),
+        endTime = endsAt.toLocalDateTime(zone).time.hourAndMinute(),
+        callTime =
+            callTime
+                ?.toLocalDateTime(zone)
+                ?.time
+                ?.hourAndMinute()
+                .orEmpty(),
+        locationName = locationName.orEmpty(),
+        locationAddress = locationAddress.orEmpty(),
+        latitude = coordinates?.latitude?.toString().orEmpty(),
+        longitude = coordinates?.longitude?.toString().orEmpty(),
+        notes = notes.orEmpty(),
+    )
+}
+
+/**
+ * Formatted as the form expects to read it back.
+ *
+ * `LocalTime.toString` drops a zero minute field and appends seconds when they are not
+ * zero, so a session stored with either would come back in a shape the form cannot parse.
+ */
+private fun LocalTime.hourAndMinute(): String =
+    "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+/**
+ * When the good light is on this shoot day, or null where there is no coordinate.
+ *
+ * The evening window is the one shown: it is the one a shoot is planned around far more
+ * often than dawn, and a row has space for one figure rather than four.
+ */
+private fun Session.goldenHourLabel(zone: TimeZone): String? {
+    val where = coordinates ?: return null
+    val day = startsAt.toLocalDateTime(zone).date
+    val events = SolarCalculator.eventsOn(day, where)
+
+    return when {
+        events.isPolarDay -> "Sun up all day"
+        events.isPolarNight -> "Sun never rises"
+        else ->
+            events.eveningGoldenHour?.let { golden ->
+                "Golden ${DateFormats.timeOfDay(golden.start, zone)}" +
+                    "–${DateFormats.timeOfDay(golden.end, zone)}"
+            }
     }
 }

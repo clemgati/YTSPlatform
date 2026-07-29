@@ -7,15 +7,13 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import com.yellowtrack.platform.core.common.money.CurrencyCode
-import com.yellowtrack.platform.core.common.money.parseMoney
-import com.yellowtrack.platform.core.common.money.parsePercentageToBasisPoints
 import com.yellowtrack.platform.core.designsystem.component.YTDropdownField
 import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
@@ -47,15 +45,12 @@ internal fun InvoiceFormDialog(
 
     var number by remember { mutableStateOf(suggestedNumber) }
     var kind by remember { mutableStateOf(InvoiceKind.Full) }
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var taxRate by remember { mutableStateOf("") }
     var dueOn by remember { mutableStateOf(today.plus(DEFAULT_PAYMENT_TERM_DAYS, DateTimeUnit.DAY).toString()) }
     var sendNow by remember { mutableStateOf(true) }
     var selectedProject by remember(bookings) { mutableStateOf(bookings.firstOrNull()) }
 
-    val amountValid = parseMoney(amount, currency)?.isPositive == true
-    val taxValid = taxRate.isBlank() || parsePercentageToBasisPoints(taxRate) != null
+    val lines = remember { mutableStateListOf(LineFields()) }
+
     val dueValid = runCatching { LocalDate.parse(dueOn) }.isSuccess
     val booking = selectedProject
 
@@ -71,9 +66,7 @@ internal fun InvoiceFormDialog(
         confirmEnabled =
             booking?.id != null &&
                 number.isNotBlank() &&
-                description.isNotBlank() &&
-                amountValid &&
-                taxValid &&
+                lines.allValid(currency) &&
                 dueValid,
         onConfirm = {
             val projectId = booking?.id ?: return@YTFormDialog
@@ -83,9 +76,7 @@ internal fun InvoiceFormDialog(
                     number = number.trim(),
                     projectId = projectId,
                     kind = kind,
-                    description = description.trim(),
-                    amount = amount.trim(),
-                    taxRate = taxRate.trim(),
+                    lines = lines.map(LineFields::asNew),
                     dueOn = dueOn.trim(),
                     sendNow = sendNow,
                 ),
@@ -118,27 +109,12 @@ internal fun InvoiceFormDialog(
             optionDescription = { it.explanation },
         )
 
-        YTTextField(
-            value = description,
-            onValueChange = { description = it },
-            label = "What is it for?",
-            placeholder = "Balance of wedding coverage",
-        )
-
-        YTTextField(
-            value = amount,
-            onValueChange = { amount = it },
-            label = "Amount (${currency.code})",
-            keyboardType = KeyboardType.Decimal,
-            errorMessage = if (amount.isNotBlank() && !amountValid) "Enter an amount such as 2500.00" else null,
-        )
-
-        YTTextField(
-            value = taxRate,
-            onValueChange = { taxRate = it },
-            label = "Tax rate (%)",
-            keyboardType = KeyboardType.Decimal,
-            errorMessage = if (!taxValid) "Enter a rate such as 8.25, or leave it blank" else null,
+        LineItemsEditor(
+            lines = lines,
+            currency = currency,
+            onChange = { index, updated -> lines[index] = updated },
+            onAdd = { lines.add(LineFields()) },
+            onRemove = { index -> lines.removeAt(index) },
         )
 
         YTTextField(

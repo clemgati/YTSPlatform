@@ -7,10 +7,13 @@ import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.contract.ContractStatus
 import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
 import kotlinx.datetime.TimeZone
@@ -56,23 +59,43 @@ internal fun buildProposals(
             )
         }
 
+    // A booking whose retainer invoice is settled has had the money that holds the date.
+    val retainerPaidProjects =
+        invoices
+            .filter { it.kind == InvoiceKind.Retainer && it.paymentState(now) == PaymentState.Paid }
+            .map(Invoice::projectId)
+            .toSet()
+
+    // Abandoned agreements are gone; everything else stays until it actually holds a date,
+    // which a signature alone does not do — see [Contract.isBindingWith].
     val contractItems =
         contracts
-            .filter { it.status == ContractStatus.Sent }
-            .sortedBy { it.sentAt ?: it.audit.createdAt }
-            .map { contract ->
+            .filter { it.status != ContractStatus.Declined && it.status != ContractStatus.Cancelled }
+            .filterNot { it.isBindingWith(retainerPaid = it.projectId in retainerPaidProjects) }
+            .map { contract -> contract to stageOf(contract) }
+            .sortedWith(
+                compareBy<Pair<Contract, ContractStage>> { (_, stage) -> stage.ordinal }
+                    .thenBy { (contract, _) -> contract.sentAt ?: contract.audit.createdAt },
+            ).map { (contract, stage) ->
                 ContractItem(
                     id = contract.id,
                     title = contract.title,
                     clientName = clientNameFor(contract.projectId),
                     retainer = contract.retainerAmount?.display(),
-                    waitingLabel = contract.sentAt?.let { waitingLabel(it, now) },
+                    stage = stage,
+                    waitingLabel =
+                        when (stage) {
+                            ContractStage.NotSent -> waitingLabel(contract.audit.createdAt, now, "drawn up")
+                            ContractStage.AwaitingSignature -> contract.sentAt?.let { waitingLabel(it, now) }
+                            ContractStage.AwaitingRetainer ->
+                                contract.signedAt?.let { waitingLabel(it, now, "signed") }
+                        },
                 )
             }
 
     return ProposalsSummary(
         awaitingDecision = quoteItems,
-        awaitingSignature = contractItems,
+        datesNotHeld = contractItems,
         quotedValue =
             open
                 .map(Quote::total)
@@ -119,18 +142,37 @@ internal fun nextNumber(
     return prefix + next.toString().padStart(width, '0')
 }
 
-/** How long a document has been sitting with a client, in the terms a studio thinks in. */
+/**
+ * Which step a contract is stuck on.
+ *
+ * A signed contract only reaches here when it is not yet binding, so it is by construction
+ * one whose retainer has not arrived.
+ */
+private fun stageOf(contract: Contract): ContractStage =
+    when {
+        contract.isSigned -> ContractStage.AwaitingRetainer
+        contract.status == ContractStatus.Sent -> ContractStage.AwaitingSignature
+        else -> ContractStage.NotSent
+    }
+
+/**
+ * How long a document has been sitting, in the terms a studio thinks in.
+ *
+ * The verb varies because the clock that matters varies: a quote has been *sent*, an
+ * unsent contract has only been *drawn up*, and one waiting on a retainer was *signed*.
+ */
 private fun waitingLabel(
     since: Instant,
     now: Instant,
+    verb: String = "sent",
 ): String {
     val days = (now - since).inWholeDays
 
     return when {
-        days <= 0L -> "sent today"
-        days == 1L -> "sent yesterday"
-        days < 14L -> "sent $days days ago"
-        days < 60L -> "sent ${days / 7} weeks ago"
-        else -> "sent ${days / 30} months ago"
+        days <= 0L -> "$verb today"
+        days == 1L -> "$verb yesterday"
+        days < 14L -> "$verb $days days ago"
+        days < 60L -> "$verb ${days / 7} weeks ago"
+        else -> "$verb ${days / 30} months ago"
     }
 }

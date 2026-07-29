@@ -17,9 +17,9 @@ private fun ClientQuickActionsSectionPreview() {
             color = YTTheme.colors.background,
         ) {
             ClientQuickActionsSection(
+                onAddProject = {},
                 onScheduleSession = {},
                 onEditClient = {},
-                onArchiveClient = {},
                 modifier =
                     Modifier.padding(
                         YTTheme.spacing.large,

@@ -16,13 +16,16 @@ import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.QuoteRepository
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.StudioContext
-import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.codb.CodbBreakdown
 import com.yellowtrack.platform.core.model.codb.CodbProfile
 import com.yellowtrack.platform.core.model.codb.CodbProfileId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
+import com.yellowtrack.platform.core.model.contract.LicenseMedium
+import com.yellowtrack.platform.core.model.contract.UsageLicense
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.ExpenseId
 import com.yellowtrack.platform.core.model.expense.Mileage
@@ -46,11 +49,15 @@ import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildMoneyOwe
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildPricing
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildProposals
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.nextNumber
+import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
+import com.yellowtrack.platform.feature.ledger.presentation.model.toLineItems
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -286,7 +293,7 @@ internal class LedgerViewModel(
      */
     fun addQuote(quote: NewQuote) {
         viewModelScope.launch {
-            val line = lineItemOf(quote.description, quote.amount, quote.taxRate) ?: return@launch
+            val lines = quote.lines.toLineItems(currency) ?: return@launch
             val now = clock.now()
             val validUntil =
                 if (quote.validUntil.isBlank()) {
@@ -304,7 +311,7 @@ internal class LedgerViewModel(
                     number = quote.number.trim(),
                     status = QuoteStatus.Sent,
                     currency = currency,
-                    lines = listOf(line),
+                    lines = lines,
                     issuedAt = now,
                     validUntil = validUntil,
                     terms = quote.terms,
@@ -347,9 +354,145 @@ internal class LedgerViewModel(
         }
     }
 
+    /**
+     * Draws up a contract, and sends it if asked.
+     *
+     * A contract may be saved unsent, unlike a quote: the terms are usually settled before
+     * anyone is willing to put them in front of a client, and an unsent contract is
+     * visible on the Ledger as the studio's own outstanding step rather than lost.
+     */
+    fun addContract(contract: NewContract) {
+        viewModelScope.launch {
+            val retainer =
+                when {
+                    contract.retainerAmount.isBlank() -> null
+                    else -> parseMoney(contract.retainerAmount, currency)?.takeIf { it.isPositive } ?: return@launch
+                }
+
+            val turnaroundDays = optionalCount(contract.turnaroundDays) ?: return@launch
+            val revisionRounds = optionalCount(contract.revisionRounds) ?: return@launch
+            val license = contract.license?.let { form -> usageLicenseOf(form) ?: return@launch }
+            val now = clock.now()
+
+            contractRepository.saveContract(
+                Contract(
+                    id = ContractId.new(),
+                    studioId = studioContext.studioId,
+                    projectId = contract.projectId,
+                    title = contract.title.trim(),
+                    status = if (contract.sendNow) ContractStatus.Sent else ContractStatus.Draft,
+                    sentAt = now.takeIf { contract.sendNow },
+                    retainerAmount = retainer,
+                    isRetainerRefundable = contract.isRetainerRefundable,
+                    turnaroundDays = turnaroundDays.value,
+                    revisionRounds = revisionRounds.value,
+                    cancellationTerms = contract.cancellationTerms,
+                    rescheduleTerms = contract.rescheduleTerms,
+                    weatherClause = contract.weatherClause,
+                    usageLicense = license,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Builds the licence, or null if the stated duration does not parse.
+     *
+     * An unreadable duration rejects the contract rather than quietly becoming perpetual.
+     * Defaulting the other way would grant, for free, the one term that forecloses every
+     * future fee from the same work.
+     */
+    private fun usageLicenseOf(form: NewUsageLicense): UsageLicense? {
+        if (form.media.isEmpty() || form.territory.isBlank()) return null
+
+        val durationMonths =
+            when {
+                form.durationMonths.isBlank() -> null
+                else -> form.durationMonths.toIntOrNull()?.takeIf { it > 0 } ?: return null
+            }
+
+        val startsOn =
+            when {
+                form.startsOn.isBlank() -> null
+                else -> runCatching { LocalDate.parse(form.startsOn) }.getOrNull() ?: return null
+            }
+
+        return UsageLicense(
+            media = form.media.sortedBy(LicenseMedium::ordinal),
+            territory = form.territory.trim(),
+            durationMonths = durationMonths,
+            isExclusive = form.isExclusive,
+            startsOn = startsOn,
+        )
+    }
+
+    /**
+     * Reads an optional whole count, distinguishing "not stated" from "not a number".
+     *
+     * Blank means the contract is silent on the term, which is legitimate. Text that is
+     * not a positive number is a typo, and saving the contract without it would drop a
+     * term the studio believed it had agreed.
+     */
+    private fun optionalCount(text: String): OptionalCount? =
+        when {
+            text.isBlank() -> OptionalCount(null)
+            else -> text.toIntOrNull()?.takeIf { it > 0 }?.let(::OptionalCount)
+        }
+
+    /** Wraps a nullable count so an absent one is distinguishable from a rejected one. */
+    private data class OptionalCount(
+        val value: Int?,
+    )
+
+    /** Puts a drawn-up contract in front of the client, starting the clock on a reply. */
+    fun sendContract(contractId: ContractId) {
+        viewModelScope.launch {
+            val contract = contractRepository.getContract(contractId) ?: return@launch
+            if (contract.status != ContractStatus.Draft) return@launch
+            val now = clock.now()
+
+            contractRepository.saveContract(
+                contract.copy(
+                    status = ContractStatus.Sent,
+                    sentAt = now,
+                    audit = contract.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Records a signature against a contract.
+     *
+     * The date comes from the form rather than the clock because contracts are signed on
+     * paper and entered later, and the date a client was bound is the date that decides
+     * whether a cancellation falls inside the notice period.
+     */
+    fun signContract(signature: ContractSignature) {
+        viewModelScope.launch {
+            val contract = contractRepository.getContract(signature.contractId) ?: return@launch
+            if (contract.isSigned) return@launch
+
+            val signerName = signature.signerName.trim().ifBlank { return@launch }
+            val signedOn = runCatching { LocalDate.parse(signature.signedOn) }.getOrNull() ?: return@launch
+            val now = clock.now()
+
+            contractRepository.saveContract(
+                contract.copy(
+                    status = ContractStatus.Signed,
+                    signedAt = signedOn.atStartOfDayIn(timeZone),
+                    signerName = signerName,
+                    signerEmail = signature.signerEmail?.trim()?.ifBlank { null },
+                    audit = contract.audit.touched(now),
+                ),
+            )
+        }
+    }
+
     fun addInvoice(invoice: NewInvoice) {
         viewModelScope.launch {
-            val line = lineItemOf(invoice.description, invoice.amount, invoice.taxRate) ?: return@launch
+            val lines = invoice.lines.toLineItems(currency) ?: return@launch
             val dueOn = runCatching { LocalDate.parse(invoice.dueOn) }.getOrNull() ?: return@launch
             val now = clock.now()
 
@@ -362,7 +505,7 @@ internal class LedgerViewModel(
                     kind = invoice.kind,
                     status = if (invoice.sendNow) InvoiceStatus.Sent else InvoiceStatus.Draft,
                     currency = currency,
-                    lines = listOf(line),
+                    lines = lines,
                     // Stamped only when sent: an unissued invoice has no issue date, and
                     // inventing one would make a draft look like a demand already made.
                     issuedAt = now.takeIf { invoice.sendNow },
@@ -374,30 +517,66 @@ internal class LedgerViewModel(
     }
 
     /**
-     * Builds a billable line, or null if the amount does not parse.
+     * Issues a draft invoice.
      *
-     * A blank tax rate is zero rather than a rejection: most portrait and wedding work is
-     * quoted tax-inclusive or tax-free, and forcing a `0` into the field to proceed would
-     * be friction with no meaning.
+     * This is the step that turns work already agreed into money owed. The issue date is
+     * stamped now rather than backdated to when the draft was raised, because the due date
+     * a client is held to runs from the demand they actually received.
      */
-    private fun lineItemOf(
-        description: String,
-        amount: String,
-        taxRate: String,
-    ): LineItem? {
-        val price = parseMoney(amount, currency)?.takeIf { it.isPositive } ?: return null
-        val basisPoints =
-            if (taxRate.isBlank()) {
-                0
-            } else {
-                parsePercentageToBasisPoints(taxRate)?.takeIf { it >= 0 } ?: return null
-            }
+    fun sendInvoice(invoiceId: InvoiceId) {
+        viewModelScope.launch {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            if (invoice.status != InvoiceStatus.Draft) return@launch
+            val now = clock.now()
 
-        return LineItem(
-            description = description.trim(),
-            unitPrice = price,
-            taxRateBasisPoints = basisPoints,
-        )
+            invoiceRepository.saveInvoice(
+                invoice.copy(
+                    status = InvoiceStatus.Sent,
+                    issuedAt = now,
+                    audit = invoice.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Cancels an invoice while keeping it in the books.
+     *
+     * Voiding rather than deleting is what keeps the numbering honest: the row stays, so
+     * its number is never handed to a second document, and a client holding INV-008 can
+     * always be shown what INV-008 was. An invoice with payments against it is refused —
+     * cancelling it would take money the studio has actually received out of its books,
+     * and the remedy for that is a refund, recorded.
+     */
+    fun voidInvoice(invoiceId: InvoiceId) {
+        viewModelScope.launch {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            if (invoice.status == InvoiceStatus.Void || invoice.payments.isNotEmpty()) return@launch
+            val now = clock.now()
+
+            invoiceRepository.saveInvoice(
+                invoice.copy(
+                    status = InvoiceStatus.Void,
+                    audit = invoice.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Discards a draft invoice outright.
+     *
+     * Only a draft: it has never been sent, so nobody holds a copy, nothing has been
+     * demanded, and its number may safely be handed to the next document. Anything that
+     * has left the studio is voided instead, which is why this refuses everything else.
+     */
+    fun deleteInvoice(invoiceId: InvoiceId) {
+        viewModelScope.launch {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            if (invoice.status != InvoiceStatus.Draft) return@launch
+
+            invoiceRepository.deleteInvoice(invoiceId)
+        }
     }
 
     fun recordPayment(payment: NewPayment) {

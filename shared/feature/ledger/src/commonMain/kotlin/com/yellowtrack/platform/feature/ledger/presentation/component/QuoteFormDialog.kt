@@ -3,14 +3,12 @@ package com.yellowtrack.platform.feature.ledger.presentation.component
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import com.yellowtrack.platform.core.common.money.CurrencyCode
-import com.yellowtrack.platform.core.common.money.parseMoney
-import com.yellowtrack.platform.core.common.money.parsePercentageToBasisPoints
 import com.yellowtrack.platform.core.designsystem.component.YTDropdownField
 import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
@@ -40,15 +38,12 @@ internal fun QuoteFormDialog(
     val bookings = remember(projects) { projects.filter { it.id != null } }
 
     var number by remember { mutableStateOf(suggestedNumber) }
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var taxRate by remember { mutableStateOf("") }
     var validUntil by remember { mutableStateOf(today.plus(DEFAULT_VALIDITY_DAYS, DateTimeUnit.DAY).toString()) }
     var terms by remember { mutableStateOf("") }
     var selectedProject by remember(bookings) { mutableStateOf(bookings.firstOrNull()) }
 
-    val amountValid = parseMoney(amount, currency)?.isPositive == true
-    val taxValid = taxRate.isBlank() || parsePercentageToBasisPoints(taxRate) != null
+    val lines = remember { mutableStateListOf(LineFields()) }
+
     val validUntilValid = validUntil.isBlank() || runCatching { LocalDate.parse(validUntil) }.isSuccess
     val booking = selectedProject
 
@@ -64,9 +59,7 @@ internal fun QuoteFormDialog(
         confirmEnabled =
             booking?.id != null &&
                 number.isNotBlank() &&
-                description.isNotBlank() &&
-                amountValid &&
-                taxValid &&
+                lines.allValid(currency) &&
                 validUntilValid,
         onConfirm = {
             val projectId = booking?.id ?: return@YTFormDialog
@@ -75,9 +68,7 @@ internal fun QuoteFormDialog(
                 NewQuote(
                     number = number.trim(),
                     projectId = projectId,
-                    description = description.trim(),
-                    amount = amount.trim(),
-                    taxRate = taxRate.trim(),
+                    lines = lines.map(LineFields::asNew),
                     validUntil = validUntil.trim(),
                     terms = terms.trim().ifBlank { null },
                 ),
@@ -101,27 +92,12 @@ internal fun QuoteFormDialog(
             label = "Quote number",
         )
 
-        YTTextField(
-            value = description,
-            onValueChange = { description = it },
-            label = "What is being quoted?",
-            placeholder = "Wedding coverage, eight hours",
-        )
-
-        YTTextField(
-            value = amount,
-            onValueChange = { amount = it },
-            label = "Amount (${currency.code})",
-            keyboardType = KeyboardType.Decimal,
-            errorMessage = if (amount.isNotBlank() && !amountValid) "Enter an amount such as 4000.00" else null,
-        )
-
-        YTTextField(
-            value = taxRate,
-            onValueChange = { taxRate = it },
-            label = "Tax rate (%)",
-            keyboardType = KeyboardType.Decimal,
-            errorMessage = if (!taxValid) "Enter a rate such as 8.25, or leave it blank" else null,
+        LineItemsEditor(
+            lines = lines,
+            currency = currency,
+            onChange = { index, updated -> lines[index] = updated },
+            onAdd = { lines.add(LineFields()) },
+            onRemove = { index -> lines.removeAt(index) },
         )
 
         YTTextField(

@@ -10,14 +10,13 @@ import com.yellowtrack.platform.core.designsystem.component.YTIcon
 import com.yellowtrack.platform.core.designsystem.component.YTIcons
 import com.yellowtrack.platform.core.designsystem.component.YTListItem
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
-import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.feature.sessions.presentation.model.SessionListItem
 
 @Composable
 internal fun SessionRow(
     session: SessionListItem,
-    onClick: (SessionId) -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTListItem(
@@ -46,6 +45,14 @@ internal fun SessionRow(
                     color = YTTheme.colors.onSurfaceVariant,
                 )
 
+                session.goldenHourLabel?.let { golden ->
+                    Text(
+                        text = golden,
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
                 session.timeZoneNote?.let { zone ->
                     Text(
                         text = "Local time in $zone",
@@ -61,7 +68,7 @@ internal fun SessionRow(
                 contentDescription = "More options for ${session.title}",
             )
         },
-        onClick = { onClick(session.id) },
+        onClick = onClick,
     )
 }
 

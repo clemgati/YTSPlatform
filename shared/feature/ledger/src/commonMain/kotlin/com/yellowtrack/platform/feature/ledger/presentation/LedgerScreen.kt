@@ -15,8 +15,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.feature.ledger.presentation.component.ContractFormDialog
+import com.yellowtrack.platform.feature.ledger.presentation.component.ContractSignatureDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.ExpenseFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.ExpenseSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.InvoiceFormDialog
@@ -25,6 +29,9 @@ import com.yellowtrack.platform.feature.ledger.presentation.component.PaymentFor
 import com.yellowtrack.platform.feature.ledger.presentation.component.PricingSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.ProposalsSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.QuoteFormDialog
+import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
@@ -40,14 +47,22 @@ internal fun LedgerScreen(
     onRecordPayment: (NewPayment) -> Unit,
     onAddQuote: (NewQuote) -> Unit,
     onAddInvoice: (NewInvoice) -> Unit,
+    onAddContract: (NewContract) -> Unit,
     onAcceptQuote: (QuoteId) -> Unit,
     onDeclineQuote: (QuoteId) -> Unit,
+    onSendContract: (ContractId) -> Unit,
+    onSignContract: (ContractSignature) -> Unit,
+    onSendInvoice: (InvoiceId) -> Unit,
+    onVoidInvoice: (InvoiceId) -> Unit,
+    onDeleteInvoice: (InvoiceId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showExpenseForm by remember { mutableStateOf(false) }
     var showQuoteForm by remember { mutableStateOf(false) }
     var showInvoiceForm by remember { mutableStateOf(false) }
+    var showContractForm by remember { mutableStateOf(false) }
     var payingInvoice by remember { mutableStateOf<OutstandingInvoiceItem?>(null) }
+    var signingContract by remember { mutableStateOf<ContractItem?>(null) }
 
     StatefulContent(
         state = uiState.content,
@@ -95,6 +110,31 @@ internal fun LedgerScreen(
             )
         }
 
+        if (showContractForm) {
+            ContractFormDialog(
+                today = content.today,
+                currency = content.currency,
+                projects = content.projects,
+                onSave = {
+                    onAddContract(it)
+                    showContractForm = false
+                },
+                onDismiss = { showContractForm = false },
+            )
+        }
+
+        signingContract?.let { contract ->
+            ContractSignatureDialog(
+                contract = contract,
+                today = content.today,
+                onSave = {
+                    onSignContract(it)
+                    signingContract = null
+                },
+                onDismiss = { signingContract = null },
+            )
+        }
+
         payingInvoice?.let { invoice ->
             PaymentFormDialog(
                 invoice = invoice,
@@ -126,14 +166,20 @@ internal fun LedgerScreen(
             MoneyOwedSection(
                 summary = content.moneyOwed,
                 onRecordPayment = { payingInvoice = it },
+                onVoidInvoice = { onVoidInvoice(it.id) },
+                onSendDraft = { onSendInvoice(it.id) },
+                onDeleteDraft = { onDeleteInvoice(it.id) },
             )
 
             ProposalsSection(
                 summary = content.proposals,
                 onNewQuote = { showQuoteForm = true },
                 onNewInvoice = { showInvoiceForm = true },
+                onNewContract = { showContractForm = true },
                 onAcceptQuote = { onAcceptQuote(it.id) },
                 onDeclineQuote = { onDeclineQuote(it.id) },
+                onSendContract = { onSendContract(it.id) },
+                onSignContract = { signingContract = it },
             )
 
             PricingSection(

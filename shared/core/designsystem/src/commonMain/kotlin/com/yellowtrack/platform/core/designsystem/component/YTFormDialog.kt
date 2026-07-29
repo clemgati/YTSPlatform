@@ -101,4 +101,13 @@ fun YTFormDialog(
     )
 }
 
-private val MaxFormHeight = 420.dp
+/**
+ * How tall a form may grow before it scrolls.
+ *
+ * Raised from 420dp once the contract form arrived: at 420dp only five of its fourteen
+ * fields were reachable, in a window with room for far more. The cap turned out not to be
+ * what protects the buttons — Material's own dialog clamps its content to the space
+ * available, verified by rendering this dialog into a 280dp-tall scene, shorter than any
+ * real phone, where Cancel and the confirm button both stayed on screen.
+ */
+private val MaxFormHeight = 560.dp

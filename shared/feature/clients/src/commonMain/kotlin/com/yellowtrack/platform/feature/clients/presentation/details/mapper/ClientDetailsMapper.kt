@@ -1,12 +1,17 @@
 package com.yellowtrack.platform.feature.clients.presentation.details.mapper
 
+import com.yellowtrack.platform.core.common.money.formatted
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.ClientContactRole
+import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.feature.clients.presentation.details.model.BookingSummary
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientSessionHistoryItem
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientUpcomingSession
+import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.list.mapper.initials
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 import kotlinx.datetime.TimeZone
 import kotlin.time.Instant
 import com.yellowtrack.platform.core.model.client.Client as DomainClient
@@ -15,6 +20,7 @@ import com.yellowtrack.platform.feature.clients.presentation.details.model.Clien
 
 internal fun DomainClient.toClientDetailsModel(
     sessions: List<DomainSession>,
+    projects: List<Project>,
     now: Instant,
 ): ClientDetailsModel {
     val relevant = sessions.filter { it.status != SessionStatus.Cancelled }
@@ -37,9 +43,29 @@ internal fun DomainClient.toClientDetailsModel(
         contact = toContactDetails(),
         upcomingSession = upcoming?.toUpcomingSession(),
         sessionHistory = history.map { it.toHistoryItem() },
+        // Newest enquiry first: the job most recently asked about is the one being
+        // discussed, and older bookings are history to scroll to.
+        bookings =
+            projects
+                .sortedByDescending { it.enquiredAt ?: it.audit.createdAt }
+                .map { it.toBookingSummary() },
         notes = notes?.lines().orEmpty().filter(String::isNotBlank),
+        editable = toEditableForm(),
     )
 }
+
+/** The account's own values, as the form holds them. */
+private fun DomainClient.toEditableForm(): NewClient =
+    NewClient(
+        accountName = accountName,
+        accountType = accountType,
+        contactFirstName = primaryContact?.firstName.orEmpty(),
+        contactLastName = primaryContact?.lastName.orEmpty(),
+        company = primaryContact?.company.orEmpty(),
+        email = primaryContact?.primaryEmail.orEmpty(),
+        phone = primaryContact?.primaryPhone.orEmpty(),
+        notes = notes.orEmpty(),
+    )
 
 /**
  * Flattens the account's people into the single contact card the detail screen shows.
@@ -73,4 +99,24 @@ private fun DomainSession.toHistoryItem(): ClientSessionHistoryItem =
     ClientSessionHistoryItem(
         title = title,
         date = DateFormats.fullDate(startsAt, TimeZone.of(timeZoneId)),
+    )
+
+private fun Project.toBookingSummary(): BookingSummary =
+    BookingSummary(
+        id = id,
+        name = name,
+        serviceLine = serviceLine.name,
+        status = status,
+        value = contractValue?.formatted(),
+        // The status already says "Booked"; this says since when, without repeating it.
+        bookedLabel =
+            bookedAt?.let { "since ${DateFormats.shortDate(it, TimeZone.currentSystemDefault())}" },
+        editable =
+            NewProject(
+                name = name,
+                serviceLine = serviceLine,
+                status = status,
+                contractValue = contractValue?.toPlainString().orEmpty(),
+                notes = notes.orEmpty(),
+            ),
     )

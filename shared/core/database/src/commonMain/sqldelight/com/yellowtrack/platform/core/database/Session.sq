@@ -21,6 +21,15 @@ CREATE TABLE session (
     updated_at       INTEGER NOT NULL,
     deleted_at       INTEGER,
     version          INTEGER NOT NULL DEFAULT 1,
+    -- Where the shoot is, for computing the light. Null for anything indoors, which is
+    -- most sessions; see migration 2.sqm.
+    --
+    -- Declared after the audit columns rather than beside the address, because ALTER TABLE
+    -- appends: a column added by migration lands at the end, and a fresh database must
+    -- come out with its columns in the same order as a migrated one or verifyMigrations
+    -- fails. Reading order loses to matching what the migration actually produces.
+    latitude         REAL,
+    longitude        REAL,
     FOREIGN KEY (project_id) REFERENCES project(id)
 );
 
@@ -68,9 +77,9 @@ insertOrIgnore:
 INSERT OR IGNORE INTO session(
     id, studio_id, project_id, title, kind, status, starts_at, ends_at,
     time_zone_id, location_name, location_address, call_time, notes,
-    created_at, updated_at, deleted_at, version
+    created_at, updated_at, deleted_at, version, latitude, longitude
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE session
@@ -83,6 +92,8 @@ SET project_id       = :projectId,
     time_zone_id     = :timeZoneId,
     location_name    = :locationName,
     location_address = :locationAddress,
+    latitude         = :latitude,
+    longitude        = :longitude,
     call_time        = :callTime,
     notes            = :notes,
     updated_at       = :updatedAt,

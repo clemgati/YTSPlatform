@@ -102,18 +102,15 @@ private fun CurrentRoute(
                 clientId = route.clientId,
                 onBack = appState::navigateBack,
                 onScheduleSession = { appState.navigateTopLevel(AppDestination.Sessions) },
-                onEditClient = { /* YTP-013C: open the client editor. */ },
-                onArchiveClient = { /* Future: archive confirmation. */ },
+                // Editing is the feature's own business and stays inside it, like every
+                // other form: the app module has no reason to learn about "edit client".
                 modifier = modifier,
             )
 
         AppRoute.Sessions ->
-            SessionsRoute(
-                // Session details arrive with the Shoot Day milestone. Selecting a session
-                // does nothing yet rather than pushing a route with no screen behind it.
-                onSessionSelected = { },
-                modifier = modifier,
-            )
+            // Selecting a session opens its editor, which the feature owns. There is no
+            // separate detail route for the app module to push.
+            SessionsRoute(modifier = modifier)
 
         AppRoute.Ledger -> LedgerRoute(modifier = modifier)
 

@@ -6,5 +6,5 @@ import org.koin.dsl.module
 
 val sessionsModule =
     module {
-        viewModel { SessionsViewModel(get(), get(), get(), get()) }
+        viewModel { SessionsViewModel(get(), get(), get(), get(), get()) }
     }

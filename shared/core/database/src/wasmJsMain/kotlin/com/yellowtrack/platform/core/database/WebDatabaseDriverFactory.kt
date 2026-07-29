@@ -8,22 +8,23 @@ import org.w3c.dom.Worker
 /**
  * Web driver, backed by SQLite compiled to WebAssembly running inside a dedicated worker.
  *
- * The worker script is served by the web application — see `webApp` — rather than bundled
- * here, because it has to be fetched from a URL the browser can resolve at runtime.
+ * The worker script and its sql.js dependency are pulled from npm (see this module's
+ * build script) and bundled by webpack. The `new URL(..., import.meta.url)` form is the
+ * marker webpack looks for to emit the worker as its own chunk, so [createSqlJsWorker]
+ * must stay a single JS expression. The sql-wasm.wasm binary the worker fetches at
+ * runtime is copied to the served root by `webApp/webpack.config.d/sqljs.js`.
  *
  * Unlike the other platforms there is no driver-level schema handling, so the schema is
  * created explicitly. This is the reason the whole generated API is asynchronous.
  */
-class WebDatabaseDriverFactory(
-    private val workerUrl: String = DEFAULT_WORKER_URL,
-) : DatabaseDriverFactory {
+class WebDatabaseDriverFactory : DatabaseDriverFactory {
     override suspend fun create(): SqlDriver {
-        val driver = WebWorkerDriver(Worker(workerUrl))
+        val driver = WebWorkerDriver(createSqlJsWorker())
         YellowTrackDatabase.Schema.awaitCreate(driver)
         return driver
     }
-
-    companion object {
-        const val DEFAULT_WORKER_URL: String = "sqlite.worker.js"
-    }
 }
+
+@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+private fun createSqlJsWorker(): Worker =
+    js("""new Worker(new URL("@cashapp/sqldelight-sqljs-worker/sqljs.worker.js", import.meta.url))""")

@@ -1,12 +1,19 @@
 package com.yellowtrack.platform.feature.clients.presentation.details.preview
 
+import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsUiState
+import com.yellowtrack.platform.feature.clients.presentation.details.model.BookingSummary
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientContact
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientSessionHistoryItem
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientUpcomingSession
+import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 
 internal object ClientDetailsPreviewData {
     val client =
@@ -53,6 +60,36 @@ internal object ClientDetailsPreviewData {
                     "Prefers warm color grading.",
                     "Likes natural posing and candid expressions.",
                     "Needs vertical crops for social media.",
+                ),
+            bookings =
+                listOf(
+                    BookingSummary(
+                        id = ProjectId.new(),
+                        name = "Smith Creative — Brand Refresh",
+                        serviceLine = "Branding",
+                        status = ProjectStatus.Booked,
+                        value = "$4,500.00",
+                        bookedLabel = "since 12 Mar 2026",
+                        editable =
+                            NewProject(
+                                name = "Smith Creative — Brand Refresh",
+                                serviceLine = ServiceLine.Branding,
+                                status = ProjectStatus.Booked,
+                                contractValue = "4500.00",
+                                notes = "",
+                            ),
+                    ),
+                ),
+            editable =
+                NewClient(
+                    accountName = "Sarah & Michael Johnson",
+                    accountType = ClientAccountType.Couple,
+                    contactFirstName = "Sarah",
+                    contactLastName = "Johnson",
+                    company = "",
+                    email = "sarah@example.com",
+                    phone = "07700 900123",
+                    notes = "Prefers warm color grading.",
                 ),
         )
 

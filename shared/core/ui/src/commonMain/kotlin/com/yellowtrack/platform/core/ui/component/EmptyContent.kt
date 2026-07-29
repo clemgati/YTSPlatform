@@ -14,6 +14,7 @@ fun EmptyContent(
     modifier: Modifier = Modifier,
     title: String = "Nothing here yet",
     message: String? = null,
+    action: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier.fillMaxSize(),
@@ -37,5 +38,11 @@ fun EmptyContent(
                 color = YTTheme.colors.onSurfaceVariant,
             )
         }
+
+        // The way out of the empty state belongs inside it. This composable fills the
+        // height it is given and centres within it, so anything placed after it in the
+        // parent column is pushed off the bottom of the screen — which is exactly what
+        // happened to the Clients "add" button until someone looked at the rendered page.
+        action?.invoke()
     }
 }

@@ -10,19 +10,31 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.feature.clients.presentation.component.ClientFormDialog
+import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientBookingsSection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientContactSection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientDetailsHeader
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientNotesSection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientQuickActionsSection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientSessionHistorySection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientUpcomingSessionSection
+import com.yellowtrack.platform.feature.clients.presentation.details.component.ProjectFormDialog
+import com.yellowtrack.platform.feature.clients.presentation.details.model.BookingSummary
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
+import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 
 @Composable
 internal fun ClientDetailsScreen(
@@ -30,10 +42,16 @@ internal fun ClientDetailsScreen(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onScheduleSession: () -> Unit,
-    onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
+    onAddProject: (NewProject) -> Unit,
+    onUpdateProject: (ProjectId, NewProject) -> Unit,
+    onUpdateClient: (NewClient) -> Unit,
+    currency: CurrencyCode = CurrencyCode.USD,
     modifier: Modifier = Modifier,
 ) {
+    var showProjectForm by remember { mutableStateOf(false) }
+    var showEditForm by remember { mutableStateOf(false) }
+    var editingBooking by remember { mutableStateOf<BookingSummary?>(null) }
+
     StatefulContent(
         state = uiState.client,
         modifier = modifier.fillMaxSize(),
@@ -46,12 +64,49 @@ internal fun ClientDetailsScreen(
             )
         },
     ) { client, contentModifier ->
+        if (showProjectForm) {
+            ProjectFormDialog(
+                clientName = client.displayName,
+                currency = currency,
+                onSave = {
+                    onAddProject(it)
+                    showProjectForm = false
+                },
+                onDismiss = { showProjectForm = false },
+            )
+        }
+
+        editingBooking?.let { booking ->
+            ProjectFormDialog(
+                clientName = client.displayName,
+                currency = currency,
+                initial = booking.editable,
+                onSave = {
+                    onUpdateProject(booking.id, it)
+                    editingBooking = null
+                },
+                onDismiss = { editingBooking = null },
+            )
+        }
+
+        if (showEditForm) {
+            ClientFormDialog(
+                initial = client.editable,
+                onSave = {
+                    onUpdateClient(it)
+                    showEditForm = false
+                },
+                onDismiss = { showEditForm = false },
+            )
+        }
+
         ClientDetailsContent(
             client = client,
             onBack = onBack,
+            onAddProject = { showProjectForm = true },
+            onEditBooking = { editingBooking = it },
             onScheduleSession = onScheduleSession,
-            onEditClient = onEditClient,
-            onArchiveClient = onArchiveClient,
+            onEditClient = { showEditForm = true },
             modifier = contentModifier,
         )
     }
@@ -61,9 +116,10 @@ internal fun ClientDetailsScreen(
 private fun ClientDetailsContent(
     client: ClientDetailsModel,
     onBack: () -> Unit,
+    onAddProject: () -> Unit,
+    onEditBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -92,16 +148,18 @@ private fun ClientDetailsContent(
             if (maxWidth >= ExpandedDetailsBreakpoint) {
                 ExpandedClientDetailsContent(
                     client = client,
+                    onAddProject = onAddProject,
+                    onEditBooking = onEditBooking,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
-                    onArchiveClient = onArchiveClient,
                 )
             } else {
                 CompactClientDetailsContent(
                     client = client,
+                    onAddProject = onAddProject,
+                    onEditBooking = onEditBooking,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
-                    onArchiveClient = onArchiveClient,
                 )
             }
         }
@@ -111,9 +169,10 @@ private fun ClientDetailsContent(
 @Composable
 private fun CompactClientDetailsContent(
     client: ClientDetailsModel,
+    onAddProject: () -> Unit,
+    onEditBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -130,6 +189,12 @@ private fun CompactClientDetailsContent(
             contact = client.contact,
         )
 
+        ClientBookingsSection(
+            bookings = client.bookings,
+            onEditBooking = onEditBooking,
+            onAddBooking = onAddProject,
+        )
+
         ClientSessionHistorySection(
             sessions = client.sessionHistory,
         )
@@ -139,9 +204,9 @@ private fun CompactClientDetailsContent(
         )
 
         ClientQuickActionsSection(
+            onAddProject = onAddProject,
             onScheduleSession = onScheduleSession,
             onEditClient = onEditClient,
-            onArchiveClient = onArchiveClient,
         )
     }
 }
@@ -149,9 +214,10 @@ private fun CompactClientDetailsContent(
 @Composable
 private fun ExpandedClientDetailsContent(
     client: ClientDetailsModel,
+    onAddProject: () -> Unit,
+    onEditBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -175,10 +241,16 @@ private fun ExpandedClientDetailsContent(
                 contact = client.contact,
             )
 
+            ClientBookingsSection(
+                bookings = client.bookings,
+                onEditBooking = onEditBooking,
+                onAddBooking = onAddProject,
+            )
+
             ClientQuickActionsSection(
+                onAddProject = onAddProject,
                 onScheduleSession = onScheduleSession,
                 onEditClient = onEditClient,
-                onArchiveClient = onArchiveClient,
             )
         }
 

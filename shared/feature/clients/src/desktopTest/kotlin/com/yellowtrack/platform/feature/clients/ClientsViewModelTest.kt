@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.feature.clients
 
 import app.cash.turbine.test
+import com.yellowtrack.platform.core.data.LocalStudioContext
+import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
@@ -9,8 +11,10 @@ import com.yellowtrack.platform.core.testing.TestData
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsViewModel
 import com.yellowtrack.platform.feature.clients.presentation.list.model.ClientSummary
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -19,6 +23,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.days
 
@@ -41,7 +46,7 @@ class ClientsViewModelTest {
         clients: FakeClientRepository = FakeClientRepository(),
         projects: FakeProjectRepository = FakeProjectRepository(),
         sessions: FakeSessionRepository = FakeSessionRepository(),
-    ) = ClientsViewModel(clients, projects, sessions, clock)
+    ) = ClientsViewModel(clients, projects, sessions, LocalStudioContext(), clock)
 
     @Test
     fun `reports empty when the studio has no clients`() =
@@ -193,6 +198,129 @@ class ClientsViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+    // --- Taking on a client ------------------------------------------------------------
+
+    @Test
+    fun `a client is stored with its first contact attached`() =
+        runTest {
+            val clients = FakeClientRepository()
+
+            viewModel(clients = clients).addClient(
+                newClient(
+                    accountName = "Sarah & Michael Johnson",
+                    accountType = ClientAccountType.Couple,
+                    firstName = "Sarah",
+                    lastName = "Johnson",
+                    email = "sarah@example.com",
+                    phone = "07700 900123",
+                ),
+            )
+
+            val stored =
+                clients
+                    .observeClients()
+                    .first()
+                    .single()
+            assertEquals("Sarah & Michael Johnson", stored.accountName)
+            assertEquals(ClientAccountType.Couple, stored.accountType)
+
+            val contact = assertNotNull(stored.primaryContact)
+            assertEquals("Sarah Johnson", contact.displayName)
+            assertEquals("sarah@example.com", contact.primaryEmail)
+            assertEquals("07700 900123", contact.primaryPhone)
+        }
+
+    @Test
+    fun `a company with nobody named yet is still worth taking on`() =
+        runTest {
+            val clients = FakeClientRepository()
+
+            viewModel(clients = clients).addClient(
+                newClient(accountName = "Harbourline Coffee", accountType = ClientAccountType.Company),
+            )
+
+            val stored =
+                clients
+                    .observeClients()
+                    .first()
+                    .single()
+            assertEquals("Harbourline Coffee", stored.displayName)
+            assertTrue(stored.contacts.isEmpty(), "an empty contact would look reachable while being nobody")
+        }
+
+    @Test
+    fun `a person named with no account name is addressed by their own name`() =
+        runTest {
+            val clients = FakeClientRepository()
+
+            viewModel(clients = clients).addClient(newClient(firstName = "Ada", lastName = "Okafor"))
+
+            val stored =
+                clients
+                    .observeClients()
+                    .first()
+                    .single()
+            assertEquals("", stored.accountName, "copying the name in would freeze it against a later rename")
+            assertEquals("Ada Okafor", stored.displayName)
+        }
+
+    @Test
+    fun `a client with no name at all is not stored`() =
+        runTest {
+            val clients = FakeClientRepository()
+
+            viewModel(clients = clients).addClient(newClient(email = "someone@example.com"))
+
+            assertTrue(
+                clients
+                    .observeClients()
+                    .first()
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a saved client appears in the list it was added from`() =
+        runTest {
+            val clients = FakeClientRepository()
+            val viewModel = viewModel(clients = clients)
+
+            viewModel.uiState.test {
+                assertEquals(UiState.Empty, awaitItem().clients)
+
+                viewModel.addClient(newClient(accountName = "Harbourline Coffee"))
+
+                assertEquals(
+                    "Harbourline Coffee",
+                    awaitItem()
+                        .clients
+                        .successData()
+                        .single()
+                        .displayName,
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    private fun newClient(
+        accountName: String = "",
+        accountType: ClientAccountType = ClientAccountType.Individual,
+        firstName: String = "",
+        lastName: String = "",
+        company: String = "",
+        email: String = "",
+        phone: String = "",
+        notes: String = "",
+    ) = NewClient(
+        accountName = accountName,
+        accountType = accountType,
+        contactFirstName = firstName,
+        contactLastName = lastName,
+        company = company,
+        email = email,
+        phone = phone,
+        notes = notes,
+    )
 }
 
 private fun UiState<List<ClientSummary>>.successData(): List<ClientSummary> =

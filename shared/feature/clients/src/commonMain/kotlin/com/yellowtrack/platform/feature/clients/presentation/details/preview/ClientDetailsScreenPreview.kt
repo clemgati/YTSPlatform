@@ -13,8 +13,9 @@ private fun ClientDetailsScreenPreview() {
             uiState = ClientDetailsPreviewData.successState,
             onRetry = {},
             onBack = {},
-            onEditClient = {},
-            onArchiveClient = {},
+            onUpdateClient = {},
+            onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }
@@ -28,8 +29,9 @@ private fun ClientDetailsScreenLoadingPreview() {
             uiState = ClientDetailsPreviewData.loadingState,
             onRetry = {},
             onBack = {},
-            onEditClient = {},
-            onArchiveClient = {},
+            onUpdateClient = {},
+            onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }
@@ -43,8 +45,9 @@ private fun ClientDetailsScreenEmptyPreview() {
             uiState = ClientDetailsPreviewData.emptyState,
             onRetry = {},
             onBack = {},
-            onEditClient = {},
-            onArchiveClient = {},
+            onUpdateClient = {},
+            onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }
@@ -58,8 +61,9 @@ private fun ClientDetailsScreenErrorPreview() {
             uiState = ClientDetailsPreviewData.errorState,
             onRetry = {},
             onBack = {},
-            onEditClient = {},
-            onArchiveClient = {},
+            onUpdateClient = {},
+            onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }

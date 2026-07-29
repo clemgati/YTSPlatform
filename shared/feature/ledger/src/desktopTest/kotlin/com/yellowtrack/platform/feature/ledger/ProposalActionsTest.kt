@@ -31,6 +31,7 @@ import com.yellowtrack.platform.core.testing.FakeServiceTemplateRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerViewModel
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewLineItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -150,12 +151,18 @@ class ProposalActionsTest {
         amount: String = "4000",
         taxRate: String = "",
         validUntil: String = "2026-08-12",
+        lines: List<NewLineItem> =
+            listOf(
+                NewLineItem(
+                    description = "Wedding coverage, eight hours",
+                    unitPrice = amount,
+                    taxRate = taxRate,
+                ),
+            ),
     ) = NewQuote(
         number = number,
         projectId = projectId,
-        description = "Wedding coverage, eight hours",
-        amount = amount,
-        taxRate = taxRate,
+        lines = lines,
         validUntil = validUntil,
         terms = null,
     )
@@ -167,13 +174,19 @@ class ProposalActionsTest {
         dueOn: String = "2026-06-27",
         sendNow: Boolean = true,
         kind: InvoiceKind = InvoiceKind.Balance,
+        lines: List<NewLineItem> =
+            listOf(
+                NewLineItem(
+                    description = "Balance of wedding coverage",
+                    unitPrice = amount,
+                    taxRate = taxRate,
+                ),
+            ),
     ) = NewInvoice(
         number = number,
         projectId = projectId,
         kind = kind,
-        description = "Balance of wedding coverage",
-        amount = amount,
-        taxRate = taxRate,
+        lines = lines,
         dueOn = dueOn,
         sendNow = sendNow,
     )
@@ -258,6 +271,196 @@ class ProposalActionsTest {
                     .single()
             assertEquals(825, stored.lines.single().taxRateBasisPoints)
             assertEquals(Money(33_000, usd), stored.tax)
+        }
+
+    // --- Several lines -----------------------------------------------------------------
+
+    @Test
+    fun `a quote carries every line it was given, in the order they were entered`() =
+        runTest {
+            val harness = harness()
+
+            harness.viewModel.addQuote(
+                newQuote(
+                    lines =
+                        listOf(
+                            NewLineItem(description = "Wedding coverage, eight hours", unitPrice = "4000"),
+                            NewLineItem(description = "Second shooter", unitPrice = "600"),
+                            NewLineItem(description = "Album", unitPrice = "450"),
+                        ),
+                ),
+            )
+
+            val stored =
+                harness.quotes
+                    .observeQuotes()
+                    .first()
+                    .single()
+            assertEquals(
+                listOf("Wedding coverage, eight hours", "Second shooter", "Album"),
+                stored.lines.map { it.description },
+                "a client reads the lines as sent, not reordered",
+            )
+            assertEquals(Money.ofMajor(5_050, usd), stored.total)
+        }
+
+    @Test
+    fun `a quantity multiplies the line rather than being ignored`() =
+        runTest {
+            val harness = harness()
+
+            harness.viewModel.addQuote(
+                newQuote(
+                    lines = listOf(NewLineItem(description = "Extra hour", quantity = "3", unitPrice = "250")),
+                ),
+            )
+
+            val line =
+                harness.quotes
+                    .observeQuotes()
+                    .first()
+                    .single()
+                    .lines
+                    .single()
+            assertEquals(3, line.quantity)
+            assertEquals(Money.ofMajor(750, usd), line.subtotal)
+        }
+
+    @Test
+    fun `tax is charged per line, so a mixed-rate document totals correctly`() =
+        runTest {
+            val harness = harness()
+
+            harness.viewModel.addQuote(
+                newQuote(
+                    lines =
+                        listOf(
+                            NewLineItem(description = "Coverage", unitPrice = "4000"),
+                            NewLineItem(description = "Album", unitPrice = "500", taxRate = "8.25"),
+                        ),
+                ),
+            )
+
+            val stored =
+                harness.quotes
+                    .observeQuotes()
+                    .first()
+                    .single()
+            assertEquals(Money.ofMajor(4_500, usd), stored.subtotal)
+            assertEquals(Money(4_125, usd), stored.tax, "only the album is taxed")
+            assertEquals(Money(454_125, usd), stored.total)
+        }
+
+    @Test
+    fun `one bad line rejects the whole document rather than being dropped`() =
+        runTest {
+            val harness = harness()
+
+            harness.viewModel.addQuote(
+                newQuote(
+                    lines =
+                        listOf(
+                            NewLineItem(description = "Coverage", unitPrice = "4000"),
+                            NewLineItem(description = "Album", unitPrice = "four hundred"),
+                        ),
+                ),
+            )
+
+            assertTrue(
+                harness.quotes
+                    .observeQuotes()
+                    .first()
+                    .isEmpty(),
+                "billing for less than was entered, silently, is worse than refusing to save",
+            )
+        }
+
+    @Test
+    fun `a line with no description is not a billable line`() =
+        runTest {
+            val harness = harness()
+
+            harness.viewModel.addQuote(
+                newQuote(lines = listOf(NewLineItem(description = "  ", unitPrice = "4000"))),
+            )
+
+            assertTrue(
+                harness.quotes
+                    .observeQuotes()
+                    .first()
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a document with no lines at all is not stored`() =
+        runTest {
+            val harness = harness()
+
+            harness.viewModel.addQuote(newQuote(lines = emptyList()))
+            harness.viewModel.addInvoice(newInvoice(lines = emptyList()))
+
+            assertTrue(
+                harness.quotes
+                    .observeQuotes()
+                    .first()
+                    .isEmpty(),
+            )
+            assertTrue(
+                harness.invoices
+                    .observeInvoices()
+                    .first()
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `an invoice carries several lines too`() =
+        runTest {
+            val harness = harness()
+
+            harness.viewModel.addInvoice(
+                newInvoice(
+                    lines =
+                        listOf(
+                            NewLineItem(description = "Balance of coverage", unitPrice = "2000"),
+                            NewLineItem(description = "Travel", unitPrice = "150"),
+                        ),
+                ),
+            )
+
+            val stored =
+                harness.invoices
+                    .observeInvoices()
+                    .first()
+                    .single()
+            assertEquals(2, stored.lines.size)
+            assertEquals(Money.ofMajor(2_150, usd), stored.total)
+        }
+
+    @Test
+    fun `accepting a multi-line quote bills every line that was agreed`() =
+        runTest {
+            val agreed =
+                quote(
+                    lines =
+                        listOf(
+                            LineItem("Coverage", Money.ofMajor(4_000, usd)),
+                            LineItem("Second shooter", Money.ofMajor(600, usd)),
+                            LineItem("Extra hour", Money.ofMajor(250, usd), quantity = 2),
+                        ),
+                )
+            val harness = harness(quotes = FakeQuoteRepository(listOf(agreed)))
+
+            harness.viewModel.acceptQuote(agreed.id)
+
+            val raised =
+                harness.invoices
+                    .observeInvoices()
+                    .first()
+                    .single()
+            assertEquals(agreed.lines, raised.lines, "re-entering lines by hand is where figures diverge")
+            assertEquals(Money.ofMajor(5_100, usd), raised.total)
         }
 
     // --- Accepting ---------------------------------------------------------------------

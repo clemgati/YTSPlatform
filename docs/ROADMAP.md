@@ -118,16 +118,21 @@ The biggest gap in the original roadmap.
 - ✓ Quote and contract repositories, with quotes surfaced on the Ledger and accepting one
   raising the invoice that collects it
 - ✓ Create forms for leads, quotes, invoices, expenses, and payments
-- □ Contract creation and signing from a screen
-- □ Line editing, so quotes and invoices can carry more than one line
-- □ Editing and deleting existing records
+- ✓ Contract creation and signing from a screen, with the licence priced deliberately and
+  the date held only once the retainer is paid
+- ✓ Line editing, so quotes and invoices carry as many lines as the work has, with
+  quantities and per-line tax
+- ◐ Editing and deleting existing records — invoices can be sent, voided, and discarded,
+  with a sent document never deleted so its number stays used. Editing a saved record, and
+  correcting a cost or a misrecorded payment, is still to come
 
 ## 0.5.0 — Shoot Day
 
-- Add and edit client, project, and session
+- ✓ Add and edit client, project, and session — all three can be created and corrected,
+  with bookings listed on the client's own page
 - Shot lists with grouping, for family formals
-- Locations with computed golden hour and sun position — calculable offline from
-  latitude, longitude, and date; no network required
+- ✓ Locations with computed golden hour and sun position — calculable offline from
+  latitude, longitude, and date, stored against the session and shown on it
 - Call sheets, crew, and talent releases
 
 ## 0.6.0 — Pipeline
