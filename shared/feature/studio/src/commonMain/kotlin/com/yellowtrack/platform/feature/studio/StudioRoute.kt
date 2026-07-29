@@ -1,35 +1,26 @@
 package com.yellowtrack.platform.feature.studio
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import com.yellowtrack.platform.core.designsystem.theme.YTTheme
-import com.yellowtrack.platform.core.ui.component.EmptyContent
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.yellowtrack.platform.feature.studio.presentation.StudioScreen
+import com.yellowtrack.platform.feature.studio.presentation.StudioViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
-/**
- * Placeholder until the Studio milestone.
- *
- * Gear inventory, packing lists, lighting recipes, and maintenance tracking are modelled
- * in `docs/DOMAIN_MODEL.md` but not yet implemented. The screen states that plainly rather
- * than displaying invented readiness checkboxes.
- */
 @Composable
 fun StudioRoute(modifier: Modifier = Modifier) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .padding(YTTheme.spacing.extraLarge),
-        verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.large),
-    ) {
-        EmptyContent(
-            title = "Studio",
-            message =
-                "Gear inventory, packing lists, lighting recipes, and maintenance tracking " +
-                    "arrive in a later milestone.",
-        )
-    }
+    val viewModel: StudioViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    StudioScreen(
+        uiState = uiState,
+        onRetry = viewModel::retry,
+        onAddGear = viewModel::addGearItem,
+        onMarkServiced = viewModel::markServiced,
+        onDeleteGear = viewModel::deleteGearItem,
+        onAddRecipe = viewModel::addRecipe,
+        onDeleteRecipe = viewModel::deleteRecipe,
+        modifier = modifier,
+    )
 }

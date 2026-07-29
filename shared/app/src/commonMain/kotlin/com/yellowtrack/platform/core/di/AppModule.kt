@@ -5,6 +5,7 @@ import com.yellowtrack.platform.feature.clients.clientsModule
 import com.yellowtrack.platform.feature.dashboard.dashboardModule
 import com.yellowtrack.platform.feature.ledger.ledgerModule
 import com.yellowtrack.platform.feature.sessions.sessionsModule
+import com.yellowtrack.platform.feature.studio.studioModule
 import org.koin.dsl.module
 
 /**
@@ -20,5 +21,6 @@ val appModule =
             clientsModule,
             ledgerModule,
             sessionsModule,
+            studioModule,
         )
     }
