@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.sessions.presentation.details.model
 
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
@@ -86,6 +87,29 @@ internal data class ReleaseSummary(
     val hasProblem: Boolean get() = outstanding > 0 || refused > 0
 }
 
+/** One recorded copy of this shoot's files. */
+internal data class MediaCopyItem(
+    val id: MediaCopyId,
+    val volumeName: String,
+    val kind: String,
+    val isOffsite: Boolean,
+    val isVerified: Boolean,
+)
+
+/**
+ * Whether this shoot's files are actually safe.
+ *
+ * [shortfalls] is the part worth reading: what is missing, in the order it should be
+ * fixed. The verdict alone tells a studio it is not safe; this tells it what to do next.
+ */
+internal data class BackupSummary(
+    val copies: List<MediaCopyItem>,
+    val isSatisfied: Boolean,
+    val verdict: String,
+    val shortfalls: List<String>,
+    val unverified: Int,
+)
+
 internal data class SessionDetailsModel(
     val id: SessionId,
     val title: String,
@@ -110,6 +134,7 @@ internal data class SessionDetailsModel(
     /** Everyone working the day, earliest call first. */
     val crew: List<CrewItem>,
     val releases: ReleaseSummary,
+    val backup: BackupSummary,
     /** The session as the form takes it, so editing opens showing what is already there. */
     val editable: NewSession,
     val zoneId: String,

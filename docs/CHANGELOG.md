@@ -8,6 +8,24 @@ The project follows semantic versioning.
 
 ### Added
 
+- **3-2-1 backup checking per shoot.** Three copies, on at least two kinds of storage, at
+  least one away from the building. Each clause guards a different way of losing a wedding:
+  one copy fails, two copies of the same kind fail together, and everything in one room
+  burns or is stolen at once
+- **The card in the bag is not a backup.** A camera card is the original, and counting it
+  would let a studio believe it had three copies when it had one and two cards. It is
+  listed, and excluded from the count
+- **What is missing is listed in the order it should be fixed** — a second copy anywhere
+  beats a third, and getting one out of the building beats spreading copies across more
+  drives in the same room. A studio with a single copy is not told its copies are all
+  alike, because the advice it needs is above that
+- Cloud and offsite drives count as away without being marked so. Copies are recorded as
+  *unchecked*: a drive can fail silently, so a backup nobody has opened is a backup nobody
+  knows they have, and that count is surfaced separately from the rule
+- The rule lives in `core:model` as `BackupHealth`, not in a screen — it is a fact about
+  the studio's data, and the answer should be identical wherever it is asked
+- **Schema migration 8 → 9**, purely additive: a new `media_copy` table, `9.db` committed
+
 - **Deliverables, checked against the contract.** `Contract.turnaroundDays` and
   `Contract.revisionRounds` have been stored since 0.4.0 and compared against nothing. A
   studio that has agreed to both and tracks neither finds out it is late when the client

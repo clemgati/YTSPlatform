@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.data.LocalStudioContext
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.release.ReleaseKind
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
@@ -13,6 +14,7 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeCrewRepository
+import com.yellowtrack.platform.core.testing.FakeMediaCopyRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
@@ -22,6 +24,7 @@ import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsViewModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewMediaCopy
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
@@ -90,12 +93,14 @@ class SessionDetailsViewModelTest {
     private lateinit var shots: FakeShotRepository
     private lateinit var crew: FakeCrewRepository
     private lateinit var releases: FakeTalentReleaseRepository
+    private lateinit var mediaCopies: FakeMediaCopyRepository
 
     private fun harness(existing: Session = session()): Pair<FakeSessionRepository, SessionDetailsViewModel> {
         val sessions = FakeSessionRepository(listOf(existing))
         shots = FakeShotRepository()
         crew = FakeCrewRepository()
         releases = FakeTalentReleaseRepository()
+        mediaCopies = FakeMediaCopyRepository()
 
         return sessions to
             SessionDetailsViewModel(
@@ -104,6 +109,7 @@ class SessionDetailsViewModelTest {
                 shotRepository = shots,
                 crewRepository = crew,
                 releaseRepository = releases,
+                mediaCopyRepository = mediaCopies,
                 projectRepository = FakeProjectRepository(),
                 clientRepository = FakeClientRepository(),
                 studioContext = LocalStudioContext(),
@@ -728,6 +734,107 @@ class SessionDetailsViewModelTest {
                 viewModel
                     .model()
                     .releases.releases
+                    .isEmpty(),
+            )
+        }
+
+    // --- Where the files are -----------------------------------------------------------
+
+    @Test
+    fun `a copy is recorded as made but not yet checked`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addMediaCopy(NewMediaCopy("Red Samsung T7", StorageKind.ExternalDrive, isOffsite = false))
+
+            val copy =
+                viewModel
+                    .model()
+                    .backup.copies
+                    .single()
+            assertEquals("Red Samsung T7", copy.volumeName)
+            assertFalse(copy.isVerified, "it was copied a moment ago, not opened and read back")
+        }
+
+    @Test
+    fun `the session reports what is still missing from the rule`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addMediaCopy(NewMediaCopy("Studio iMac", StorageKind.Computer, isOffsite = false))
+
+            val backup = viewModel.model().backup
+            assertFalse(backup.isSatisfied)
+            assertEquals(listOf("2 more copies needed", "Nothing is off the premises"), backup.shortfalls)
+        }
+
+    @Test
+    fun `three copies across two kinds with one away satisfies the rule`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addMediaCopy(NewMediaCopy("Studio iMac", StorageKind.Computer, isOffsite = false))
+            viewModel.addMediaCopy(NewMediaCopy("Red Samsung T7", StorageKind.ExternalDrive, isOffsite = false))
+            viewModel.addMediaCopy(NewMediaCopy("Backblaze", StorageKind.Cloud, isOffsite = false))
+
+            val backup = viewModel.model().backup
+            assertTrue(backup.isSatisfied, "cloud is away from the studio without being marked so")
+            assertTrue(backup.shortfalls.isEmpty())
+        }
+
+    @Test
+    fun `the card in the bag does not count towards the three`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addMediaCopy(NewMediaCopy("Card 1", StorageKind.CameraCard, isOffsite = false))
+            viewModel.addMediaCopy(NewMediaCopy("Card 2", StorageKind.CameraCard, isOffsite = false))
+            viewModel.addMediaCopy(NewMediaCopy("Studio iMac", StorageKind.Computer, isOffsite = false))
+
+            val backup = viewModel.model().backup
+            assertEquals(3, backup.copies.size, "all three are listed")
+            assertEquals(
+                "1 of 3 copies",
+                backup.verdict,
+                "but the cards are the originals, not copies of them",
+            )
+        }
+
+    @Test
+    fun `checking a copy records that it was opened and read`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addMediaCopy(NewMediaCopy("Red Samsung T7", StorageKind.ExternalDrive, isOffsite = false))
+            val id =
+                viewModel
+                    .model()
+                    .backup.copies
+                    .single()
+                    .id
+
+            viewModel.verifyMediaCopy(id)
+
+            assertTrue(
+                viewModel
+                    .model()
+                    .backup.copies
+                    .single()
+                    .isVerified,
+            )
+            assertEquals(0, viewModel.model().backup.unverified)
+        }
+
+    @Test
+    fun `a copy with no name is not recorded`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addMediaCopy(NewMediaCopy("  ", StorageKind.ExternalDrive, isOffsite = false))
+
+            assertTrue(
+                viewModel
+                    .model()
+                    .backup.copies
                     .isEmpty(),
             )
         }

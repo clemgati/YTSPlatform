@@ -11,6 +11,6 @@ val sessionsModule =
         viewModel { SessionsViewModel(get(), get(), get(), get(), get()) }
 
         viewModel { (sessionId: SessionId) ->
-            SessionDetailsViewModel(sessionId, get(), get(), get(), get(), get(), get(), get(), get())
+            SessionDetailsViewModel(sessionId, get(), get(), get(), get(), get(), get(), get(), get(), get())
         }
     }

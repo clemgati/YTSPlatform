@@ -6,14 +6,19 @@ import com.yellowtrack.platform.core.common.solar.SunWindow
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.media.BackupHealth
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.release.ReleaseKind
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.BackupSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.CrewItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.LightRow
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.MediaCopyItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
@@ -34,6 +39,7 @@ internal fun Session.toDetailsModel(
     shots: List<Shot>,
     crew: List<CrewMember>,
     releases: List<TalentRelease>,
+    mediaCopies: List<MediaCopy>,
     deviceZone: TimeZone,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
@@ -58,6 +64,7 @@ internal fun Session.toDetailsModel(
         shotGroups = shots.toGroups(),
         shotsRemaining = shots.count { !it.isCaptured },
         releases = releases.toSummary(),
+        backup = mediaCopies.toBackupSummary(),
         crew =
             crew.map { member ->
                 CrewItem(
@@ -259,4 +266,47 @@ private val ReleaseKind.label: String
             ReleaseKind.Adult -> "Adult"
             ReleaseKind.Minor -> "Minor"
             ReleaseKind.Property -> "Property"
+        }
+
+/**
+ * The 3-2-1 verdict, with what is missing spelled out.
+ *
+ * The rule itself lives in `core:model` — it is a fact about the studio's data, not a way
+ * of drawing it — and this only renders the answer.
+ */
+private fun List<MediaCopy>.toBackupSummary(): BackupSummary {
+    val health = BackupHealth.of(this)
+
+    return BackupSummary(
+        copies =
+            map { copy ->
+                MediaCopyItem(
+                    id = copy.id,
+                    volumeName = copy.volumeName,
+                    kind = copy.kind.label,
+                    isOffsite = copy.isAwayFromStudio,
+                    isVerified = copy.verifiedAt != null,
+                )
+            },
+        isSatisfied = health.isSatisfied,
+        verdict =
+            if (health.isSatisfied) {
+                "Three copies, ${health.distinctKinds} kinds, ${health.offsiteCopies} away from the studio"
+            } else {
+                "${health.copies} of ${BackupHealth.REQUIRED_COPIES} copies"
+            },
+        shortfalls = health.shortfalls,
+        unverified = health.unverifiedCopies,
+    )
+}
+
+private val StorageKind.label: String
+    get() =
+        when (this) {
+            StorageKind.CameraCard -> "Camera card"
+            StorageKind.Computer -> "Computer"
+            StorageKind.ExternalDrive -> "External drive"
+            StorageKind.Nas -> "NAS"
+            StorageKind.Cloud -> "Cloud"
+            StorageKind.OffsiteDrive -> "Offsite drive"
         }

@@ -1,0 +1,36 @@
+-- Migration 8 → 9: where the files are.
+--
+-- Adds a record of each copy of a shoot's media, so the 3-2-1 rule can be checked rather
+-- than merely believed: three copies, on at least two kinds of storage, at least one away
+-- from the building.
+--
+-- Each clause of that rule exists because of a different way of losing everything. One
+-- copy fails. Two copies on drives bought together fail the same way. Everything in one
+-- room burns or is stolen at once.
+--
+-- verified_at is separate from copied_at because a drive can fail silently: a backup
+-- nobody has opened is a backup nobody knows they have.
+--
+-- Purely additive. A new table, so every row a studio already has is untouched.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+CREATE TABLE media_copy (
+    id          TEXT    NOT NULL PRIMARY KEY,
+    studio_id   TEXT    NOT NULL,
+    session_id  TEXT    NOT NULL,
+    volume_name TEXT    NOT NULL,
+    kind        TEXT    NOT NULL,
+    is_offsite  INTEGER NOT NULL DEFAULT 0,
+    copied_at   INTEGER,
+    verified_at INTEGER,
+    notes       TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER,
+    version     INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (session_id) REFERENCES session(id)
+);
+
+CREATE INDEX media_copy_session_idx ON media_copy(session_id, deleted_at);

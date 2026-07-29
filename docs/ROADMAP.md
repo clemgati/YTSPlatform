@@ -139,7 +139,9 @@ The biggest gap in the original roadmap.
 
 ## 0.6.0 — Pipeline
 
-- Ingest and 3-2-1 backup tracking across storage volumes
+- ◐ Ingest and 3-2-1 backup tracking across storage volumes — the rule is checked per
+  shoot and says what is missing. A studio-wide volume register, and reading drives to
+  confirm the files are really there, are still to come
 - ✓ Post-production tasks with **estimated versus actual hours**, entered on a booking's
   own page and feeding the pricing floor, which now measures rather than assumes
 - ✓ Deliverables with revision rounds and turnaround SLA, both checked against what the

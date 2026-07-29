@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.CrewRepository
+import com.yellowtrack.platform.core.data.MediaCopyRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.ShotRepository
@@ -14,6 +15,8 @@ import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
@@ -27,6 +30,7 @@ import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewMediaCopy
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
@@ -58,6 +62,7 @@ internal class SessionDetailsViewModel(
     private val shotRepository: ShotRepository,
     private val crewRepository: CrewRepository,
     private val releaseRepository: TalentReleaseRepository,
+    private val mediaCopyRepository: MediaCopyRepository,
     projectRepository: ProjectRepository,
     clientRepository: ClientRepository,
     private val studioContext: StudioContext,
@@ -78,6 +83,7 @@ internal class SessionDetailsViewModel(
         val shots: List<Shot>,
         val crew: List<CrewMember>,
         val releases: List<TalentRelease>,
+        val mediaCopies: List<MediaCopy>,
     )
 
     private data class Booking(
@@ -92,6 +98,7 @@ internal class SessionDetailsViewModel(
                 shotRepository.observeShotsForSession(sessionId),
                 crewRepository.observeCrewForSession(sessionId),
                 releaseRepository.observeReleasesForSession(sessionId),
+                mediaCopyRepository.observeCopiesForSession(sessionId),
                 ::Day,
             ),
             combine(
@@ -113,7 +120,15 @@ internal class SessionDetailsViewModel(
                 SessionDetailsUiState(
                     session =
                         UiState.Success(
-                            session.toDetailsModel(project, client, day.shots, day.crew, day.releases, deviceZone),
+                            session.toDetailsModel(
+                                project,
+                                client,
+                                day.shots,
+                                day.crew,
+                                day.releases,
+                                day.mediaCopies,
+                                deviceZone,
+                            ),
                         ),
                     bookings =
                         booking.projects.map { project ->
@@ -379,6 +394,52 @@ internal class SessionDetailsViewModel(
 
     fun deleteRelease(releaseId: TalentReleaseId) {
         viewModelScope.launch { releaseRepository.deleteRelease(releaseId) }
+    }
+
+    /**
+     * Records that the files exist somewhere.
+     *
+     * Copied now, unverified: the copy has just been made, and whether it can still be
+     * read is a separate question asked later. Marking it verified on creation would make
+     * every backup look checked when none had been.
+     */
+    fun addMediaCopy(copy: NewMediaCopy) {
+        viewModelScope.launch {
+            if (copy.volumeName.isBlank()) return@launch
+            val now = clock.now()
+
+            mediaCopyRepository.saveCopy(
+                MediaCopy(
+                    id = MediaCopyId.new(),
+                    studioId = studioContext.studioId,
+                    sessionId = sessionId,
+                    volumeName = copy.volumeName.trim(),
+                    kind = copy.kind,
+                    isOffsite = copy.isOffsite,
+                    copiedAt = now,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Records that a copy was opened and found readable.
+     *
+     * A drive can fail silently, so this is the only thing that distinguishes a backup a
+     * studio has from one it believes it has.
+     */
+    fun verifyMediaCopy(copyId: MediaCopyId) {
+        viewModelScope.launch {
+            val copy = mediaCopyRepository.getCopy(copyId) ?: return@launch
+            val now = clock.now()
+
+            mediaCopyRepository.saveCopy(copy.copy(verifiedAt = now, audit = copy.audit.touched(now)))
+        }
+    }
+
+    fun deleteMediaCopy(copyId: MediaCopyId) {
+        viewModelScope.launch { mediaCopyRepository.deleteCopy(copyId) }
     }
 
     fun retry() {

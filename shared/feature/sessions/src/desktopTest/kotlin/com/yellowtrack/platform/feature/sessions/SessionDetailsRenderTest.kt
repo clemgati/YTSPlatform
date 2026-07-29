@@ -132,7 +132,15 @@ class SessionDetailsRenderTest {
                                 SessionDetailsUiState(
                                     session =
                                         UiState.Success(
-                                            session.toDetailsModel(project, client, shots, crew, releases, zone),
+                                            session.toDetailsModel(
+                                                project,
+                                                client,
+                                                shots,
+                                                crew,
+                                                releases,
+                                                emptyList(),
+                                                zone,
+                                            ),
                                         ),
                                     today = LocalDate(2026, 7, 28),
                                 ),
@@ -146,6 +154,9 @@ class SessionDetailsRenderTest {
                             onAddRelease = {},
                             onSetReleaseStatus = { _, _ -> },
                             onRemoveRelease = {},
+                            onAddMediaCopy = {},
+                            onVerifyMediaCopy = {},
+                            onRemoveMediaCopy = {},
                             onToggleShot = { _, _ -> },
                             onDeleteShot = {},
                         )
