@@ -10,8 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.ui.component.EmptyContent
@@ -22,7 +27,9 @@ import com.yellowtrack.platform.feature.clients.presentation.details.component.C
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientQuickActionsSection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientSessionHistorySection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientUpcomingSessionSection
+import com.yellowtrack.platform.feature.clients.presentation.details.component.ProjectFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
+import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 
 @Composable
 internal fun ClientDetailsScreen(
@@ -32,8 +39,12 @@ internal fun ClientDetailsScreen(
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
     onArchiveClient: () -> Unit,
+    onAddProject: (NewProject) -> Unit,
+    currency: CurrencyCode = CurrencyCode.USD,
     modifier: Modifier = Modifier,
 ) {
+    var showProjectForm by remember { mutableStateOf(false) }
+
     StatefulContent(
         state = uiState.client,
         modifier = modifier.fillMaxSize(),
@@ -46,9 +57,22 @@ internal fun ClientDetailsScreen(
             )
         },
     ) { client, contentModifier ->
+        if (showProjectForm) {
+            ProjectFormDialog(
+                clientName = client.displayName,
+                currency = currency,
+                onSave = {
+                    onAddProject(it)
+                    showProjectForm = false
+                },
+                onDismiss = { showProjectForm = false },
+            )
+        }
+
         ClientDetailsContent(
             client = client,
             onBack = onBack,
+            onAddProject = { showProjectForm = true },
             onScheduleSession = onScheduleSession,
             onEditClient = onEditClient,
             onArchiveClient = onArchiveClient,
@@ -61,6 +85,7 @@ internal fun ClientDetailsScreen(
 private fun ClientDetailsContent(
     client: ClientDetailsModel,
     onBack: () -> Unit,
+    onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
     onArchiveClient: () -> Unit,
@@ -92,6 +117,7 @@ private fun ClientDetailsContent(
             if (maxWidth >= ExpandedDetailsBreakpoint) {
                 ExpandedClientDetailsContent(
                     client = client,
+                    onAddProject = onAddProject,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
                     onArchiveClient = onArchiveClient,
@@ -99,6 +125,7 @@ private fun ClientDetailsContent(
             } else {
                 CompactClientDetailsContent(
                     client = client,
+                    onAddProject = onAddProject,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
                     onArchiveClient = onArchiveClient,
@@ -111,6 +138,7 @@ private fun ClientDetailsContent(
 @Composable
 private fun CompactClientDetailsContent(
     client: ClientDetailsModel,
+    onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
     onArchiveClient: () -> Unit,
@@ -139,6 +167,7 @@ private fun CompactClientDetailsContent(
         )
 
         ClientQuickActionsSection(
+            onAddProject = onAddProject,
             onScheduleSession = onScheduleSession,
             onEditClient = onEditClient,
             onArchiveClient = onArchiveClient,
@@ -149,6 +178,7 @@ private fun CompactClientDetailsContent(
 @Composable
 private fun ExpandedClientDetailsContent(
     client: ClientDetailsModel,
+    onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
     onArchiveClient: () -> Unit,
@@ -176,6 +206,7 @@ private fun ExpandedClientDetailsContent(
             )
 
             ClientQuickActionsSection(
+                onAddProject = onAddProject,
                 onScheduleSession = onScheduleSession,
                 onEditClient = onEditClient,
                 onArchiveClient = onArchiveClient,

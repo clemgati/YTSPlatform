@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 
 @Composable
 internal fun ClientQuickActionsSection(
+    onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
     onArchiveClient: () -> Unit,
@@ -26,6 +27,12 @@ internal fun ClientQuickActionsSection(
                     YTTheme.spacing.small,
                 ),
         ) {
+            YTButton(
+                text = "Open a Booking",
+                onClick = onAddProject,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             YTButton(
                 text = "Schedule Session",
                 onClick = onScheduleSession,

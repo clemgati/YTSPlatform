@@ -17,6 +17,18 @@ The project follows semantic versioning.
   an enquiry gives a name and an email in the same breath. A contact is only built when
   something identifies a person: an empty contact would look reachable in every list while
   being nobody
+- **A booking can be opened against a client**, which is what makes the whole money layer
+  reachable: a quote, an invoice, and a contract all attach to a booking, and until one
+  could be created none of those forms could be used at all
+- A booking is the job, not the shoot day — a wedding is one booking containing an
+  engagement shoot and the wedding day. It carries one contract, one set of invoices, and
+  one answer to whether the job made money
+- The status defaults to Enquiry rather than Booked, because Booked means something
+  specific here: a contract signed and a retainer paid. A studio that starts every job at
+  Booked loses the one distinction that says which dates are actually held
+- The status stamp is written with the status rather than after it, so a booking recorded
+  as Booked can always say when the date was taken. `enquiredAt` is set even for a job
+  entered already booked, since the enquiry is what a booking rate is measured against
 - Either an account name or a person's name will do. `Client.displayName` already falls
   back from one to the other, and a blank account name is left blank rather than copied
   from the contact — copying it would freeze the name against a later rename

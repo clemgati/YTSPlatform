@@ -33,6 +33,7 @@ fun ClientDetailsRoute(
         onScheduleSession = { onScheduleSession(clientId) },
         onEditClient = { onEditClient(clientId) },
         onArchiveClient = { onArchiveClient(clientId) },
+        onAddProject = viewModel::addProject,
         modifier = modifier,
     )
 }
