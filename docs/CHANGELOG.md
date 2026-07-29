@@ -99,18 +99,51 @@ quotes, contracts, invoices, or any notion of what a job costs to deliver.
   already kept its header when empty; Sessions now matches. This also makes the
   `0 -> "No sessions"` badge case reachable, which until now was dead code
 
+### Added — contracts
+
+- **Draw up a contract** from the Ledger, with the terms that decide arguments —
+  cancellation, rescheduling, and weather — opening prefilled with an ordinary position
+  rather than blank. A photographer asked to compose a cancellation clause inside a dialog
+  leaves it empty, and the empty clause is the one that loses the argument six months later
+- **Usage licensing**, folded away by default and opened deliberately for commercial work.
+  A blank duration is a perpetual grant, so the form says plainly what that forecloses, and
+  an *unreadable* duration rejects the contract rather than quietly becoming perpetual —
+  the one place a typo could give away every future fee from the same work
+- **Send** and **record a signature**, the signature carrying who signed and the date they
+  signed rather than the date it was typed in, because that is the date that decides
+  whether a cancellation falls inside the notice period. Signing twice never moves it
+- **A signature alone does not hold a date.** The section is now *Dates not yet held*, and
+  a contract stays on it until it is signed *and* its retainer invoice is settled, which is
+  what `Contract.isBindingWith` has said since 0.3.0 without anything ever calling it. Each
+  row names the step it is stuck on — unsent, unsigned, or waiting on money — and an unsent
+  contract sorts first, being the only one nobody but the studio is holding up
+- `YTChipField` in the design system, for choosing several values from a fixed list
+- 21 tests across drawing up, licensing, sending, signing, and what actually holds a date
+
+### Changed
+
+- `YTFormDialog` may now grow to 560dp before scrolling, up from 420dp. Found by looking:
+  at 420dp the contract form showed five of its fourteen fields in a window with room for
+  far more. The cap was never what protected the buttons — Material's dialog clamps its own
+  content, confirmed by rendering into a 280dp scene, shorter than any phone, where both
+  buttons stayed put
+
 ### Known gaps
 
 - Quotes and invoices are created with a single line; multi-line documents need line
   editing, which is its own piece of work
-- Contracts can be stored and read but not yet created or signed from a screen
+- A contract records that it was signed, not the signature itself; there is no document to
+  countersign and `documentReference` stays empty until media hosting exists
 - Clients, projects, and sessions still cannot be created in the app
 - Editing and deleting existing records is not yet possible from any screen
 - Dates are typed as `2026-07-28` text rather than picked from a calendar
 - `DateFormats` remains English-only
-- All six tabs have now been seen running on desktop, but no screen has been seen on
-  Android, iOS, or the web, and no dialog has been opened by a person. The three form
-  dialogs added this release have been reasoned about and tested, not looked at
+- All six tabs have been seen running on desktop, and the two contract dialogs have now
+  been rasterised and looked at, which is what found the form height cap. The expense,
+  quote, invoice, and payment dialogs still have not been seen, no screen has been seen on
+  Android, iOS, or the web, and nothing has yet been driven by a person rather than rendered
+- A fourteen-field contract still belongs on a screen rather than in a dialog on a phone,
+  which is the revisit `YTFormDialog` has always said it was waiting for
 
 ## Unreleased — 0.3.0 Bedrock
 

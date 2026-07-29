@@ -81,14 +81,42 @@ internal data class QuoteItem(
     val isExpired: Boolean get() = status == QuoteStatus.Expired
 }
 
-/** A contract sent and not yet signed. */
+/**
+ * How far a contract has got towards actually holding a date.
+ *
+ * Ordered by how the studio should read the list: what is stuck on its own desk first,
+ * then what is with the client, then what is waiting only on money.
+ */
+internal enum class ContractStage {
+    /** Drawn up and never sent. Nobody is waiting on the client for this one. */
+    NotSent,
+    AwaitingSignature,
+
+    /** Signed, but the retainer that holds the date has not been paid. */
+    AwaitingRetainer,
+}
+
+/** A contract that does not yet hold its date. */
 internal data class ContractItem(
     val id: ContractId,
     val title: String,
     val clientName: String,
     val retainer: String?,
+    val stage: ContractStage,
     val waitingLabel: String?,
-)
+) {
+    val canSend: Boolean get() = stage == ContractStage.NotSent
+
+    val canSign: Boolean get() = stage != ContractStage.AwaitingRetainer
+
+    val stageLabel: String
+        get() =
+            when (stage) {
+                ContractStage.NotSent -> "not sent yet"
+                ContractStage.AwaitingSignature -> "awaiting signature"
+                ContractStage.AwaitingRetainer -> "signed, retainer unpaid"
+            }
+}
 
 /**
  * What the studio has out with clients and has not had an answer to.
@@ -99,7 +127,12 @@ internal data class ContractItem(
  */
 internal data class ProposalsSummary(
     val awaitingDecision: List<QuoteItem>,
-    val awaitingSignature: List<ContractItem>,
+    /**
+     * Contracts that do not yet hold their date — unsent, unsigned, or signed with the
+     * retainer still outstanding. A signature alone does not hold a date, so a contract
+     * does not leave this list until the money that holds it has arrived.
+     */
+    val datesNotHeld: List<ContractItem>,
     /** The total value of quotes still out, at their quoted figure. */
     val quotedValue: String,
     val expiredCount: Int,

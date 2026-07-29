@@ -118,7 +118,8 @@ The biggest gap in the original roadmap.
 - ✓ Quote and contract repositories, with quotes surfaced on the Ledger and accepting one
   raising the invoice that collects it
 - ✓ Create forms for leads, quotes, invoices, expenses, and payments
-- □ Contract creation and signing from a screen
+- ✓ Contract creation and signing from a screen, with the licence priced deliberately and
+  the date held only once the retainer is paid
 - □ Line editing, so quotes and invoices can carry more than one line
 - □ Editing and deleting existing records
 

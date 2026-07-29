@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
 
@@ -27,8 +28,11 @@ internal fun ProposalsSection(
     summary: ProposalsSummary,
     onNewQuote: () -> Unit,
     onNewInvoice: () -> Unit,
+    onNewContract: () -> Unit,
     onAcceptQuote: (QuoteItem) -> Unit,
     onDeclineQuote: (QuoteItem) -> Unit,
+    onSendContract: (ContractItem) -> Unit,
+    onSignContract: (ContractItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -64,22 +68,22 @@ internal fun ProposalsSection(
                 }
             }
 
-            if (summary.awaitingSignature.isNotEmpty()) {
+            if (summary.datesNotHeld.isNotEmpty()) {
                 HorizontalDivider(color = YTTheme.colors.outlineVariant)
 
                 Text(
-                    text = "Awaiting signature",
+                    text = "Dates not yet held",
                     style = YTTheme.typography.titleSmall,
                     color = YTTheme.colors.onSurface,
                 )
 
                 Text(
-                    text = "Until these are signed and the retainer is paid, no date is held.",
+                    text = "Until these are signed and the retainer is paid, the date is still for sale.",
                     style = YTTheme.typography.bodySmall,
                     color = YTTheme.colors.onSurfaceVariant,
                 )
 
-                summary.awaitingSignature.forEach { ContractRow(it) }
+                summary.datesNotHeld.forEach { ContractRow(it, onSendContract, onSignContract) }
             }
 
             HorizontalDivider(color = YTTheme.colors.outlineVariant)
@@ -88,6 +92,14 @@ internal fun ProposalsSection(
                 TextButton(onClick = onNewQuote) {
                     Text(
                         text = "Send a quote",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
+                TextButton(onClick = onNewContract) {
+                    Text(
+                        text = "Draw up a contract",
                         style = YTTheme.typography.labelLarge,
                         color = YTTheme.colors.primary,
                     )
@@ -166,7 +178,11 @@ private fun QuoteRow(
 }
 
 @Composable
-private fun ContractRow(contract: ContractItem) {
+private fun ContractRow(
+    contract: ContractItem,
+    onSend: (ContractItem) -> Unit,
+    onSign: (ContractItem) -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
@@ -191,11 +207,52 @@ private fun ContractRow(contract: ContractItem) {
             }
         }
 
-        Text(
-            text = listOfNotNull(contract.title, contract.waitingLabel).joinToString(" • "),
-            style = YTTheme.typography.bodyMedium,
-            color = YTTheme.colors.onSurfaceVariant,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text =
+                    listOfNotNull(contract.title, contract.stageLabel, contract.waitingLabel)
+                        .joinToString(" • "),
+                modifier = Modifier.weight(1f),
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+
+            Row {
+                if (contract.canSend) {
+                    TextButton(onClick = { onSend(contract) }) {
+                        Text(
+                            text = "Send",
+                            style = YTTheme.typography.labelLarge,
+                            color = YTTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                if (contract.canSign) {
+                    TextButton(onClick = { onSign(contract) }) {
+                        Text(
+                            text = "Signed",
+                            style = YTTheme.typography.labelLarge,
+                            color = YTTheme.colors.primary,
+                        )
+                    }
+                }
+            }
+        }
+
+        // A signed contract waiting only on money says where that money is collected,
+        // rather than leaving the studio to wonder why the row will not go away.
+        if (contract.stage == ContractStage.AwaitingRetainer) {
+            Text(
+                text = "Record the retainer against its invoice, above, and this clears.",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
     }
 }
 

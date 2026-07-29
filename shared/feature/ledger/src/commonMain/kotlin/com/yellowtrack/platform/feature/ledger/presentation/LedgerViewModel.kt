@@ -23,6 +23,10 @@ import com.yellowtrack.platform.core.model.codb.CodbProfile
 import com.yellowtrack.platform.core.model.codb.CodbProfileId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
+import com.yellowtrack.platform.core.model.contract.LicenseMedium
+import com.yellowtrack.platform.core.model.contract.UsageLicense
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.ExpenseId
 import com.yellowtrack.platform.core.model.expense.Mileage
@@ -46,10 +50,13 @@ import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildMoneyOwe
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildPricing
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildProposals
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.nextNumber
+import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -344,6 +351,142 @@ internal class LedgerViewModel(
         viewModelScope.launch {
             val quote = quoteRepository.getQuote(quoteId) ?: return@launch
             quoteRepository.saveQuote(quote.declined(clock.now()))
+        }
+    }
+
+    /**
+     * Draws up a contract, and sends it if asked.
+     *
+     * A contract may be saved unsent, unlike a quote: the terms are usually settled before
+     * anyone is willing to put them in front of a client, and an unsent contract is
+     * visible on the Ledger as the studio's own outstanding step rather than lost.
+     */
+    fun addContract(contract: NewContract) {
+        viewModelScope.launch {
+            val retainer =
+                when {
+                    contract.retainerAmount.isBlank() -> null
+                    else -> parseMoney(contract.retainerAmount, currency)?.takeIf { it.isPositive } ?: return@launch
+                }
+
+            val turnaroundDays = optionalCount(contract.turnaroundDays) ?: return@launch
+            val revisionRounds = optionalCount(contract.revisionRounds) ?: return@launch
+            val license = contract.license?.let { form -> usageLicenseOf(form) ?: return@launch }
+            val now = clock.now()
+
+            contractRepository.saveContract(
+                Contract(
+                    id = ContractId.new(),
+                    studioId = studioContext.studioId,
+                    projectId = contract.projectId,
+                    title = contract.title.trim(),
+                    status = if (contract.sendNow) ContractStatus.Sent else ContractStatus.Draft,
+                    sentAt = now.takeIf { contract.sendNow },
+                    retainerAmount = retainer,
+                    isRetainerRefundable = contract.isRetainerRefundable,
+                    turnaroundDays = turnaroundDays.value,
+                    revisionRounds = revisionRounds.value,
+                    cancellationTerms = contract.cancellationTerms,
+                    rescheduleTerms = contract.rescheduleTerms,
+                    weatherClause = contract.weatherClause,
+                    usageLicense = license,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Builds the licence, or null if the stated duration does not parse.
+     *
+     * An unreadable duration rejects the contract rather than quietly becoming perpetual.
+     * Defaulting the other way would grant, for free, the one term that forecloses every
+     * future fee from the same work.
+     */
+    private fun usageLicenseOf(form: NewUsageLicense): UsageLicense? {
+        if (form.media.isEmpty() || form.territory.isBlank()) return null
+
+        val durationMonths =
+            when {
+                form.durationMonths.isBlank() -> null
+                else -> form.durationMonths.toIntOrNull()?.takeIf { it > 0 } ?: return null
+            }
+
+        val startsOn =
+            when {
+                form.startsOn.isBlank() -> null
+                else -> runCatching { LocalDate.parse(form.startsOn) }.getOrNull() ?: return null
+            }
+
+        return UsageLicense(
+            media = form.media.sortedBy(LicenseMedium::ordinal),
+            territory = form.territory.trim(),
+            durationMonths = durationMonths,
+            isExclusive = form.isExclusive,
+            startsOn = startsOn,
+        )
+    }
+
+    /**
+     * Reads an optional whole count, distinguishing "not stated" from "not a number".
+     *
+     * Blank means the contract is silent on the term, which is legitimate. Text that is
+     * not a positive number is a typo, and saving the contract without it would drop a
+     * term the studio believed it had agreed.
+     */
+    private fun optionalCount(text: String): OptionalCount? =
+        when {
+            text.isBlank() -> OptionalCount(null)
+            else -> text.toIntOrNull()?.takeIf { it > 0 }?.let(::OptionalCount)
+        }
+
+    /** Wraps a nullable count so an absent one is distinguishable from a rejected one. */
+    private data class OptionalCount(
+        val value: Int?,
+    )
+
+    /** Puts a drawn-up contract in front of the client, starting the clock on a reply. */
+    fun sendContract(contractId: ContractId) {
+        viewModelScope.launch {
+            val contract = contractRepository.getContract(contractId) ?: return@launch
+            if (contract.status != ContractStatus.Draft) return@launch
+            val now = clock.now()
+
+            contractRepository.saveContract(
+                contract.copy(
+                    status = ContractStatus.Sent,
+                    sentAt = now,
+                    audit = contract.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Records a signature against a contract.
+     *
+     * The date comes from the form rather than the clock because contracts are signed on
+     * paper and entered later, and the date a client was bound is the date that decides
+     * whether a cancellation falls inside the notice period.
+     */
+    fun signContract(signature: ContractSignature) {
+        viewModelScope.launch {
+            val contract = contractRepository.getContract(signature.contractId) ?: return@launch
+            if (contract.isSigned) return@launch
+
+            val signerName = signature.signerName.trim().ifBlank { return@launch }
+            val signedOn = runCatching { LocalDate.parse(signature.signedOn) }.getOrNull() ?: return@launch
+            val now = clock.now()
+
+            contractRepository.saveContract(
+                contract.copy(
+                    status = ContractStatus.Signed,
+                    signedAt = signedOn.atStartOfDayIn(timeZone),
+                    signerName = signerName,
+                    signerEmail = signature.signerEmail?.trim()?.ifBlank { null },
+                    audit = contract.audit.touched(now),
+                ),
+            )
         }
     }
 

@@ -18,6 +18,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.LedgerScreen
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerUiState
 import com.yellowtrack.platform.feature.ledger.presentation.PricingBasisFields
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
@@ -65,8 +66,11 @@ class LedgerScreenRenderTest {
                             onRecordPayment = {},
                             onAddQuote = {},
                             onAddInvoice = {},
+                            onAddContract = {},
                             onAcceptQuote = {},
                             onDeclineQuote = {},
+                            onSendContract = {},
+                            onSignContract = {},
                         )
                     }
                 }
@@ -141,14 +145,32 @@ class LedgerScreenRenderTest {
                                 validUntilLabel = "24 Aug 2026",
                             ),
                         ),
-                    awaitingSignature =
+                    // One at each stage, so the image shows every action the row can offer.
+                    datesNotHeld =
                         listOf(
+                            ContractItem(
+                                id = ContractId.new(),
+                                title = "Okafor Portrait Agreement",
+                                clientName = "Ada Okafor",
+                                retainer = "$300.00",
+                                stage = ContractStage.NotSent,
+                                waitingLabel = "drawn up 3 days ago",
+                            ),
                             ContractItem(
                                 id = ContractId.new(),
                                 title = "Sandhu Wedding Agreement",
                                 clientName = "Priya & Tom Sandhu",
                                 retainer = "$2,700.00",
+                                stage = ContractStage.AwaitingSignature,
                                 waitingLabel = "sent 9 days ago",
+                            ),
+                            ContractItem(
+                                id = ContractId.new(),
+                                title = "Harbourline Brand Agreement",
+                                clientName = "Harbourline Coffee",
+                                retainer = "$1,500.00",
+                                stage = ContractStage.AwaitingRetainer,
+                                waitingLabel = "signed 2 days ago",
                             ),
                         ),
                     quotedValue = "$7,250.00",
@@ -175,6 +197,6 @@ class LedgerScreenRenderTest {
         const val WIDTH = 1_280
 
         /** Tall enough that the scrolling column is captured whole rather than clipped. */
-        const val HEIGHT = 2_400
+        const val HEIGHT = 3_400
     }
 }
