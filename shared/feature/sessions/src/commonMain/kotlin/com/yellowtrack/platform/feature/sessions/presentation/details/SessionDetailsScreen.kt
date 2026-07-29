@@ -23,6 +23,8 @@ import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
@@ -34,6 +36,7 @@ import com.yellowtrack.platform.feature.sessions.presentation.details.component.
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.MediaCopyFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.PackingSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ReleaseFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ReleaseSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotFormDialog
@@ -65,6 +68,10 @@ internal fun SessionDetailsScreen(
     onRemoveMediaCopy: (MediaCopyId) -> Unit,
     onToggleShot: (ShotId, Boolean) -> Unit,
     onDeleteShot: (ShotId) -> Unit,
+    onAddPackingGear: (GearItemId) -> Unit,
+    onSetPacked: (PackingEntryId, Boolean) -> Unit,
+    onSetReturned: (PackingEntryId, Boolean) -> Unit,
+    onRemovePacking: (PackingEntryId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -192,6 +199,14 @@ internal fun SessionDetailsScreen(
                 onAddCopy = { addingCopy = true },
                 onVerifyCopy = onVerifyMediaCopy,
                 onRemoveCopy = onRemoveMediaCopy,
+            )
+
+            PackingSection(
+                packing = session.packing,
+                onAddGear = onAddPackingGear,
+                onSetPacked = onSetPacked,
+                onSetReturned = onSetReturned,
+                onRemove = onRemovePacking,
             )
 
             ReleaseSection(

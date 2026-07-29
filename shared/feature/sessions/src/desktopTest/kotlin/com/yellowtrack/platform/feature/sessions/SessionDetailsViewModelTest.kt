@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.data.LocalStudioContext
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.release.ReleaseKind
@@ -14,7 +15,9 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeCrewRepository
+import com.yellowtrack.platform.core.testing.FakeGearRepository
 import com.yellowtrack.platform.core.testing.FakeMediaCopyRepository
+import com.yellowtrack.platform.core.testing.FakePackingRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
@@ -94,13 +97,20 @@ class SessionDetailsViewModelTest {
     private lateinit var crew: FakeCrewRepository
     private lateinit var releases: FakeTalentReleaseRepository
     private lateinit var mediaCopies: FakeMediaCopyRepository
+    private lateinit var gear: FakeGearRepository
+    private lateinit var packing: FakePackingRepository
 
-    private fun harness(existing: Session = session()): Pair<FakeSessionRepository, SessionDetailsViewModel> {
+    private fun harness(
+        existing: Session = session(),
+        ownedGear: List<GearItem> = emptyList(),
+    ): Pair<FakeSessionRepository, SessionDetailsViewModel> {
         val sessions = FakeSessionRepository(listOf(existing))
         shots = FakeShotRepository()
         crew = FakeCrewRepository()
         releases = FakeTalentReleaseRepository()
         mediaCopies = FakeMediaCopyRepository()
+        gear = FakeGearRepository(ownedGear)
+        packing = FakePackingRepository()
 
         return sessions to
             SessionDetailsViewModel(
@@ -110,6 +120,8 @@ class SessionDetailsViewModelTest {
                 crewRepository = crew,
                 releaseRepository = releases,
                 mediaCopyRepository = mediaCopies,
+                packingRepository = packing,
+                gearRepository = gear,
                 projectRepository = FakeProjectRepository(),
                 clientRepository = FakeClientRepository(),
                 studioContext = LocalStudioContext(),

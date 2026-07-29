@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.feature.sessions.presentation.details.model
 
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -110,6 +112,38 @@ internal data class BackupSummary(
     val unverified: Int,
 )
 
+/** One piece of gear taken to this shoot. */
+internal data class PackingItem(
+    val id: PackingEntryId,
+    val gearItemId: GearItemId,
+    val name: String,
+    val categoryLabel: String,
+    val isPacked: Boolean,
+    val isReturned: Boolean,
+)
+
+/** Gear that could still be added to the list — everything owned and not already on it. */
+internal data class PackableGear(
+    val id: GearItemId,
+    val label: String,
+)
+
+/**
+ * What went out with the shoot, and whether it came back.
+ *
+ * [missing] is the figure worth surfacing. Packing is checked in a calm studio; returning
+ * is checked in the dark at the end of a fourteen-hour wedding, which is exactly when a
+ * light stand is left behind a curtain and not missed until the next booking.
+ */
+internal data class PackingSummary(
+    val items: List<PackingItem>,
+    val available: List<PackableGear>,
+    val packed: Int,
+    val missing: Int,
+) {
+    val isEmpty: Boolean get() = items.isEmpty()
+}
+
 internal data class SessionDetailsModel(
     val id: SessionId,
     val title: String,
@@ -135,6 +169,8 @@ internal data class SessionDetailsModel(
     val crew: List<CrewItem>,
     val releases: ReleaseSummary,
     val backup: BackupSummary,
+    /** Gear taken to this shoot, and whether it came back. */
+    val packing: PackingSummary,
     /** The session as the form takes it, so editing opens showing what is already there. */
     val editable: NewSession,
     val zoneId: String,

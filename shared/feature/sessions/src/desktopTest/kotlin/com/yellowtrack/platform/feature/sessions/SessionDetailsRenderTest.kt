@@ -17,6 +17,11 @@ import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.gear.GearCategory
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.PackingEntry
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -120,8 +125,27 @@ class SessionDetailsRenderTest {
                 release("Chloe Marsh", ReleaseKind.Adult, ReleaseStatus.Refused),
             )
 
+        val gear =
+            listOf(
+                gearItem("Canon R5 body", GearCategory.Camera),
+                gearItem("24-70mm f/2.8", GearCategory.Lens),
+                gearItem("Profoto B10", GearCategory.Lighting),
+                gearItem("Manfrotto stand", GearCategory.Support),
+            )
+
+        val packing =
+            listOf(
+                // Packed and back: the ordinary case.
+                packingEntry(session.id, gear[0].id, packed = true, returned = true),
+                packingEntry(session.id, gear[1].id, packed = true, returned = true),
+                // Packed and still out — the row the section exists to show.
+                packingEntry(session.id, gear[2].id, packed = true, returned = false),
+                // On the list and never packed.
+                packingEntry(session.id, gear[3].id, packed = false, returned = false),
+            )
+
         val scene =
-            ImageComposeScene(width = 1_280, height = 3_600, density = Density(2f)) {
+            ImageComposeScene(width = 1_280, height = 4_200, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -139,6 +163,8 @@ class SessionDetailsRenderTest {
                                                 crew,
                                                 releases,
                                                 emptyList(),
+                                                gear,
+                                                packing,
                                                 zone,
                                             ),
                                         ),
@@ -159,6 +185,10 @@ class SessionDetailsRenderTest {
                             onRemoveMediaCopy = {},
                             onToggleShot = { _, _ -> },
                             onDeleteShot = {},
+                            onAddPackingGear = {},
+                            onSetPacked = { _, _ -> },
+                            onSetReturned = { _, _ -> },
+                            onRemovePacking = {},
                         )
                     }
                 }
@@ -225,3 +255,29 @@ class SessionDetailsRenderTest {
         audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
     )
 }
+
+private fun gearItem(
+    name: String,
+    category: GearCategory,
+) = GearItem(
+    id = GearItemId.new(),
+    studioId = LocalStudioContext.LOCAL_STUDIO_ID,
+    name = name,
+    category = category,
+    audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+)
+
+private fun packingEntry(
+    sessionId: SessionId,
+    gearItemId: GearItemId,
+    packed: Boolean,
+    returned: Boolean,
+) = PackingEntry(
+    id = PackingEntryId.new(),
+    studioId = LocalStudioContext.LOCAL_STUDIO_ID,
+    sessionId = sessionId,
+    gearItemId = gearItemId,
+    isPacked = packed,
+    isReturned = returned,
+    audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+)

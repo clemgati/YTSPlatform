@@ -146,8 +146,12 @@ The biggest gap in the original roadmap.
   own page and feeding the pricing floor, which now measures rather than assumes
 - ✓ Deliverables with revision rounds and turnaround SLA, both checked against what the
   contract actually promised
-- Gear inventory with serials and purchase prices, packing lists, maintenance
-- Lighting recipes
+- ✓ Gear inventory with serials and purchase prices, packing lists, maintenance — the
+  Studio tab totals what the studio paid for what it still owns and names the gear that
+  would lose a claim; the kit list lives on the shoot day it belongs to, ticked packed in
+  the morning and back at midnight
+- ✓ Lighting recipes — set-ups written down in the terms they are dialled in, so the
+  three-light headshot is a starting point rather than a rebuild from memory
 
 ## 0.7.0 — Cloud
 

@@ -40,6 +40,10 @@ fun SessionDetailsRoute(
         onRemoveMediaCopy = viewModel::deleteMediaCopy,
         onToggleShot = viewModel::setShotCaptured,
         onDeleteShot = viewModel::deleteShot,
+        onAddPackingGear = viewModel::addToPackingList,
+        onSetPacked = viewModel::setPacked,
+        onSetReturned = viewModel::setReturned,
+        onRemovePacking = viewModel::removeFromPackingList,
         modifier = modifier,
     )
 }

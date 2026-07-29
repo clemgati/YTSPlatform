@@ -6,6 +6,8 @@ import com.yellowtrack.platform.core.common.solar.SunWindow
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.media.BackupHealth
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageKind
@@ -19,6 +21,9 @@ import com.yellowtrack.platform.feature.sessions.presentation.details.model.Back
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.CrewItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.LightRow
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.MediaCopyItem
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.PackableGear
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.PackingItem
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.PackingSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
@@ -40,6 +45,8 @@ internal fun Session.toDetailsModel(
     crew: List<CrewMember>,
     releases: List<TalentRelease>,
     mediaCopies: List<MediaCopy>,
+    gear: List<GearItem>,
+    packing: List<PackingEntry>,
     deviceZone: TimeZone,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
@@ -65,6 +72,7 @@ internal fun Session.toDetailsModel(
         shotsRemaining = shots.count { !it.isCaptured },
         releases = releases.toSummary(),
         backup = mediaCopies.toBackupSummary(),
+        packing = toPackingSummary(packing, gear),
         crew =
             crew.map { member ->
                 CrewItem(
@@ -310,3 +318,45 @@ private val StorageKind.label: String
             StorageKind.Cloud -> "Cloud"
             StorageKind.OffsiteDrive -> "Offsite drive"
         }
+
+/**
+ * The kit list for this day.
+ *
+ * An entry whose gear has since been deleted is dropped rather than shown as a blank row:
+ * the list is only useful if every line names something that can be looked for.
+ */
+private fun toPackingSummary(
+    packing: List<PackingEntry>,
+    gear: List<GearItem>,
+): PackingSummary {
+    val byId = gear.associateBy { it.id }
+
+    val items =
+        packing.mapNotNull { entry ->
+            val item = byId[entry.gearItemId] ?: return@mapNotNull null
+
+            PackingItem(
+                id = entry.id,
+                gearItemId = entry.gearItemId,
+                name = item.name,
+                categoryLabel = item.category.name,
+                isPacked = entry.isPacked,
+                isReturned = entry.isReturned,
+            )
+        }
+
+    val listed = packing.map { it.gearItemId }.toSet()
+
+    return PackingSummary(
+        items = items.sortedBy { it.name.lowercase() },
+        // Only gear in service is offered. A body at the repair shop cannot be packed, and
+        // offering it would put a line on the list that can never be ticked.
+        available =
+            gear
+                .filter { it.status.isAvailable && it.id !in listed }
+                .sortedBy { it.name.lowercase() }
+                .map { PackableGear(id = it.id, label = it.name) },
+        packed = items.count { it.isPacked },
+        missing = items.count { it.isPacked && !it.isReturned },
+    )
+}

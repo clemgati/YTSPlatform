@@ -8,6 +8,45 @@ The project follows semantic versioning.
 
 ### Added
 
+- **The Studio tab is a screen at last.** It has been a placeholder since 0.1.0, naming
+  gear inventory, packing lists and lighting recipes as things that "arrive in a later
+  milestone". They have arrived
+- **An inventory that answers the question a claim turns on.** Nobody keeps a gear list to
+  remember what cameras they own; they keep it so that a break-in a year from now can be
+  settled — which turns on serial numbers and prices, not on names. The screen leads with
+  the insured total and with what would lose the claim: priced gear with no serial number,
+  named
+- **The total says what it is.** It is what the studio *paid*, not what replacement would
+  cost, and the line under it says so. A studio that insures a 2019 body for its 2019 price
+  is underinsured in a way it discovers only when it claims. Gear with no price recorded is
+  counted separately, so a short total is never read as a complete one
+- Sold or written-off gear leaves the insured total, because insuring a camera sold two
+  years ago is money spent for nothing. Gear at the repair shop stays on it — it is still
+  the studio's, and can still burn with the shop. So does lost gear, which is exactly what
+  gets claimed for
+- Servicing is reported only for gear the studio has serviced at least once. A reflector is
+  not overdue a shutter count, and a list that is wrong about half its rows gets ignored
+- **Packing lists live on the shoot day, not in a drawer.** Packed and returned are tracked
+  separately because they are ticked at opposite ends of the day: packing in a calm studio
+  in the morning, returning in the dark at the end of a fourteen-hour wedding — which is
+  when a light stand gets left behind a curtain and is not missed until the next booking
+- Ticking something back in also marks it packed. At midnight the only thing being checked
+  is what came off the van, and refusing the tick because nobody ticked the morning box
+  would teach a studio to stop using the list. Unticking *packed* clears the return, since
+  gear that never left cannot have come back
+- Only gear in service is offered for a kit list: a body at the repair shop cannot be
+  packed, and offering it would put a line on the list that can never be ticked
+- **Lighting recipes.** The same three-light headshot gets rebuilt from memory a hundred
+  times and comes out slightly different each time. Written down it is a starting point
+  that takes ten minutes instead of forty
+- Power, distance and position are free text on purpose. A power reading is "1/4" on one
+  light and "6.3" on another, and a position is "camera left, 45°, just above eye line" — a
+  normalised figure would have to be translated back before anyone could dial it in
+- **Schema migration 9 → 10**, purely additive: `gear_item`, `packing_entry` and
+  `lighting_recipe`, `10.db` committed. A recipe with no lights yet stores `[]` rather than
+  null, so nothing has to decode defensively, and a new packing entry is neither packed nor
+  returned — adding something to the list is not the same as putting it in the van
+
 - **3-2-1 backup checking per shoot.** Three copies, on at least two kinds of storage, at
   least one away from the building. Each clause guards a different way of losing a wedding:
   one copy fails, two copies of the same kind fail together, and everything in one room

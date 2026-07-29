@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.CrewRepository
+import com.yellowtrack.platform.core.data.GearRepository
 import com.yellowtrack.platform.core.data.MediaCopyRepository
+import com.yellowtrack.platform.core.data.PackingRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.ShotRepository
@@ -15,6 +17,10 @@ import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.PackingEntry
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.project.Project
@@ -63,6 +69,8 @@ internal class SessionDetailsViewModel(
     private val crewRepository: CrewRepository,
     private val releaseRepository: TalentReleaseRepository,
     private val mediaCopyRepository: MediaCopyRepository,
+    private val packingRepository: PackingRepository,
+    gearRepository: GearRepository,
     projectRepository: ProjectRepository,
     clientRepository: ClientRepository,
     private val studioContext: StudioContext,
@@ -91,6 +99,12 @@ internal class SessionDetailsViewModel(
         val clients: List<Client>,
     )
 
+    /** What went out with the day, joined against what the studio owns. */
+    private data class Kit(
+        val gear: List<GearItem>,
+        val packing: List<PackingEntry>,
+    )
+
     val uiState: StateFlow<SessionDetailsUiState> =
         combine(
             combine(
@@ -106,8 +120,13 @@ internal class SessionDetailsViewModel(
                 clientRepository.observeClients(),
                 ::Booking,
             ),
+            combine(
+                gearRepository.observeGear(),
+                packingRepository.observePackingForSession(sessionId),
+                ::Kit,
+            ),
             retryTrigger,
-        ) { day, booking, _ ->
+        ) { day, booking, kit, _ ->
             val session = day.session
 
             if (session == null) {
@@ -127,6 +146,8 @@ internal class SessionDetailsViewModel(
                                 day.crew,
                                 day.releases,
                                 day.mediaCopies,
+                                kit.gear,
+                                kit.packing,
                                 deviceZone,
                             ),
                         ),
@@ -440,6 +461,73 @@ internal class SessionDetailsViewModel(
 
     fun deleteMediaCopy(copyId: MediaCopyId) {
         viewModelScope.launch { mediaCopyRepository.deleteCopy(copyId) }
+    }
+
+    fun addToPackingList(gearItemId: GearItemId) {
+        viewModelScope.launch {
+            val now = clock.now()
+
+            packingRepository.savePackingEntry(
+                PackingEntry(
+                    id = PackingEntryId.new(),
+                    studioId = studioContext.studioId,
+                    sessionId = sessionId,
+                    gearItemId = gearItemId,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Ticks something off as packed.
+     *
+     * Unticking also clears the return, because gear that was never taken cannot have come
+     * back, and leaving the two out of step would leave the missing count wrong.
+     */
+    fun setPacked(
+        entryId: PackingEntryId,
+        packed: Boolean,
+    ) {
+        viewModelScope.launch {
+            val entry = packingRepository.getPackingEntry(entryId) ?: return@launch
+
+            packingRepository.savePackingEntry(
+                entry.copy(
+                    isPacked = packed,
+                    isReturned = entry.isReturned && packed,
+                    audit = entry.audit.touched(clock.now()),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Ticks something off as back in the studio.
+     *
+     * Marking a return also marks it packed: at the end of the night, the only thing being
+     * checked is what came off the van, and refusing the tick because nobody ticked the
+     * first box in the morning would teach a studio to stop using the list.
+     */
+    fun setReturned(
+        entryId: PackingEntryId,
+        returned: Boolean,
+    ) {
+        viewModelScope.launch {
+            val entry = packingRepository.getPackingEntry(entryId) ?: return@launch
+
+            packingRepository.savePackingEntry(
+                entry.copy(
+                    isPacked = entry.isPacked || returned,
+                    isReturned = returned,
+                    audit = entry.audit.touched(clock.now()),
+                ),
+            )
+        }
+    }
+
+    fun removeFromPackingList(entryId: PackingEntryId) {
+        viewModelScope.launch { packingRepository.deletePackingEntry(entryId) }
     }
 
     fun retry() {
