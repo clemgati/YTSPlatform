@@ -10,9 +10,11 @@ import com.yellowtrack.platform.core.model.codb.CodbBreakdown
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
+import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
@@ -70,17 +72,55 @@ internal fun buildMoneyOwed(
                 state = invoice.paymentState(now),
                 overdueDays = overdue?.inWholeDays,
                 dueLabel = invoice.dueAt?.let { DateFormats.shortDate(it, TimeZone.currentSystemDefault()) },
+                canVoid = invoice.payments.isEmpty(),
             )
         }
 
     val overdueInvoices = outstanding.filter { it.paymentState(now) == PaymentState.Overdue }
+
+    // Oldest first: a draft that has sat longest is work agreed longest ago and still not
+    // billed. Without this list a draft is invisible — it contributes nothing to money
+    // owed, which is the whole point of a draft, and accepting a quote raises one.
+    val drafts =
+        invoices
+            .filter { it.status == InvoiceStatus.Draft }
+            .sortedBy { it.audit.createdAt }
+            .map { invoice ->
+                val project = projectsById[invoice.projectId]
+
+                DraftInvoiceItem(
+                    id = invoice.id,
+                    number = invoice.number,
+                    clientName = project?.let { clientsById[it.clientId]?.displayName }.orEmpty(),
+                    projectName = project?.name.orEmpty(),
+                    total = invoice.total.display(),
+                    raisedLabel = raisedLabel(invoice.audit.createdAt, now),
+                )
+            }
 
     return MoneyOwedSummary(
         totalOutstanding = outstanding.map { it.outstanding(now) }.sum(currency).display(),
         overdueAmount = overdueInvoices.map { it.outstanding(now) }.sum(currency).display(),
         overdueCount = overdueInvoices.size,
         invoices = items,
+        drafts = drafts,
     )
+}
+
+/** How long an invoice has been sitting unsent, in the terms a studio thinks in. */
+private fun raisedLabel(
+    since: Instant,
+    now: Instant,
+): String {
+    val days = (now - since).inWholeDays
+
+    return when {
+        days <= 0L -> "raised today"
+        days == 1L -> "raised yesterday"
+        days < 14L -> "raised $days days ago"
+        days < 60L -> "raised ${days / 7} weeks ago"
+        else -> "raised ${days / 30} months ago"
+    }
 }
 
 internal fun buildPricing(

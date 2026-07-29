@@ -26,6 +26,9 @@ fun LedgerRoute(modifier: Modifier = Modifier) {
         onDeclineQuote = viewModel::declineQuote,
         onSendContract = viewModel::sendContract,
         onSignContract = viewModel::signContract,
+        onSendInvoice = viewModel::sendInvoice,
+        onVoidInvoice = viewModel::voidInvoice,
+        onDeleteInvoice = viewModel::deleteInvoice,
         modifier = modifier,
     )
 }

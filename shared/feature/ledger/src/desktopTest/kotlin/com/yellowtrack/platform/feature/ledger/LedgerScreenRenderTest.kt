@@ -19,6 +19,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.LedgerUiState
 import com.yellowtrack.platform.feature.ledger.presentation.PricingBasisFields
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
+import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
@@ -71,6 +72,9 @@ class LedgerScreenRenderTest {
                             onDeclineQuote = {},
                             onSendContract = {},
                             onSignContract = {},
+                            onSendInvoice = {},
+                            onVoidInvoice = {},
+                            onDeleteInvoice = {},
                         )
                     }
                 }
@@ -106,6 +110,7 @@ class LedgerScreenRenderTest {
                                 state = PaymentState.Overdue,
                                 overdueDays = 12,
                                 dueLabel = "16 Jul 2026",
+                                canVoid = true,
                             ),
                             OutstandingInvoiceItem(
                                 id = InvoiceId.new(),
@@ -114,9 +119,22 @@ class LedgerScreenRenderTest {
                                 projectName = "Autumn Brand Shoot",
                                 balanceDue = "$4,500.00",
                                 balanceDuePlain = "4500.00",
-                                state = PaymentState.AwaitingPayment,
+                                state = PaymentState.PartiallyPaid,
                                 overdueDays = null,
                                 dueLabel = "11 Aug 2026",
+                                // Part paid, so voiding is not offered on this row.
+                                canVoid = false,
+                            ),
+                        ),
+                    drafts =
+                        listOf(
+                            DraftInvoiceItem(
+                                id = InvoiceId.new(),
+                                number = "INV-007",
+                                clientName = "Ada Okafor",
+                                projectName = "Okafor Portraits",
+                                total = "$300.00",
+                                raisedLabel = "raised 5 days ago",
                             ),
                         ),
                 ),

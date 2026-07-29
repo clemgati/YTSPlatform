@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.ledger.presentation.component.ContractFormDialog
@@ -51,6 +52,9 @@ internal fun LedgerScreen(
     onDeclineQuote: (QuoteId) -> Unit,
     onSendContract: (ContractId) -> Unit,
     onSignContract: (ContractSignature) -> Unit,
+    onSendInvoice: (InvoiceId) -> Unit,
+    onVoidInvoice: (InvoiceId) -> Unit,
+    onDeleteInvoice: (InvoiceId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showExpenseForm by remember { mutableStateOf(false) }
@@ -162,6 +166,9 @@ internal fun LedgerScreen(
             MoneyOwedSection(
                 summary = content.moneyOwed,
                 onRecordPayment = { payingInvoice = it },
+                onVoidInvoice = { onVoidInvoice(it.id) },
+                onSendDraft = { onSendInvoice(it.id) },
+                onDeleteDraft = { onDeleteInvoice(it.id) },
             )
 
             ProposalsSection(

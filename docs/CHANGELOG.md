@@ -62,7 +62,7 @@ quotes, contracts, invoices, or any notion of what a job costs to deliver.
   so it sits directly beneath money owed
 - **Send a quote** and **raise an invoice**, both continuing the studio's own numbering
   rather than restarting at one — the suggestion is derived from the highest number
-  already used, so a deleted document never causes a reissue
+  already used rather than from a counter that could drift away from the documents
 - **Accepting a quote raises the invoice that collects it**, carrying the agreed lines
   across untouched. Re-entering them by hand is where the figure a client agreed to and
   the figure they are billed diverge
@@ -138,8 +138,32 @@ quotes, contracts, invoices, or any notion of what a job costs to deliver.
 - Parsing lives in one place, `NewLineItem.toLineItem`, called by both the form and the
   ViewModel, so there is a single answer to what counts as a valid line
 
+### Added — correcting the books
+
+- **A draft invoice is visible at last.** Accepting a quote raises one, deliberately as a
+  draft so an unreviewed figure never lands in money owed — but money owed was the only
+  list of invoices on the screen, so the invoice collecting an accepted booking appeared
+  nowhere at all and could never be sent. *Raised but not sent* now lists them, oldest
+  first, since the one waiting longest is work agreed longest ago and still not billed
+- **Send** a draft, stamping the issue date at the moment of sending rather than
+  backdating it to when the draft was raised: the clock a client is held to runs from the
+  demand they actually received
+- **Void** a sent invoice. Voiding rather than deleting is what keeps the numbering
+  honest — the row stays, so its number is never handed to a second document, and a client
+  holding INV-008 can always be shown what INV-008 was
+- **Refuses to void an invoice with money against it.** Cancelling it would take a payment
+  the studio actually received out of its books; the remedy for money received in error is
+  a refund, recorded. The row does not offer the option rather than failing when pressed
+- **Discard** a draft outright, which is safe for exactly the reason voiding is not: it
+  has never been sent, nobody holds a copy, and its number may go to the next document.
+  Anything that has left the studio is refused
+
 ### Changed
 
+- The 0.4.0 note claiming a deleted document never causes a reissue has been corrected. It
+  was vacuously true when nothing could be deleted; now that drafts can be, the rule that
+  actually holds is the one above — sent documents are voided and keep their numbers, and
+  only an unsent number, which no one ever saw, is released
 - `YTFormDialog` may now grow to 560dp before scrolling, up from 420dp. Found by looking:
   at 420dp the contract form showed five of its fourteen fields in a window with room for
   far more. The cap was never what protected the buttons — Material's dialog clamps its own
@@ -151,17 +175,23 @@ quotes, contracts, invoices, or any notion of what a job costs to deliver.
 - A contract records that it was signed, not the signature itself; there is no document to
   countersign and `documentReference` stays empty until media hosting exists
 - Clients, projects, and sessions still cannot be created in the app
-- Editing and deleting existing records is not yet possible from any screen
+- Invoices can be sent, voided, and discarded, but **no record can yet be edited after it
+  is saved** — a cost with a typo, or a payment recorded against the wrong invoice, still
+  cannot be corrected or removed. Expenses and payments are not listed anywhere on the
+  Ledger, only totalled, so there is nothing to act on even once editing exists
+- A sent invoice is deliberately not editable: the remedy is to void it and raise another,
+  which is now possible. A *draft's* lines, though, could reasonably be edited and cannot
 - Dates are typed as `2026-07-28` text rather than picked from a calendar
 - `DateFormats` remains English-only
-- All six tabs have been seen running on desktop, and the two contract dialogs have now
-  been rasterised and looked at, which is what found the form height cap. The expense,
-  invoice, expense, and payment dialogs still have not been seen, no screen has been seen on
-  Android, iOS, or the web, and nothing has yet been driven by a person rather than rendered
-- A fourteen-field contract still belongs on a screen rather than in a dialog on a phone,
-  which is the revisit `YTFormDialog` has always said it was waiting for
+- All six tabs have been seen running on desktop, and the contract, signature, and quote
+  dialogs have now been rasterised and looked at, which is what found the form height cap.
+  The expense, invoice, and payment dialogs still have not been seen, no screen has been
+  seen on Android, iOS, or the web, and nothing has yet been driven by a person rather than
+  rendered
 - Lines can be added and removed but not reordered, and an existing document's lines still
   cannot be edited after it is saved — that waits on editing existing records
+- A fourteen-field contract still belongs on a screen rather than in a dialog on a phone,
+  which is the revisit `YTFormDialog` has always said it was waiting for
 
 ## Unreleased — 0.3.0 Bedrock
 

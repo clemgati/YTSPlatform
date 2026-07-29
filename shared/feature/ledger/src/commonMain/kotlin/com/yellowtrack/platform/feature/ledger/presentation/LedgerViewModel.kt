@@ -516,6 +516,69 @@ internal class LedgerViewModel(
         }
     }
 
+    /**
+     * Issues a draft invoice.
+     *
+     * This is the step that turns work already agreed into money owed. The issue date is
+     * stamped now rather than backdated to when the draft was raised, because the due date
+     * a client is held to runs from the demand they actually received.
+     */
+    fun sendInvoice(invoiceId: InvoiceId) {
+        viewModelScope.launch {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            if (invoice.status != InvoiceStatus.Draft) return@launch
+            val now = clock.now()
+
+            invoiceRepository.saveInvoice(
+                invoice.copy(
+                    status = InvoiceStatus.Sent,
+                    issuedAt = now,
+                    audit = invoice.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Cancels an invoice while keeping it in the books.
+     *
+     * Voiding rather than deleting is what keeps the numbering honest: the row stays, so
+     * its number is never handed to a second document, and a client holding INV-008 can
+     * always be shown what INV-008 was. An invoice with payments against it is refused —
+     * cancelling it would take money the studio has actually received out of its books,
+     * and the remedy for that is a refund, recorded.
+     */
+    fun voidInvoice(invoiceId: InvoiceId) {
+        viewModelScope.launch {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            if (invoice.status == InvoiceStatus.Void || invoice.payments.isNotEmpty()) return@launch
+            val now = clock.now()
+
+            invoiceRepository.saveInvoice(
+                invoice.copy(
+                    status = InvoiceStatus.Void,
+                    audit = invoice.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Discards a draft invoice outright.
+     *
+     * Only a draft: it has never been sent, so nobody holds a copy, nothing has been
+     * demanded, and its number may safely be handed to the next document. Anything that
+     * has left the studio is voided instead, which is why this refuses everything else.
+     */
+    fun deleteInvoice(invoiceId: InvoiceId) {
+        viewModelScope.launch {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
+            if (invoice.status != InvoiceStatus.Draft) return@launch
+
+            invoiceRepository.deleteInvoice(invoiceId)
+        }
+    }
+
     fun recordPayment(payment: NewPayment) {
         viewModelScope.launch {
             val amount = parseMoney(payment.amount, currency)?.takeIf { it.isPositive } ?: return@launch

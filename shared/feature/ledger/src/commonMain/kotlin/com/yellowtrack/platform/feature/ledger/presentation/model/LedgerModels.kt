@@ -25,6 +25,30 @@ internal data class OutstandingInvoiceItem(
     /** Null unless overdue. */
     val overdueDays: Long?,
     val dueLabel: String?,
+    /**
+     * Whether cancelling it is still honest.
+     *
+     * False once any money has arrived against it: voiding a part-paid invoice would take
+     * a payment the studio has actually received out of its books, and the remedy for
+     * money received in error is a refund, recorded, not a document quietly cancelled.
+     */
+    val canVoid: Boolean,
+)
+
+/**
+ * An invoice raised but never sent.
+ *
+ * These exist chiefly because accepting a quote raises one, deliberately as a draft so
+ * that an unreviewed figure never lands in money owed. They collect nothing until they go
+ * out, which makes an unsent invoice the quietest way for agreed work to go unpaid.
+ */
+internal data class DraftInvoiceItem(
+    val id: InvoiceId,
+    val number: String,
+    val clientName: String,
+    val projectName: String,
+    val total: String,
+    val raisedLabel: String,
 )
 
 internal data class MoneyOwedSummary(
@@ -32,6 +56,8 @@ internal data class MoneyOwedSummary(
     val overdueAmount: String,
     val overdueCount: Int,
     val invoices: List<OutstandingInvoiceItem>,
+    /** Raised and not yet sent, oldest first — the longest-agreed work goes uncollected. */
+    val drafts: List<DraftInvoiceItem> = emptyList(),
 ) {
     val hasOverdue: Boolean get() = overdueCount > 0
 }

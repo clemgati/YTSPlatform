@@ -122,7 +122,9 @@ The biggest gap in the original roadmap.
   the date held only once the retainer is paid
 - ✓ Line editing, so quotes and invoices carry as many lines as the work has, with
   quantities and per-line tax
-- □ Editing and deleting existing records
+- ◐ Editing and deleting existing records — invoices can be sent, voided, and discarded,
+  with a sent document never deleted so its number stays used. Editing a saved record, and
+  correcting a cost or a misrecorded payment, is still to come
 
 ## 0.5.0 — Shoot Day
 
