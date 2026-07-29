@@ -20,7 +20,6 @@ private fun ClientQuickActionsSectionPreview() {
                 onAddProject = {},
                 onScheduleSession = {},
                 onEditClient = {},
-                onArchiveClient = {},
                 modifier =
                     Modifier.padding(
                         YTTheme.spacing.large,

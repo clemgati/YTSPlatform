@@ -10,9 +10,9 @@ import androidx.compose.ui.unit.Density
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.ui.state.UiState
+import com.yellowtrack.platform.feature.clients.presentation.component.ClientFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsScreen
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsUiState
-import com.yellowtrack.platform.feature.clients.presentation.list.component.ClientFormDialog
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue

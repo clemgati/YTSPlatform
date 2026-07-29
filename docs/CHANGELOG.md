@@ -33,8 +33,24 @@ The project follows semantic versioning.
   back from one to the other, and a blank account name is left blank rather than copied
   from the contact — copying it would freeze the name against a later rename
 
+- **A client can be corrected.** The same form serves taking one on and editing it, so a
+  field cannot come to mean one thing on the way in and another on the way back. Editing
+  carries across everything the form does not show: an account may hold a partner, a
+  planner, and an accounts-payable contact, and rebuilding the contact list from the one
+  person on screen would silently delete the other three
+- Clearing a single email or phone removes that entry rather than the list, so a contact
+  with a work number and a personal one does not lose both to an edit of one
+
 ### Fixed
 
+- **"Edit Client" was a button that did nothing.** It has sat on the client detail page
+  since 0.3.0 wired to an empty lambda in the app shell. It now opens the form. Editing
+  lives inside the feature, like every other form here, so the app module no longer needs
+  to know what "edit client" means
+- **"Archive Client" has been removed rather than left dead.** `Client` has no archived
+  state to set, so there was nothing the button could do. A control that silently ignores
+  a press is worse than one that is not offered; it can return when there is a model
+  behind it
 - **The Clients empty state has invited "add your first client" since 0.3.0 with no way to
   accept.** It now carries the button. The first attempt at this did not work and looked
   as though it did: `EmptyContent` fills the height it is given and centres within it, so

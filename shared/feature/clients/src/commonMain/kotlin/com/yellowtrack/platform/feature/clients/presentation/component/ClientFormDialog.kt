@@ -1,4 +1,4 @@
-package com.yellowtrack.platform.feature.clients.presentation.list.component
+package com.yellowtrack.platform.feature.clients.presentation.component
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,7 +13,7 @@ import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.client.ClientAccountType
-import com.yellowtrack.platform.feature.clients.presentation.list.model.NewClient
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 
 /**
  * Takes on a client account and the first person attached to it.
@@ -27,20 +27,25 @@ import com.yellowtrack.platform.feature.clients.presentation.list.model.NewClien
  * person's name for an individual. Everything else can arrive later, because an enquiry
  * rarely arrives complete and a client that cannot be saved until it is complete is a
  * client kept in someone's inbox instead.
+ *
+ * Pass [initial] to correct an account that already exists. The same form serves both, so
+ * a field cannot come to mean one thing when a client is taken on and another when it is
+ * corrected.
  */
 @Composable
 internal fun ClientFormDialog(
     onSave: (NewClient) -> Unit,
     onDismiss: () -> Unit,
+    initial: NewClient? = null,
 ) {
-    var accountType by remember { mutableStateOf(ClientAccountType.Individual) }
-    var accountName by remember { mutableStateOf("") }
-    var firstName by remember { mutableStateOf("") }
-    var lastName by remember { mutableStateOf("") }
-    var company by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var accountType by remember { mutableStateOf(initial?.accountType ?: ClientAccountType.Individual) }
+    var accountName by remember { mutableStateOf(initial?.accountName.orEmpty()) }
+    var firstName by remember { mutableStateOf(initial?.contactFirstName.orEmpty()) }
+    var lastName by remember { mutableStateOf(initial?.contactLastName.orEmpty()) }
+    var company by remember { mutableStateOf(initial?.company.orEmpty()) }
+    var email by remember { mutableStateOf(initial?.email.orEmpty()) }
+    var phone by remember { mutableStateOf(initial?.phone.orEmpty()) }
+    var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
 
     val form =
         NewClient(
@@ -55,8 +60,8 @@ internal fun ClientFormDialog(
         )
 
     YTFormDialog(
-        title = "Add a client",
-        confirmLabel = "Save",
+        title = if (initial == null) "Add a client" else "Edit client",
+        confirmLabel = if (initial == null) "Save" else "Save changes",
         confirmEnabled = form.hasName,
         onConfirm = { onSave(form) },
         onDismiss = onDismiss,

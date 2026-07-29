@@ -102,8 +102,8 @@ private fun CurrentRoute(
                 clientId = route.clientId,
                 onBack = appState::navigateBack,
                 onScheduleSession = { appState.navigateTopLevel(AppDestination.Sessions) },
-                onEditClient = { /* YTP-013C: open the client editor. */ },
-                onArchiveClient = { /* Future: archive confirmation. */ },
+                // Editing is the feature's own business and stays inside it, like every
+                // other form: the app module has no reason to learn about "edit client".
                 modifier = modifier,
             )
 

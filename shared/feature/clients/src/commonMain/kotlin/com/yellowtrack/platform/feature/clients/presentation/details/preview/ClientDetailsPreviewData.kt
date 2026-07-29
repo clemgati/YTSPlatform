@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.clients.presentation.details.preview
 
+import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsUiState
@@ -7,6 +8,7 @@ import com.yellowtrack.platform.feature.clients.presentation.details.model.Clien
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientSessionHistoryItem
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientUpcomingSession
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 
 internal object ClientDetailsPreviewData {
     val client =
@@ -53,6 +55,17 @@ internal object ClientDetailsPreviewData {
                     "Prefers warm color grading.",
                     "Likes natural posing and candid expressions.",
                     "Needs vertical crops for social media.",
+                ),
+            editable =
+                NewClient(
+                    accountName = "Sarah & Michael Johnson",
+                    accountType = ClientAccountType.Couple,
+                    contactFirstName = "Sarah",
+                    contactLastName = "Johnson",
+                    company = "",
+                    email = "sarah@example.com",
+                    phone = "07700 900123",
+                    notes = "Prefers warm color grading.",
                 ),
         )
 

@@ -11,7 +11,7 @@ import com.yellowtrack.platform.core.testing.TestData
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsViewModel
 import com.yellowtrack.platform.feature.clients.presentation.list.model.ClientSummary
-import com.yellowtrack.platform.feature.clients.presentation.list.model.NewClient
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first

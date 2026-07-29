@@ -17,7 +17,7 @@ import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.list.mapper.toClientSummaries
-import com.yellowtrack.platform.feature.clients.presentation.list.model.NewClient
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted

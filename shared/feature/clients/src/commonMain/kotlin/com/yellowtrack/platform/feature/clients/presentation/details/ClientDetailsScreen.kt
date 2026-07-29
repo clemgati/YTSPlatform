@@ -21,6 +21,7 @@ import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.feature.clients.presentation.component.ClientFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientContactSection
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientDetailsHeader
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientNotesSection
@@ -30,6 +31,7 @@ import com.yellowtrack.platform.feature.clients.presentation.details.component.C
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ProjectFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 
 @Composable
 internal fun ClientDetailsScreen(
@@ -37,13 +39,13 @@ internal fun ClientDetailsScreen(
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onScheduleSession: () -> Unit,
-    onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
     onAddProject: (NewProject) -> Unit,
+    onUpdateClient: (NewClient) -> Unit,
     currency: CurrencyCode = CurrencyCode.USD,
     modifier: Modifier = Modifier,
 ) {
     var showProjectForm by remember { mutableStateOf(false) }
+    var showEditForm by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.client,
@@ -69,13 +71,23 @@ internal fun ClientDetailsScreen(
             )
         }
 
+        if (showEditForm) {
+            ClientFormDialog(
+                initial = client.editable,
+                onSave = {
+                    onUpdateClient(it)
+                    showEditForm = false
+                },
+                onDismiss = { showEditForm = false },
+            )
+        }
+
         ClientDetailsContent(
             client = client,
             onBack = onBack,
             onAddProject = { showProjectForm = true },
             onScheduleSession = onScheduleSession,
-            onEditClient = onEditClient,
-            onArchiveClient = onArchiveClient,
+            onEditClient = { showEditForm = true },
             modifier = contentModifier,
         )
     }
@@ -88,7 +100,6 @@ private fun ClientDetailsContent(
     onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -120,7 +131,6 @@ private fun ClientDetailsContent(
                     onAddProject = onAddProject,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
-                    onArchiveClient = onArchiveClient,
                 )
             } else {
                 CompactClientDetailsContent(
@@ -128,7 +138,6 @@ private fun ClientDetailsContent(
                     onAddProject = onAddProject,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
-                    onArchiveClient = onArchiveClient,
                 )
             }
         }
@@ -141,7 +150,6 @@ private fun CompactClientDetailsContent(
     onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -170,7 +178,6 @@ private fun CompactClientDetailsContent(
             onAddProject = onAddProject,
             onScheduleSession = onScheduleSession,
             onEditClient = onEditClient,
-            onArchiveClient = onArchiveClient,
         )
     }
 }
@@ -181,7 +188,6 @@ private fun ExpandedClientDetailsContent(
     onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -209,7 +215,6 @@ private fun ExpandedClientDetailsContent(
                 onAddProject = onAddProject,
                 onScheduleSession = onScheduleSession,
                 onEditClient = onEditClient,
-                onArchiveClient = onArchiveClient,
             )
         }
 

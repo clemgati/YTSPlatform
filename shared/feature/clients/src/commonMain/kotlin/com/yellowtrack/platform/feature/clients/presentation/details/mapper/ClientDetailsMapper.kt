@@ -7,6 +7,7 @@ import com.yellowtrack.platform.feature.clients.presentation.details.model.Clien
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientSessionHistoryItem
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientUpcomingSession
 import com.yellowtrack.platform.feature.clients.presentation.list.mapper.initials
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 import kotlinx.datetime.TimeZone
 import kotlin.time.Instant
 import com.yellowtrack.platform.core.model.client.Client as DomainClient
@@ -38,8 +39,22 @@ internal fun DomainClient.toClientDetailsModel(
         upcomingSession = upcoming?.toUpcomingSession(),
         sessionHistory = history.map { it.toHistoryItem() },
         notes = notes?.lines().orEmpty().filter(String::isNotBlank),
+        editable = toEditableForm(),
     )
 }
+
+/** The account's own values, as the form holds them. */
+private fun DomainClient.toEditableForm(): NewClient =
+    NewClient(
+        accountName = accountName,
+        accountType = accountType,
+        contactFirstName = primaryContact?.firstName.orEmpty(),
+        contactLastName = primaryContact?.lastName.orEmpty(),
+        company = primaryContact?.company.orEmpty(),
+        email = primaryContact?.primaryEmail.orEmpty(),
+        phone = primaryContact?.primaryPhone.orEmpty(),
+        notes = notes.orEmpty(),
+    )
 
 /**
  * Flattens the account's people into the single contact card the detail screen shows.

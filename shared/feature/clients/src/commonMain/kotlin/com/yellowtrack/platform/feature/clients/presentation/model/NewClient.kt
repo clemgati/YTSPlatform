@@ -1,4 +1,4 @@
-package com.yellowtrack.platform.feature.clients.presentation.list.model
+package com.yellowtrack.platform.feature.clients.presentation.model
 
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 

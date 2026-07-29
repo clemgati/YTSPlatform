@@ -9,12 +9,16 @@ import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 
+/**
+ * Archiving is deliberately absent. The button existed and did nothing — `Client` has no
+ * archived state to set, so there was nothing for it to do. A control that silently
+ * ignores a press is worse than one that is not offered.
+ */
 @Composable
 internal fun ClientQuickActionsSection(
     onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    onArchiveClient: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTDetailSection(
@@ -42,12 +46,6 @@ internal fun ClientQuickActionsSection(
             YTButton(
                 text = "Edit Client",
                 onClick = onEditClient,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            YTButton(
-                text = "Archive Client",
-                onClick = onArchiveClient,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

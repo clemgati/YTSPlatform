@@ -21,11 +21,11 @@ import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.feature.clients.presentation.component.ClientFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.component.ClientsHeader
-import com.yellowtrack.platform.feature.clients.presentation.list.component.ClientFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.list.component.ClientSummaryRow
 import com.yellowtrack.platform.feature.clients.presentation.list.model.ClientSummary
-import com.yellowtrack.platform.feature.clients.presentation.list.model.NewClient
+import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 
 @Composable
 internal fun ClientsScreen(

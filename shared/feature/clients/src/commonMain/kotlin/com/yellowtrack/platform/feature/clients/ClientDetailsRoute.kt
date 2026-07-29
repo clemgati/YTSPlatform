@@ -15,8 +15,6 @@ fun ClientDetailsRoute(
     clientId: ClientId,
     onBack: () -> Unit,
     onScheduleSession: (ClientId) -> Unit,
-    onEditClient: (ClientId) -> Unit,
-    onArchiveClient: (ClientId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Keyed on the client so navigating between two clients builds a new ViewModel rather
@@ -31,9 +29,8 @@ fun ClientDetailsRoute(
         onRetry = viewModel::retry,
         onBack = onBack,
         onScheduleSession = { onScheduleSession(clientId) },
-        onEditClient = { onEditClient(clientId) },
-        onArchiveClient = { onArchiveClient(clientId) },
         onAddProject = viewModel::addProject,
+        onUpdateClient = viewModel::updateClient,
         modifier = modifier,
     )
 }
