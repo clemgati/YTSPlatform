@@ -6,15 +6,19 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
+import com.yellowtrack.platform.core.data.ShotRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import com.yellowtrack.platform.feature.sessions.presentation.model.coordinates
 import com.yellowtrack.platform.feature.sessions.presentation.model.timing
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +26,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
@@ -36,6 +41,7 @@ import kotlinx.datetime.toLocalDateTime
 internal class SessionDetailsViewModel(
     private val sessionId: SessionId,
     private val sessionRepository: SessionRepository,
+    private val shotRepository: ShotRepository,
     projectRepository: ProjectRepository,
     clientRepository: ClientRepository,
     private val studioContext: StudioContext,
@@ -47,10 +53,11 @@ internal class SessionDetailsViewModel(
     val uiState: StateFlow<SessionDetailsUiState> =
         combine(
             sessionRepository.observeSession(sessionId),
+            shotRepository.observeShotsForSession(sessionId),
             projectRepository.observeProjects(),
             clientRepository.observeClients(),
             retryTrigger,
-        ) { session, projects, clients, _ ->
+        ) { session, shots, projects, clients, _ ->
             if (session == null) {
                 SessionDetailsUiState(session = UiState.Error("This session could not be found."))
             } else {
@@ -58,7 +65,7 @@ internal class SessionDetailsViewModel(
                 val client = project?.let { booking -> clients.firstOrNull { it.id == booking.clientId } }
 
                 SessionDetailsUiState(
-                    session = UiState.Success(session.toDetailsModel(project, client, deviceZone)),
+                    session = UiState.Success(session.toDetailsModel(project, client, shots, deviceZone)),
                     bookings =
                         projects.map { booking ->
                             BookingOption(
@@ -162,6 +169,71 @@ internal class SessionDetailsViewModel(
                 ),
             )
         }
+    }
+
+    /**
+     * Adds a shot to the list.
+     *
+     * Appended to the end of its group rather than the end of the list, so a shot
+     * remembered late still lands with the people it needs — writing "and one with
+     * Grandma Ruth" at the bottom is how a group gets called back after it was released.
+     */
+    fun addShot(shot: NewShot) {
+        viewModelScope.launch {
+            if (shot.description.isBlank()) return@launch
+
+            val group = shot.group.trim().ifBlank { null }
+            val existing = shotRepository.observeShotsForSession(sessionId).first()
+            val nextPosition =
+                existing
+                    .filter { it.group?.trim().orEmpty() == group.orEmpty() }
+                    .maxOfOrNull { it.position }
+                    ?.plus(1)
+                    ?: existing.size
+
+            val now = clock.now()
+
+            shotRepository.saveShot(
+                Shot(
+                    id = ShotId.new(),
+                    studioId = studioContext.studioId,
+                    sessionId = sessionId,
+                    description = shot.description.trim(),
+                    group = group,
+                    people = shot.people.trim().ifBlank { null },
+                    position = nextPosition,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Marks a shot taken, or puts it back on the list.
+     *
+     * The moment is stamped with the state, so a list ticked off on the day can still say
+     * when each group was actually worked.
+     */
+    fun setShotCaptured(
+        shotId: ShotId,
+        isCaptured: Boolean,
+    ) {
+        viewModelScope.launch {
+            val shot = shotRepository.getShot(shotId) ?: return@launch
+            val now = clock.now()
+
+            shotRepository.saveShot(
+                shot.copy(
+                    isCaptured = isCaptured,
+                    capturedAt = now.takeIf { isCaptured },
+                    audit = shot.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    fun deleteShot(shotId: ShotId) {
+        viewModelScope.launch { shotRepository.deleteShot(shotId) }
     }
 
     fun retry() {

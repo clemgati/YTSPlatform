@@ -29,6 +29,9 @@ fun SessionDetailsRoute(
         onBack = onBack,
         onUpdateSession = viewModel::updateSession,
         onMoveSession = viewModel::moveSession,
+        onAddShot = viewModel::addShot,
+        onToggleShot = viewModel::setShotCaptured,
+        onDeleteShot = viewModel::deleteShot,
         modifier = modifier,
     )
 }

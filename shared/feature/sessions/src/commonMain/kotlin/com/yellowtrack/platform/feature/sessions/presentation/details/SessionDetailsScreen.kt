@@ -22,12 +22,16 @@ import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotListSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionLight
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import kotlinx.datetime.TimeZone
 
 @Composable
@@ -37,9 +41,13 @@ internal fun SessionDetailsScreen(
     onBack: () -> Unit,
     onUpdateSession: (NewSession) -> Unit,
     onMoveSession: (NewSession) -> Unit,
+    onAddShot: (NewShot) -> Unit,
+    onToggleShot: (ShotId, Boolean) -> Unit,
+    onDeleteShot: (ShotId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf(false) }
+    var addingShot by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.session,
@@ -64,6 +72,17 @@ internal fun SessionDetailsScreen(
                     editing = false
                 },
                 onDismiss = { editing = false },
+            )
+        }
+
+        if (addingShot) {
+            ShotFormDialog(
+                knownGroups = session.shotGroups.map { it.name },
+                onSave = {
+                    onAddShot(it)
+                    addingShot = false
+                },
+                onDismiss = { addingShot = false },
             )
         }
 
@@ -105,6 +124,14 @@ internal fun SessionDetailsScreen(
             }
 
             LightPanel(session.light)
+
+            ShotListSection(
+                groups = session.shotGroups,
+                remaining = session.shotsRemaining,
+                onToggleShot = onToggleShot,
+                onDeleteShot = onDeleteShot,
+                onAddShot = { addingShot = true },
+            )
 
             if (session.notes.isNotEmpty()) {
                 YTDetailSection(title = "Notes") {

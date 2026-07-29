@@ -6,6 +6,19 @@ The project follows semantic versioning.
 
 ## Unreleased — 0.5.0 Shoot Day
 
+- **Shot lists, grouped.** The photographs promised for a day, gathered under headings and
+  ticked off as they are taken. Grouping is the whole feature: a photographer works a group
+  at a time and releases people once their group is done, so each group shows what it still
+  owes and says *done* when it owes nothing — which is the moment eleven relatives can be
+  told they are free to go
+- Groups keep the order they were written in rather than being sorted, because that order
+  is a decision about who stands where. A shot remembered late lands at the end of *its own
+  group*, not the bottom of the list, since filing it at the bottom is how a group gets
+  called back after it was released
+- Group names are free text: the groupings that matter are the ones a particular family
+  has, and no list the studio ships would survive meeting one
+- **Schema migration 3 → 4**, purely additive: a new `shot` table, with the `4.db` snapshot
+  committed and tests covering a version-three database keeping its sessions and coordinate
 - **A session detail screen**, reached by selecting a shoot day. It carries when, where,
   the notes, and the light — and it is what shot lists, crew, and call sheets will hang
   from, none of which fit in a dialog

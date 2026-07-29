@@ -7,9 +7,12 @@ import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.LightRow
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionLight
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.ShotGroup
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.ShotItem
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
@@ -20,6 +23,7 @@ import kotlin.time.Duration
 internal fun Session.toDetailsModel(
     project: Project?,
     client: Client?,
+    shots: List<Shot>,
     deviceZone: TimeZone,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
@@ -41,6 +45,8 @@ internal fun Session.toDetailsModel(
         timeZoneNote = timeZoneId.takeIf { zone != deviceZone },
         notes = notes?.lines().orEmpty().filter(String::isNotBlank),
         light = light(zone),
+        shotGroups = shots.toGroups(),
+        shotsRemaining = shots.count { !it.isCaptured },
         editable = toEditableForm(zone),
         zoneId = timeZoneId,
     )
@@ -167,3 +173,27 @@ private fun Session.toEditableForm(zone: TimeZone): NewSession {
 
 private fun LocalTime.hourAndMinute(): String =
     "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+/**
+ * Shots gathered under their headings, in the order they were put in.
+ *
+ * Groups keep first-appearance order rather than being sorted alphabetically: the order a
+ * photographer wrote them in is the order they intend to work, and "Bride's family" before
+ * "Groom's family" is a decision about who is standing where, not a filing preference.
+ */
+private fun List<Shot>.toGroups(): List<ShotGroup> =
+    groupBy { it.groupOrUngrouped }
+        .map { (name, shots) ->
+            ShotGroup(
+                name = name,
+                shots =
+                    shots.map { shot ->
+                        ShotItem(
+                            id = shot.id,
+                            description = shot.description,
+                            people = shot.people?.takeIf(String::isNotBlank),
+                            isCaptured = shot.isCaptured,
+                        )
+                    },
+            )
+        }

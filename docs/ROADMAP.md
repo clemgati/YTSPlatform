@@ -130,7 +130,7 @@ The biggest gap in the original roadmap.
 
 - ✓ Add and edit client, project, and session — all three can be created and corrected,
   with bookings listed on the client's own page
-- Shot lists with grouping, for family formals
+- ✓ Shot lists with grouping, for family formals
 - ✓ Locations with computed golden hour and sun position — calculable offline from
   latitude, longitude, and date, stored against the session and shown on it
 - Call sheets, crew, and talent releases

@@ -11,11 +11,13 @@ import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
+import com.yellowtrack.platform.core.testing.FakeShotRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsViewModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -30,6 +32,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -77,13 +80,17 @@ class SessionDetailsViewModelTest {
         audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
     )
 
+    private lateinit var shots: FakeShotRepository
+
     private fun harness(existing: Session = session()): Pair<FakeSessionRepository, SessionDetailsViewModel> {
         val sessions = FakeSessionRepository(listOf(existing))
+        shots = FakeShotRepository()
 
         return sessions to
             SessionDetailsViewModel(
                 sessionId = sessionId,
                 sessionRepository = sessions,
+                shotRepository = shots,
                 projectRepository = FakeProjectRepository(),
                 clientRepository = FakeClientRepository(),
                 studioContext = LocalStudioContext(),
@@ -282,5 +289,160 @@ class SessionDetailsViewModelTest {
             val light = assertNotNull(viewModel.model().light)
 
             assertEquals("The sun does not set on this date at this latitude.", light.note)
+        }
+
+    // --- The shot list -----------------------------------------------------------------
+
+    @Test
+    fun `shots are gathered under their groups, in the order they were written`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addShot(NewShot("Bride with her grandmother", "Bride's family", "Grandma Ruth"))
+            viewModel.addShot(NewShot("Bride with both parents", "Bride's family", ""))
+            viewModel.addShot(NewShot("Groom with his brothers", "Groom's side", ""))
+
+            val groups = viewModel.model().shotGroups
+            assertEquals(
+                listOf("Bride's family", "Groom's side"),
+                groups.map { it.name },
+                "the order they were written is the order they will be worked",
+            )
+            assertEquals(2, groups.first().shots.size)
+            assertEquals(
+                "Grandma Ruth",
+                groups
+                    .first()
+                    .shots
+                    .first()
+                    .people,
+            )
+        }
+
+    @Test
+    fun `a shot with no group falls under everything else`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addShot(NewShot("Detail of the rings", "", ""))
+
+            assertEquals(
+                "Everything else",
+                viewModel
+                    .model()
+                    .shotGroups
+                    .single()
+                    .name,
+            )
+        }
+
+    @Test
+    fun `a group knows how many shots it still owes`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addShot(NewShot("Bride with her grandmother", "Bride's family", ""))
+            viewModel.addShot(NewShot("Bride with both parents", "Bride's family", ""))
+
+            val first =
+                viewModel
+                    .model()
+                    .shotGroups
+                    .single()
+                    .shots
+                    .first()
+            viewModel.setShotCaptured(first.id, isCaptured = true)
+
+            val group = viewModel.model().shotGroups.single()
+            assertEquals(1, group.remaining, "the figure that decides whether this group can go")
+            assertFalse(group.isComplete)
+        }
+
+    @Test
+    fun `a group that owes nothing is complete, and the day says so`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addShot(NewShot("Bride with her grandmother", "Bride's family", ""))
+
+            val shot =
+                viewModel
+                    .model()
+                    .shotGroups
+                    .single()
+                    .shots
+                    .single()
+            viewModel.setShotCaptured(shot.id, isCaptured = true)
+
+            val model = viewModel.model()
+            assertTrue(model.shotGroups.single().isComplete)
+            assertEquals(0, model.shotsRemaining)
+        }
+
+    @Test
+    fun `marking a shot taken stamps when, and unmarking clears it`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addShot(NewShot("Bride with her grandmother", "Bride's family", ""))
+            val shotId =
+                viewModel
+                    .model()
+                    .shotGroups
+                    .single()
+                    .shots
+                    .single()
+                    .id
+
+            viewModel.setShotCaptured(shotId, isCaptured = true)
+            assertNotNull(assertNotNull(shots.getShot(shotId)).capturedAt)
+
+            viewModel.setShotCaptured(shotId, isCaptured = false)
+            assertNull(
+                assertNotNull(shots.getShot(shotId)).capturedAt,
+                "a shot put back on the list was not taken at any time",
+            )
+        }
+
+    @Test
+    fun `a shot remembered late lands with its own group, not at the bottom`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addShot(NewShot("Bride with her grandmother", "Bride's family", ""))
+            viewModel.addShot(NewShot("Groom with his brothers", "Groom's side", ""))
+            viewModel.addShot(NewShot("Bride with her godmother", "Bride's family", ""))
+
+            val brideSide = viewModel.model().shotGroups.first { it.name == "Bride's family" }
+            assertEquals(
+                listOf("Bride with her grandmother", "Bride with her godmother"),
+                brideSide.shots.map { it.description },
+                "calling a group back is the cost of filing a late shot at the end",
+            )
+        }
+
+    @Test
+    fun `a shot with no description is not added`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addShot(NewShot("   ", "Bride's family", ""))
+
+            assertTrue(viewModel.model().shotGroups.isEmpty())
+        }
+
+    @Test
+    fun `a removed shot leaves the list`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addShot(NewShot("Bride with her grandmother", "Bride's family", ""))
+            val shotId =
+                viewModel
+                    .model()
+                    .shotGroups
+                    .single()
+                    .shots
+                    .single()
+                    .id
+
+            viewModel.deleteShot(shotId)
+
+            assertTrue(viewModel.model().shotGroups.isEmpty())
         }
 }

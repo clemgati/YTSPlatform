@@ -22,6 +22,8 @@ import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsScreen
@@ -88,6 +90,14 @@ class SessionDetailsRenderTest {
                 audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
             )
 
+        val shots =
+            listOf(
+                shot("Bride with both parents", "Bride's family", "Sarah + Mum and Dad", captured = true),
+                shot("Bride with her grandmother", "Bride's family", "Grandma Ruth"),
+                shot("Groom with his brothers", "Groom's side", "Michael + Tom + Alex"),
+                shot("Detail of the rings", "", null),
+            )
+
         val scene =
             ImageComposeScene(width = 1_280, height = 2_600, density = Density(2f)) {
                 YellowTrackTheme {
@@ -100,7 +110,7 @@ class SessionDetailsRenderTest {
                                 SessionDetailsUiState(
                                     session =
                                         UiState.Success(
-                                            session.toDetailsModel(project, client, zone),
+                                            session.toDetailsModel(project, client, shots, zone),
                                         ),
                                     today = LocalDate(2026, 7, 28),
                                 ),
@@ -108,6 +118,9 @@ class SessionDetailsRenderTest {
                             onBack = {},
                             onUpdateSession = {},
                             onMoveSession = {},
+                            onAddShot = {},
+                            onToggleShot = { _, _ -> },
+                            onDeleteShot = {},
                         )
                     }
                 }
@@ -123,4 +136,20 @@ class SessionDetailsRenderTest {
         assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
         println("Rendered ${target.absolutePath}")
     }
+
+    private fun shot(
+        description: String,
+        group: String,
+        people: String?,
+        captured: Boolean = false,
+    ) = Shot(
+        id = ShotId.new(),
+        studioId = LocalStudioContext.LOCAL_STUDIO_ID,
+        sessionId = SessionId.new(),
+        description = description,
+        group = group.ifBlank { null },
+        people = people,
+        isCaptured = captured,
+        audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+    )
 }

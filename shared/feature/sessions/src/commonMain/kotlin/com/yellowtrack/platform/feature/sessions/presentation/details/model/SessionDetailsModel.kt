@@ -3,6 +3,7 @@ package com.yellowtrack.platform.feature.sessions.presentation.details.model
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 
 /** One line of the light panel: a window, or a moment. */
@@ -25,6 +26,29 @@ internal data class SessionLight(
     val note: String?,
 )
 
+/** One promised photograph, as the list shows it. */
+internal data class ShotItem(
+    val id: ShotId,
+    val description: String,
+    val people: String?,
+    val isCaptured: Boolean,
+)
+
+/**
+ * A block of shots worked together.
+ *
+ * The remaining count is the figure that matters on the day: it is what tells a
+ * photographer whether this group can be released or still owes a photograph.
+ */
+internal data class ShotGroup(
+    val name: String,
+    val shots: List<ShotItem>,
+) {
+    val remaining: Int get() = shots.count { !it.isCaptured }
+
+    val isComplete: Boolean get() = remaining == 0
+}
+
 internal data class SessionDetailsModel(
     val id: SessionId,
     val title: String,
@@ -43,6 +67,9 @@ internal data class SessionDetailsModel(
     val timeZoneNote: String?,
     val notes: List<String>,
     val light: SessionLight?,
+    /** Shots promised for this day, grouped so a group can be worked and released. */
+    val shotGroups: List<ShotGroup>,
+    val shotsRemaining: Int,
     /** The session as the form takes it, so editing opens showing what is already there. */
     val editable: NewSession,
     val zoneId: String,
