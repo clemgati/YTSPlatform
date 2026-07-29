@@ -4,6 +4,32 @@ All notable changes to Yellow Track Platform will be documented here.
 
 The project follows semantic versioning.
 
+## Unreleased — 0.5.0 Shoot Day
+
+### Added
+
+- **A client can be taken on from the app.** Until now the Client, Project, and Session
+  tables could only be written by test code: `saveClient`, `saveProject`, and
+  `saveSession` had existed since 0.3.0 with no caller anywhere above the data layer, so a
+  real studio opening the app reached a permanently empty database. Every form in the
+  money layer attaches to a booking, which meant none of them could be used at all
+- The account and its first contact are captured together, because they arrive together —
+  an enquiry gives a name and an email in the same breath. A contact is only built when
+  something identifies a person: an empty contact would look reachable in every list while
+  being nobody
+- Either an account name or a person's name will do. `Client.displayName` already falls
+  back from one to the other, and a blank account name is left blank rather than copied
+  from the contact — copying it would freeze the name against a later rename
+
+### Fixed
+
+- **The Clients empty state has invited "add your first client" since 0.3.0 with no way to
+  accept.** It now carries the button. The first attempt at this did not work and looked
+  as though it did: `EmptyContent` fills the height it is given and centres within it, so
+  a button placed after it in the parent column was pushed off the bottom of the screen.
+  Rendering the page is what caught it. `EmptyContent` now takes an `action` slot, so the
+  way out of an empty state sits inside it where it belongs
+
 ## Unreleased — 0.4.0 Ledger
 
 The money layer. The largest gap in the original roadmap, which reached 1.0 without

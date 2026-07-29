@@ -14,7 +14,7 @@ import org.koin.dsl.module
  */
 val clientsModule =
     module {
-        viewModel { ClientsViewModel(get(), get(), get(), get()) }
+        viewModel { ClientsViewModel(get(), get(), get(), get(), get()) }
 
         viewModel { (clientId: ClientId) ->
             ClientDetailsViewModel(clientId, get(), get(), get(), get())

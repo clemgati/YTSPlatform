@@ -22,6 +22,7 @@ fun ClientsRoute(
         onRetry = viewModel::retry,
         onQueryChange = viewModel::onQueryChange,
         onClientSelected = onClientSelected,
+        onAddClient = viewModel::addClient,
         modifier = modifier,
     )
 }
