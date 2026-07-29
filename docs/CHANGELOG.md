@@ -6,6 +6,29 @@ The project follows semantic versioning.
 
 ## Unreleased — 0.5.0 Shoot Day
 
+- **Golden hour, blue hour, sunrise, sunset, and the sun's bearing**, computed from a date
+  and a coordinate with no network involved. A call sheet is written in an office and read
+  in a field, and the field is where the signal is not
+- Azimuth is included because it answers the question actually asked on a recce — which
+  way the light will come from, and what will be backlit
+- The poles are answered rather than failed on: inside the Arctic circle a day may have no
+  sunrise because the sun never sets, or because it never rises, and `isPolarDay` and
+  `isPolarNight` tell those two apart instead of returning a missing value for both
+- `GeoCoordinates` refuses a transposed pair rather than producing a plausible-looking
+  sunset from a latitude of 151°
+- Checked against published almanac times for London at both solstices, Sydney in the
+  southern summer, and the equator at both equinoxes — independent values, with a stated
+  two-minute tolerance rather than one widened until the tests passed
+
+### Fixed
+
+- **A unit conversion in the equation of time**, found because those almanac checks
+  failed. The correction was divided by degrees-per-radian where it must be multiplied,
+  making it about three thousand times too small. It read as a sunrise a couple of minutes
+  out — and only in the months where the correction is large, so the June solstice check
+  passed while November was sixteen minutes wrong. There is now a test pinning solar noon
+  at Greenwich in November and February, which fails if the conversion is reversed again
+
 ### Added
 
 - **A client can be taken on from the app.** Until now the Client, Project, and Session

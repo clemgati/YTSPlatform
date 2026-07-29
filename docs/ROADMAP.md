@@ -131,8 +131,9 @@ The biggest gap in the original roadmap.
 - ✓ Add and edit client, project, and session — all three can be created and corrected,
   with bookings listed on the client's own page
 - Shot lists with grouping, for family formals
-- Locations with computed golden hour and sun position — calculable offline from
-  latitude, longitude, and date; no network required
+- ◐ Locations with computed golden hour and sun position — the solar engine is built and
+  checked against published almanac times. Storing coordinates against a session, and
+  showing the windows on screen, needs a schema migration and comes next
 - Call sheets, crew, and talent releases
 
 ## 0.6.0 — Pipeline
