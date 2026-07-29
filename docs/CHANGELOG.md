@@ -4,6 +4,36 @@ All notable changes to Yellow Track Platform will be documented here.
 
 The project follows semantic versioning.
 
+## Unreleased — 0.6.0 Pipeline
+
+### Added
+
+- **Post-production tasks**, held against the booking rather than a shoot day, with what
+  each was expected to take and what it actually took. One wedding produces one cull and
+  one edit however many days were shot
+- **The pricing floor now measures instead of assuming.** `LedgerMapper` has assumed since
+  0.4.0 that an hour with a camera drags two more hours of culling, editing, and admin
+  behind it — every minimum price the studio has ever been shown rested on that guess, and
+  the code said so in a comment promising it would become a measurement "when
+  post-production hours are tracked in the Pipeline milestone". It now does
+- The rules for trusting the measurement are as important as the measurement. Fewer than
+  three finished tasks and the assumption stands, because a floor built on one unusual edit
+  is worse than one built on a stated guess. Unfinished work is excluded — a task half done
+  has not overrun, and counting it would flatter every open job. Finished tasks with no
+  hours recorded contribute nothing
+- The pricing screen says which it is: *"Measured from your finished work"* or *"Assumes
+  every hour shooting takes 2.0 more in post"*. A studio that does not know the number is a
+  guess has no reason to distrust a price built from it
+- **Schema migration 6 → 7**, purely additive: a new `post_task` table, `7.db` committed,
+  with hours stored as fractions since half hours are the normal unit of this work
+
+### Known gap
+
+- **Nothing can enter a task yet.** The data layer, the measurement, and the pricing
+  integration are all in place and tested, but post-production belongs to a booking and
+  there is no project page to put it on. Until that exists the measurement cannot fire, and
+  the floor keeps using the assumption
+
 ## Unreleased — 0.5.0 Shoot Day
 
 - **Talent releases** — permission from the people in the photographs, which is what makes

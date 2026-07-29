@@ -1,0 +1,37 @@
+-- Migration 6 → 7: post-production.
+--
+-- Adds the work that happens after the camera is put away, with what each piece was
+-- expected to take and what it actually took.
+--
+-- The gap between those two is the point. The pricing floor assumes a shoot day consumes
+-- roughly two further days of culling, editing, colour, and admin — a reasonable guess,
+-- and only a guess, which the Ledger says out loud. Enough of these rows turn that
+-- assumption into a measurement taken from the studio's own history.
+--
+-- Held against the project rather than a session: one wedding produces one cull and one
+-- edit however many days were shot.
+--
+-- Purely additive. A new table, so every row a studio already has is untouched.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+CREATE TABLE post_task (
+    id              TEXT    NOT NULL PRIMARY KEY,
+    studio_id       TEXT    NOT NULL,
+    project_id      TEXT    NOT NULL,
+    name            TEXT    NOT NULL,
+    kind            TEXT    NOT NULL,
+    status          TEXT    NOT NULL,
+    estimated_hours REAL,
+    actual_hours    REAL,
+    completed_at    INTEGER,
+    notes           TEXT,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    deleted_at      INTEGER,
+    version         INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX post_task_project_idx ON post_task(project_id, deleted_at, status);

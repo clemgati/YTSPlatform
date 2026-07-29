@@ -27,9 +27,11 @@ import com.yellowtrack.platform.core.testing.FakeCodbRepository
 import com.yellowtrack.platform.core.testing.FakeContractRepository
 import com.yellowtrack.platform.core.testing.FakeExpenseRepository
 import com.yellowtrack.platform.core.testing.FakeInvoiceRepository
+import com.yellowtrack.platform.core.testing.FakePostProductionRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeQuoteRepository
 import com.yellowtrack.platform.core.testing.FakeServiceTemplateRepository
+import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerContent
@@ -105,6 +107,8 @@ class InvoiceLifecycleTest {
                     codbRepository = FakeCodbRepository(expenses = expenses),
                     serviceTemplateRepository = FakeServiceTemplateRepository(),
                     projectRepository = FakeProjectRepository(listOf(project())),
+                    sessionRepository = FakeSessionRepository(),
+                    postProductionRepository = FakePostProductionRepository(),
                     clientRepository = FakeClientRepository(listOf(client())),
                     studioContext = LocalStudioContext(),
                     clock = clock,

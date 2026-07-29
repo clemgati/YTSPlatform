@@ -9,6 +9,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightCrewRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightExpenseRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightLeadRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightPostProductionRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightQuoteRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightServiceTemplateRepository
@@ -38,6 +39,7 @@ val dataModule =
         single<ShotRepository> { SqlDelightShotRepository(get(), get(), ioDispatcher) }
         single<CrewRepository> { SqlDelightCrewRepository(get(), get(), ioDispatcher) }
         single<TalentReleaseRepository> { SqlDelightTalentReleaseRepository(get(), get(), ioDispatcher) }
+        single<PostProductionRepository> { SqlDelightPostProductionRepository(get(), get(), get(), ioDispatcher) }
         single<ServiceTemplateRepository> { SqlDelightServiceTemplateRepository(get(), get(), get(), ioDispatcher) }
 
         single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }

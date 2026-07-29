@@ -51,6 +51,14 @@ internal fun PricingSection(
                 color = YTTheme.colors.onSurfaceVariant,
             )
 
+            // The whole floor rests on this number. A studio that does not know it is a
+            // guess has no reason to distrust a price built from it.
+            Text(
+                text = pricing.postProductionNote,
+                style = YTTheme.typography.bodySmall,
+                color = if (pricing.isFactorMeasured) YTTheme.colors.primary else YTTheme.colors.onSurfaceVariant,
+            )
+
             HorizontalDivider(color = YTTheme.colors.outlineVariant)
 
             WorkingRow("Overhead", pricing.annualOverhead)
@@ -177,3 +185,16 @@ private fun PackageRow(pricing: PackagePricing) {
         }
     }
 }
+
+/** How the post-production factor was arrived at, said plainly. */
+private val PricingSummary.postProductionNote: String
+    get() {
+        val hours = ((postProductionFactor * 10).toInt() / 10.0)
+
+        return if (isFactorMeasured) {
+            "Measured from your finished work: every hour shooting takes $hours more in post."
+        } else {
+            "Assumes every hour shooting takes $hours more in post. Record post-production " +
+                "hours and this is measured instead."
+        }
+    }
