@@ -1,0 +1,39 @@
+-- Migration 7 → 8: deliverables.
+--
+-- Adds what is promised to the client at the end of a job, and how many rounds of changes
+-- have been asked for.
+--
+-- Both figures that decide arguments already exist in the contract and, until now, were
+-- compared against nothing: a turnaround in days, and a number of revision rounds. A
+-- studio that has agreed to both and tracks neither finds out it is late when the client
+-- says so, and gives away a fourth revision on a two-revision contract because nobody was
+-- counting.
+--
+-- due_at is nullable on purpose. It is normally computed from the shoot date and the
+-- turnaround the contract promised, and stored only where the studio overrides that.
+--
+-- Purely additive. A new table, so every row a studio already has is untouched.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+CREATE TABLE deliverable (
+    id             TEXT    NOT NULL PRIMARY KEY,
+    studio_id      TEXT    NOT NULL,
+    project_id     TEXT    NOT NULL,
+    name           TEXT    NOT NULL,
+    kind           TEXT    NOT NULL,
+    status         TEXT    NOT NULL,
+    due_at         INTEGER,
+    delivered_at   INTEGER,
+    approved_at    INTEGER,
+    revisions_used INTEGER NOT NULL DEFAULT 0,
+    notes          TEXT,
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    deleted_at     INTEGER,
+    version        INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX deliverable_project_idx ON deliverable(project_id, deleted_at, status);

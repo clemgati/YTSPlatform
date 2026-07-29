@@ -6,18 +6,28 @@ import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
+import com.yellowtrack.platform.core.data.ContractRepository
+import com.yellowtrack.platform.core.data.DeliverableRepository
 import com.yellowtrack.platform.core.data.PostProductionRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
 import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.post.PostProductionTaskId
 import com.yellowtrack.platform.core.model.post.PostTaskStatus
+import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.project.mapper.toDetailsModel
+import com.yellowtrack.platform.feature.clients.presentation.project.model.NewDeliverable
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewPostTask
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,20 +49,49 @@ internal class ProjectDetailsViewModel(
     private val clientRepository: ClientRepository,
     sessionRepository: SessionRepository,
     private val postProductionRepository: PostProductionRepository,
+    private val deliverableRepository: DeliverableRepository,
+    contractRepository: ContractRepository,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
+    /**
+     * Grouped so the join stays within `combine`'s typed arity, the same way the Ledger
+     * and the session page already do.
+     */
+    private data class Booking(
+        val project: Project?,
+        val clients: List<Client>,
+        val sessions: List<Session>,
+    )
+
+    private data class Work(
+        val tasks: List<PostProductionTask>,
+        val deliverables: List<Deliverable>,
+        val contracts: List<Contract>,
+    )
+
     val uiState: StateFlow<ProjectDetailsUiState> =
         combine(
-            projectRepository.observeProject(projectId),
-            clientRepository.observeClients(),
-            sessionRepository.observeSessionsForProject(projectId),
-            postProductionRepository.observeTasksForProject(projectId),
+            combine(
+                projectRepository.observeProject(projectId),
+                clientRepository.observeClients(),
+                sessionRepository.observeSessionsForProject(projectId),
+                ::Booking,
+            ),
+            combine(
+                postProductionRepository.observeTasksForProject(projectId),
+                deliverableRepository.observeDeliverablesForProject(projectId),
+                contractRepository.observeContractsForProject(projectId),
+                ::Work,
+            ),
             retryTrigger,
-        ) { project, clients, sessions, tasks, _ ->
+        ) { booking, work, _ ->
+            val project = booking.project
+            val clients = booking.clients
+            val sessions = booking.sessions
             if (project == null) {
                 ProjectDetailsUiState(project = UiState.Error("This booking could not be found."))
             } else {
@@ -62,7 +101,15 @@ internal class ProjectDetailsViewModel(
                             project.toDetailsModel(
                                 client = clients.firstOrNull { it.id == project.clientId },
                                 sessions = sessions,
-                                tasks = tasks,
+                                tasks = work.tasks,
+                                deliverables = work.deliverables,
+                                // The most recently signed contract is the one in force.
+                                contract =
+                                    work.contracts
+                                        .filter { it.isSigned }
+                                        .maxByOrNull { it.signedAt ?: it.audit.createdAt }
+                                        ?: work.contracts.lastOrNull(),
+                                now = clock.now(),
                             ),
                         ),
                     currency = currency,
@@ -193,6 +240,89 @@ internal class ProjectDetailsViewModel(
                 ),
             )
         }
+    }
+
+    /**
+     * Promises something to the client.
+     *
+     * No due date is asked for: it is the shoot date plus the turnaround the contract
+     * already promises, and made a studio work that out by hand would be asking it to get
+     * its own deadline wrong.
+     */
+    fun addDeliverable(deliverable: NewDeliverable) {
+        viewModelScope.launch {
+            if (deliverable.name.isBlank()) return@launch
+            val now = clock.now()
+
+            deliverableRepository.saveDeliverable(
+                Deliverable(
+                    id = DeliverableId.new(),
+                    studioId = studioContext.studioId,
+                    projectId = projectId,
+                    name = deliverable.name.trim(),
+                    kind = deliverable.kind,
+                    status = DeliverableStatus.NotStarted,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Moves a deliverable along, stamping the date that goes with the state.
+     *
+     * Delivered and approved each carry their own moment, because "when did they get it"
+     * and "when did they accept it" are different questions and a turnaround promise is
+     * measured against the first.
+     */
+    fun setDeliverableStatus(
+        deliverableId: DeliverableId,
+        status: DeliverableStatus,
+    ) {
+        viewModelScope.launch {
+            val deliverable = deliverableRepository.getDeliverable(deliverableId) ?: return@launch
+            val now = clock.now()
+
+            deliverableRepository.saveDeliverable(
+                deliverable.copy(
+                    status = status,
+                    deliveredAt =
+                        when (status) {
+                            DeliverableStatus.Delivered -> deliverable.deliveredAt ?: now
+                            DeliverableStatus.NotStarted -> null
+                            else -> deliverable.deliveredAt
+                        },
+                    approvedAt = now.takeIf { status == DeliverableStatus.Approved },
+                    audit = deliverable.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Records a round of changes the client asked for.
+     *
+     * Counted whether or not it is within the contract's allowance. A round given away for
+     * free is still a round that happened, and a studio that stops counting once it is over
+     * the limit loses the evidence for charging.
+     */
+    fun addRevisionRound(deliverableId: DeliverableId) {
+        viewModelScope.launch {
+            val deliverable = deliverableRepository.getDeliverable(deliverableId) ?: return@launch
+            val now = clock.now()
+
+            deliverableRepository.saveDeliverable(
+                deliverable.copy(
+                    revisionsUsed = deliverable.revisionsUsed + 1,
+                    status = DeliverableStatus.InRevision,
+                    audit = deliverable.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    fun deleteDeliverable(deliverableId: DeliverableId) {
+        viewModelScope.launch { deliverableRepository.deleteDeliverable(deliverableId) }
     }
 
     fun retry() {

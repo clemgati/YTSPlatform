@@ -37,6 +37,8 @@ class MigrationTest {
 
     private fun v6Database(): SqlDriver = snapshotDatabase(version = 6)
 
+    private fun v7Database(): SqlDriver = snapshotDatabase(version = 7)
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -244,7 +246,7 @@ class MigrationTest {
             )
 
             // A studio that skipped a release upgrades through every step, not just the last.
-            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 1, newVersion = 7)
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 1, newVersion = 8)
 
             assertEquals(1L, driver.countOf("client"))
             assertEquals("Long-standing Client", driver.scalar("SELECT account_name FROM client"))
@@ -254,6 +256,7 @@ class MigrationTest {
             assertEquals(0L, driver.countOf("crew_member"), "and the 4 → 5 table too")
             assertEquals(0L, driver.countOf("talent_release"), "and the 5 → 6 table")
             assertEquals(0L, driver.countOf("post_task"), "and the 6 → 7 table")
+            assertEquals(0L, driver.countOf("deliverable"), "and the 7 → 8 table")
 
             driver.close()
         }
@@ -622,12 +625,92 @@ class MigrationTest {
             driver.close()
         }
 
+    // --- Version seven to eight: deliverables -------------------------------------------
+
+    @Test
+    fun `a version seven database keeps its post-production when deliverables arrive`() =
+        runTest {
+            val driver = v7Database()
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO post_task(id, studio_id, project_id, name, kind, status,
+                                      estimated_hours, actual_hours, created_at, updated_at, version)
+                VALUES ('task-1', 'studio-1', 'project-1', 'Cull', 'Cull', 'Done',
+                        2.5, 4.25, 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 7, newVersion = 8)
+
+            assertEquals(1L, driver.countOf("post_task"), "the hours from 6 → 7 must survive 7 → 8")
+            assertEquals("4.25", driver.scalar("SELECT CAST(actual_hours AS TEXT) FROM post_task"))
+            assertEquals(0L, driver.countOf("deliverable"), "and the new table is there and empty")
+
+            driver.close()
+        }
+
+    @Test
+    fun `revision rounds default to none rather than to nothing`() =
+        runTest {
+            val driver = v7Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 7, newVersion = 8)
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO deliverable(id, studio_id, project_id, name, kind, status,
+                                        created_at, updated_at, version)
+                VALUES ('deliverable-1', 'studio-1', 'project-1', 'Full gallery', 'Gallery',
+                        'NotStarted', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals(
+                "0",
+                driver.scalar("SELECT CAST(revisions_used AS TEXT) FROM deliverable"),
+                "a null count would make every comparison against the contract meaningless",
+            )
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(7L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(8L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

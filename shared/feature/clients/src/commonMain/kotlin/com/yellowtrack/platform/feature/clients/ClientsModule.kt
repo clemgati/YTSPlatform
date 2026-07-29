@@ -19,7 +19,7 @@ val clientsModule =
         viewModel { ClientsViewModel(get(), get(), get(), get(), get()) }
 
         viewModel { (projectId: ProjectId) ->
-            ProjectDetailsViewModel(projectId, get(), get(), get(), get(), get(), get())
+            ProjectDetailsViewModel(projectId, get(), get(), get(), get(), get(), get(), get(), get())
         }
 
         viewModel { (clientId: ClientId) ->

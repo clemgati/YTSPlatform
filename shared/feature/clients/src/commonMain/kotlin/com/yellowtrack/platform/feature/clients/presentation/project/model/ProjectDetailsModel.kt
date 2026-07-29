@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.clients.presentation.project.model
 
+import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.post.PostProductionTaskId
 import com.yellowtrack.platform.core.model.post.PostTaskStatus
 import com.yellowtrack.platform.core.model.project.ProjectId
@@ -54,6 +55,34 @@ internal data class PostProductionSummary(
     val overrunHours: Double get() = actualHours - estimatedHours
 }
 
+/** One thing promised to the client, and how it stands against what was agreed. */
+internal data class DeliverableItem(
+    val id: DeliverableId,
+    val name: String,
+    val kind: String,
+    val statusLabel: String,
+    val dueLabel: String?,
+    val isOverdue: Boolean,
+    val revisionsUsed: Int,
+    /** How the rounds used compare to the contract's allowance, where there is one. */
+    val revisionNote: String?,
+    val isBeyondAllowance: Boolean,
+    val isSettled: Boolean,
+)
+
+/**
+ * What the client is still owed.
+ *
+ * [promiseNote] restates the contract's turnaround and revision allowance, so a studio can
+ * see what it agreed to without opening the contract.
+ */
+internal data class DeliverySummary(
+    val deliverables: List<DeliverableItem>,
+    val outstanding: Int,
+    val overdue: Int,
+    val promiseNote: String,
+)
+
 internal data class ProjectDetailsModel(
     val id: ProjectId,
     val name: String,
@@ -66,6 +95,7 @@ internal data class ProjectDetailsModel(
     val notes: List<String>,
     val sessions: List<BookingSessionItem>,
     val postProduction: PostProductionSummary,
+    val delivery: DeliverySummary,
     /** The booking as the form takes it, so editing opens showing what is already there. */
     val editable: NewProject,
 )

@@ -22,6 +22,8 @@ import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
 import com.yellowtrack.platform.core.model.post.PostProductionTaskId
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
@@ -29,8 +31,11 @@ import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ProjectFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.project.component.CompleteTaskDialog
+import com.yellowtrack.platform.feature.clients.presentation.project.component.DeliverableFormDialog
+import com.yellowtrack.platform.feature.clients.presentation.project.component.DeliverySection
 import com.yellowtrack.platform.feature.clients.presentation.project.component.PostProductionSection
 import com.yellowtrack.platform.feature.clients.presentation.project.component.PostTaskFormDialog
+import com.yellowtrack.platform.feature.clients.presentation.project.model.NewDeliverable
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewPostTask
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostTaskItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
@@ -46,11 +51,16 @@ internal fun ProjectDetailsScreen(
     onReopenTask: (PostProductionTaskId) -> Unit,
     onDeleteTask: (PostProductionTaskId) -> Unit,
     onUpdateProject: (NewProject) -> Unit,
+    onAddDeliverable: (NewDeliverable) -> Unit,
+    onSetDeliverableStatus: (DeliverableId, DeliverableStatus) -> Unit,
+    onAddRevision: (DeliverableId) -> Unit,
+    onRemoveDeliverable: (DeliverableId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var addingTask by remember { mutableStateOf(false) }
     var completing by remember { mutableStateOf<PostTaskItem?>(null) }
     var editing by remember { mutableStateOf(false) }
+    var promising by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.project,
@@ -82,6 +92,17 @@ internal fun ProjectDetailsScreen(
                     completing = null
                 },
                 onDismiss = { completing = null },
+            )
+        }
+
+        if (promising) {
+            DeliverableFormDialog(
+                promiseNote = project.delivery.promiseNote,
+                onSave = {
+                    onAddDeliverable(it)
+                    promising = false
+                },
+                onDismiss = { promising = false },
             )
         }
 
@@ -175,6 +196,14 @@ internal fun ProjectDetailsScreen(
                 onCompleteTask = { completing = it },
                 onReopenTask = onReopenTask,
                 onDeleteTask = onDeleteTask,
+            )
+
+            DeliverySection(
+                summary = project.delivery,
+                onAddDeliverable = { promising = true },
+                onSetStatus = onSetDeliverableStatus,
+                onAddRevision = onAddRevision,
+                onRemove = onRemoveDeliverable,
             )
 
             if (project.notes.isNotEmpty()) {

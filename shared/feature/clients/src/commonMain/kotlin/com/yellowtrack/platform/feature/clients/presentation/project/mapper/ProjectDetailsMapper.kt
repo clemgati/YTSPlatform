@@ -3,6 +3,8 @@ package com.yellowtrack.platform.feature.clients.presentation.project.mapper
 import com.yellowtrack.platform.core.common.money.formatted
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.post.PostTaskKind
 import com.yellowtrack.platform.core.model.project.Project
@@ -14,11 +16,15 @@ import com.yellowtrack.platform.feature.clients.presentation.project.model.PostT
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
 import kotlinx.datetime.TimeZone
 import kotlin.math.abs
+import kotlin.time.Instant
 
 internal fun Project.toDetailsModel(
     client: Client?,
     sessions: List<Session>,
     tasks: List<PostProductionTask>,
+    deliverables: List<Deliverable>,
+    contract: Contract?,
+    now: Instant,
 ): ProjectDetailsModel {
     val zone = TimeZone.currentSystemDefault()
 
@@ -47,6 +53,7 @@ internal fun Project.toDetailsModel(
                     )
                 },
         postProduction = tasks.toSummary(),
+        delivery = buildDelivery(deliverables, contract, sessions, now),
         editable =
             NewProject(
                 name = name,

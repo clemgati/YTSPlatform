@@ -8,6 +8,25 @@ The project follows semantic versioning.
 
 ### Added
 
+- **Deliverables, checked against the contract.** `Contract.turnaroundDays` and
+  `Contract.revisionRounds` have been stored since 0.4.0 and compared against nothing. A
+  studio that has agreed to both and tracks neither finds out it is late when the client
+  says so, and gives away a fourth revision on a two-revision contract because nobody was
+  counting
+- **The due date is computed, not typed.** It is the last shoot day plus the turnaround the
+  contract promises, and the row says so — "Due 29 Sept — 45 days after the shoot". Asking
+  a studio to work out its own deadline is asking it to get it wrong. A date set by hand
+  overrides it
+- **The round that exhausts the allowance says the next one is chargeable**, which is the
+  moment the money is still recoverable. Going past it is stated plainly, and rounds are
+  counted even where the contract sets no limit — a round given away free is still a round
+  that happened, and a studio that stops counting loses the evidence
+- Work already signed off is never late, however long it took: the question is what is owed
+  now, not what to feel bad about. A booking with no contract says so rather than implying
+  a promise nobody made
+- **Schema migration 7 → 8**, purely additive: a new `deliverable` table, `8.db` committed,
+  with the revision count defaulting to zero rather than null so every comparison holds
+
 - **Post-production tasks**, held against the booking rather than a shoot day, with what
   each was expected to take and what it actually took. One wedding produces one cull and
   one edit however many days were shot

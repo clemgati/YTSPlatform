@@ -35,6 +35,10 @@ fun ProjectDetailsRoute(
         onReopenTask = viewModel::reopenTask,
         onDeleteTask = viewModel::deleteTask,
         onUpdateProject = viewModel::updateProject,
+        onAddDeliverable = viewModel::addDeliverable,
+        onSetDeliverableStatus = viewModel::setDeliverableStatus,
+        onAddRevision = viewModel::addRevisionRound,
+        onRemoveDeliverable = viewModel::deleteDeliverable,
         modifier = modifier,
     )
 }

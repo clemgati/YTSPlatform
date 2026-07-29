@@ -142,7 +142,8 @@ The biggest gap in the original roadmap.
 - Ingest and 3-2-1 backup tracking across storage volumes
 - ✓ Post-production tasks with **estimated versus actual hours**, entered on a booking's
   own page and feeding the pricing floor, which now measures rather than assumes
-- Deliverables with revision rounds and turnaround SLA
+- ✓ Deliverables with revision rounds and turnaround SLA, both checked against what the
+  contract actually promised
 - Gear inventory with serials and purchase prices, packing lists, maintenance
 - Lighting recipes
 

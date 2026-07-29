@@ -6,6 +6,8 @@ import com.yellowtrack.platform.core.model.post.PostTaskStatus
 import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.testing.FakeClientRepository
+import com.yellowtrack.platform.core.testing.FakeContractRepository
+import com.yellowtrack.platform.core.testing.FakeDeliverableRepository
 import com.yellowtrack.platform.core.testing.FakePostProductionRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
@@ -54,10 +56,12 @@ class ProjectDetailsViewModelTest {
 
     private lateinit var tasks: FakePostProductionRepository
     private lateinit var projects: FakeProjectRepository
+    private lateinit var deliverables: FakeDeliverableRepository
 
     private fun viewModel(): ProjectDetailsViewModel {
         tasks = FakePostProductionRepository()
         projects = FakeProjectRepository(listOf(project))
+        deliverables = FakeDeliverableRepository()
 
         return ProjectDetailsViewModel(
             projectId = project.id,
@@ -65,6 +69,8 @@ class ProjectDetailsViewModelTest {
             clientRepository = FakeClientRepository(listOf(client)),
             sessionRepository = FakeSessionRepository(),
             postProductionRepository = tasks,
+            deliverableRepository = deliverables,
+            contractRepository = FakeContractRepository(),
             studioContext = LocalStudioContext(),
             clock = clock,
         )
