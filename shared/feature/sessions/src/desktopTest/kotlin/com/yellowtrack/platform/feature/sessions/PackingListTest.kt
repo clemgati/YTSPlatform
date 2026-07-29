@@ -20,6 +20,7 @@ import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
 import com.yellowtrack.platform.core.testing.FakeTalentReleaseRepository
+import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsViewModel
@@ -114,6 +115,7 @@ class PackingListTest {
                     gearRepository = gear,
                     projectRepository = FakeProjectRepository(),
                     clientRepository = FakeClientRepository(),
+                    documentSink = RecordingDocumentSink(),
                     studioContext = LocalStudioContext(),
                     clock = TestAppClock(),
                     deviceZone = zone,

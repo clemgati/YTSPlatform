@@ -33,6 +33,7 @@ import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.BackupSection
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.CallSheetSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.MediaCopyFormDialog
@@ -72,6 +73,9 @@ internal fun SessionDetailsScreen(
     onSetPacked: (PackingEntryId, Boolean) -> Unit,
     onSetReturned: (PackingEntryId, Boolean) -> Unit,
     onRemovePacking: (PackingEntryId) -> Unit,
+    onCopyCallSheet: () -> Unit,
+    onSaveCallSheet: () -> Unit,
+    callSheetMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -186,6 +190,12 @@ internal fun SessionDetailsScreen(
             }
 
             LightPanel(session.light)
+
+            CallSheetSection(
+                message = callSheetMessage,
+                onCopy = onCopyCallSheet,
+                onSave = onSaveCallSheet,
+            )
 
             CrewSection(
                 crew = session.crew,

@@ -13,6 +13,13 @@ import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.ShotRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.TalentReleaseRepository
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentFormat
+import com.yellowtrack.platform.core.export.DocumentSink
+import com.yellowtrack.platform.core.export.buildCallSheet
+import com.yellowtrack.platform.core.export.slugify
+import com.yellowtrack.platform.core.export.toHtml
+import com.yellowtrack.platform.core.export.toPlainText
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewMember
@@ -71,8 +78,9 @@ internal class SessionDetailsViewModel(
     private val mediaCopyRepository: MediaCopyRepository,
     private val packingRepository: PackingRepository,
     gearRepository: GearRepository,
-    projectRepository: ProjectRepository,
-    clientRepository: ClientRepository,
+    private val projectRepository: ProjectRepository,
+    private val clientRepository: ClientRepository,
+    private val documentSink: DocumentSink,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val deviceZone: TimeZone = TimeZone.currentSystemDefault(),
@@ -528,6 +536,58 @@ internal class SessionDetailsViewModel(
 
     fun removeFromPackingList(entryId: PackingEntryId) {
         viewModelScope.launch { packingRepository.deletePackingEntry(entryId) }
+    }
+
+    /**
+     * Builds the call sheet for this day.
+     *
+     * Read from the repositories rather than from the screen's state, because a document
+     * is not a rendering of a screen: the sheet carries the light and the shot list and
+     * deliberately carries none of the money, and deriving it from what happens to be on
+     * screen would tie one to the other.
+     */
+    private suspend fun callSheet() =
+        sessionRepository.getSession(sessionId)?.let { session ->
+            val project = projectRepository.observeProjects().first().firstOrNull { it.id == session.projectId }
+            val client =
+                project?.let { found ->
+                    clientRepository.observeClients().first().firstOrNull { it.id == found.clientId }
+                }
+
+            buildCallSheet(
+                session = session,
+                project = project,
+                client = client,
+                crew = crewRepository.observeCrewForSession(sessionId).first(),
+                shots = shotRepository.observeShotsForSession(sessionId).first(),
+            )
+        }
+
+    /** The plain-text sheet, for pasting into a message. Null if the session has gone. */
+    suspend fun callSheetText(): String? = callSheet()?.toPlainText()
+
+    /**
+     * Writes the sheet out as a web page.
+     *
+     * HTML rather than PDF: it opens on any phone, prints to PDF from the browser, and
+     * needs no rendering library on four platforms. Where it landed is reported back,
+     * because a file someone cannot find was not saved.
+     */
+    fun exportCallSheet(onSaved: (String) -> Unit) {
+        viewModelScope.launch {
+            val sheet = callSheet() ?: return@launch
+
+            val saved =
+                documentSink.save(
+                    Document(
+                        baseName = slugify(sheet.title),
+                        format = DocumentFormat.Html,
+                        content = sheet.toHtml(),
+                    ),
+                )
+
+            onSaved(saved.location)
+        }
     }
 
     fun retry() {

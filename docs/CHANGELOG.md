@@ -8,6 +8,45 @@ The project follows semantic versioning.
 
 ### Added
 
+- **Documents can leave the application.** Everything built so far has been readable only
+  by the person holding the laptop. A new `core:export` module renders a document from the
+  domain and a `DocumentSink` decides where it goes, per platform, in the same shape
+  `DatabaseDriverFactory` already uses
+- **Call sheets, which 0.5.0 has been waiting on.** The session page has read as a call
+  sheet since that milestone and has never been able to send one. It now carries where to
+  be, when, who else is coming, and what was promised — and deliberately carries nothing
+  about the money, because this document leaves the studio and a second shooter has no
+  business seeing what the wedding cost. A test asserts that absence rather than trusting it
+- **Copy as text is offered before save as a file**, because that is what actually happens:
+  a second shooter is sent a message, not an attachment, and a sheet that has to be
+  downloaded and opened is one that gets read at the venue rather than the night before
+- **HTML rather than PDF.** A PDF library needs a per-platform implementation on four
+  targets; an HTML page opens on any phone and prints to PDF from the browser, which is
+  where the PDF was going to be made anyway. The page is self-contained — inline styles,
+  no scripts, nothing fetched — because it is opened at a venue with no signal
+- The sheet always states which time zone it means, unlike the screen it came from. A
+  screen is read by the person who typed the times in; this is read by a second shooter
+  flying in, and conditioning that line on the *sender's* device zone would decide what a
+  stranger needs to know from where the laptop happened to be
+- Both golden hours are printed, but only the one falling inside the hours being shot is
+  emphasised. On a two-o'clock wedding a 5:49 AM window in bold makes the 7:55 PM window
+  harder to find, and that is the one decision the sheet exists for
+- Where the file landed is reported back on screen. A document nobody can find was not
+  saved, and silence is how that happens. On Android and iOS it is written to a folder the
+  Files app can see; handing it to a share sheet needs an `Activity` or a
+  `UIViewController` and is deliberately not faked
+- No studio name appears on the sheet: there is no `Studio` entity until accounts arrive in
+  0.7.0, and printing a placeholder on a document that leaves the building would be worse
+  than printing nothing
+
+### Fixed
+
+- **The web build could not render a shoot day.** `kotlinx-datetime` resolves zone ids on
+  wasm through `@js-joda/core`, which ships with no zone data, so `TimeZone.of(...)` threw
+  `Invalid zone ID` for every zone — and every session carries one. The database is now
+  imported at start-up. Found because the call-sheet tests were the first in `commonTest`
+  to name a zone, so they ran on wasm and failed there
+
 - **The Studio tab is a screen at last.** It has been a placeholder since 0.1.0, naming
   gear inventory, packing lists and lighting recipes as things that "arrive in a later
   milestone". They have arrived

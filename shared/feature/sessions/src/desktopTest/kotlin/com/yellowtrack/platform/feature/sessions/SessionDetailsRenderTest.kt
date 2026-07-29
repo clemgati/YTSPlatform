@@ -189,6 +189,9 @@ class SessionDetailsRenderTest {
                             onSetPacked = { _, _ -> },
                             onSetReturned = { _, _ -> },
                             onRemovePacking = {},
+                            onCopyCallSheet = {},
+                            onSaveCallSheet = {},
+                            callSheetMessage = null,
                         )
                     }
                 }

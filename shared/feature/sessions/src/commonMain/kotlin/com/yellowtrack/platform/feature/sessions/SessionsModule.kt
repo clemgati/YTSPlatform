@@ -22,6 +22,7 @@ val sessionsModule =
                 gearRepository = get(),
                 projectRepository = get(),
                 clientRepository = get(),
+                documentSink = get(),
                 studioContext = get(),
                 clock = get(),
             )

@@ -133,9 +133,9 @@ The biggest gap in the original roadmap.
 - ✓ Shot lists with grouping, for family formals
 - ✓ Locations with computed golden hour and sun position — calculable offline from
   latitude, longitude, and date, stored against the session and shown on it
-- ◐ Call sheets, crew, and talent releases — crew with per-person call times and talent
-  releases, on a session page that reads as a call sheet. Sending that sheet to anyone
-  waits on the export work in 0.6.0
+- ✓ Call sheets, crew, and talent releases — crew with per-person call times and talent
+  releases, on a session page that reads as a call sheet, which can now be sent to the
+  people working the day
 
 ## 0.6.0 — Pipeline
 
@@ -152,6 +152,11 @@ The biggest gap in the original roadmap.
   the morning and back at midnight
 - ✓ Lighting recipes — set-ups written down in the terms they are dialled in, so the
   three-light headshot is a starting point rather than a rebuild from memory
+- ◐ Documents out of the app: call sheets first. The shoot day now leaves as a
+  self-contained web page or as text pasted into a message, carrying the light, the crew
+  and the shot list and none of the money. Handing it straight to a share sheet on Android
+  and iOS, and the other documents worth exporting — an invoice, a quote — are still to
+  come
 
 ## 0.7.0 — Cloud
 
