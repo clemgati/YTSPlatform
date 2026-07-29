@@ -182,44 +182,6 @@ internal class ClientDetailsViewModel(
         }
     }
 
-    /**
-     * Corrects a booking, which is chiefly how a job moves from Enquiry to Booked.
-     *
-     * `bookedAt` is stamped the first time the booking reaches a status that holds studio
-     * time, and never cleared afterwards. A cancelled job keeps the date it was booked on
-     * purpose: that date is what a cancellation fee is measured against, and clearing it
-     * would destroy the evidence at exactly the moment it is needed.
-     */
-    fun updateProject(
-        projectId: ProjectId,
-        edited: NewProject,
-    ) {
-        viewModelScope.launch {
-            if (edited.name.isBlank()) return@launch
-
-            val existing = projectRepository.getProject(projectId) ?: return@launch
-            val contractValue =
-                when {
-                    edited.contractValue.isBlank() -> null
-                    else -> parseMoney(edited.contractValue, currency)?.takeIf { it.isPositive } ?: return@launch
-                }
-
-            val now = clock.now()
-
-            projectRepository.saveProject(
-                existing.copy(
-                    name = edited.name.trim(),
-                    serviceLine = edited.serviceLine,
-                    status = edited.status,
-                    contractValue = contractValue,
-                    bookedAt = existing.bookedAt ?: now.takeIf { edited.status.isCommitted },
-                    notes = edited.notes.trim().ifBlank { null },
-                    audit = existing.audit.touched(now),
-                ),
-            )
-        }
-    }
-
     fun retry() {
         retryTrigger.value += 1
     }

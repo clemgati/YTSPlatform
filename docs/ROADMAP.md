@@ -140,9 +140,8 @@ The biggest gap in the original roadmap.
 ## 0.6.0 — Pipeline
 
 - Ingest and 3-2-1 backup tracking across storage volumes
-- ◐ Post-production tasks with **estimated versus actual hours** — recorded, and feeding
-  the pricing floor, which now measures rather than assumes. No screen enters them yet, so
-  the measurement cannot fire until a project page exists
+- ✓ Post-production tasks with **estimated versus actual hours**, entered on a booking's
+  own page and feeding the pricing floor, which now measures rather than assumes
 - Deliverables with revision rounds and turnaround SLA
 - Gear inventory with serials and purchase prices, packing lists, maintenance
 - Lighting recipes

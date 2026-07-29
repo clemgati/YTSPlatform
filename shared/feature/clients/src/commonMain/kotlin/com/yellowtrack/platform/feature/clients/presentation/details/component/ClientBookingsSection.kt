@@ -24,7 +24,7 @@ import com.yellowtrack.platform.feature.clients.presentation.details.model.Booki
 @Composable
 internal fun ClientBookingsSection(
     bookings: List<BookingSummary>,
-    onEditBooking: (BookingSummary) -> Unit,
+    onOpenBooking: (BookingSummary) -> Unit,
     onAddBooking: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -42,7 +42,7 @@ internal fun ClientBookingsSection(
             } else {
                 bookings.forEachIndexed { index, booking ->
                     if (index > 0) HorizontalDivider(color = YTTheme.colors.outlineVariant)
-                    BookingRow(booking, onEditBooking)
+                    BookingRow(booking, onOpenBooking)
                 }
             }
 
@@ -60,7 +60,7 @@ internal fun ClientBookingsSection(
 @Composable
 private fun BookingRow(
     booking: BookingSummary,
-    onEdit: (BookingSummary) -> Unit,
+    onOpen: (BookingSummary) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -108,9 +108,11 @@ private fun BookingRow(
                     },
             )
 
-            TextButton(onClick = { onEdit(booking) }) {
+            // Opens the booking rather than a form: there is a page behind this now, and
+            // it holds the shoot days and the post-production as well as the figures.
+            TextButton(onClick = { onOpen(booking) }) {
                 Text(
-                    text = "Edit",
+                    text = "Open",
                     style = YTTheme.typography.labelLarge,
                     color = YTTheme.colors.primary,
                 )

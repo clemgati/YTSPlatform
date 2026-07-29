@@ -27,7 +27,25 @@ The project follows semantic versioning.
 - **Schema migration 6 → 7**, purely additive: a new `post_task` table, `7.db` committed,
   with hours stored as fractions since half hours are the normal unit of this work
 
-### Known gap
+- **A booking has a page of its own** — the third detail screen, alongside the client and
+  the shoot day. It carries the agreed value, the dates it was enquired about and booked,
+  its shoot days, and its post-production. Selecting a booking on a client's page opens it
+  rather than opening a form
+- Post-production hours are entered here, which closes the loop: the Ledger can only
+  measure what someone has recorded, and until now nothing could record it
+- The estimate is asked for when work is added, not when it is finished. An estimate
+  written afterwards is a memory of how long it felt, and it agrees with the actual every
+  time — which would make the comparison worthless
+- Finishing work requires the hours it took. A task closed without them tells the pricing
+  floor nothing, and the floor is the only reason any of this is tracked. Reopening one
+  clears what it claimed to have taken
+- An overrun is reported only once work is finished — a task half done has not overrun, it
+  is simply unfinished — and a quarter of an hour either way is not reported at all, since
+  flagging six minutes would teach the studio to stop reading the figure
+- Editing a booking moved from the client page to the booking's own page, which removed the
+  duplicate write path that had appeared between the two
+
+### Superseded gap
 
 - **Nothing can enter a task yet.** The data layer, the measurement, and the pricing
   integration are all in place and tested, but post-production belongs to a booking and

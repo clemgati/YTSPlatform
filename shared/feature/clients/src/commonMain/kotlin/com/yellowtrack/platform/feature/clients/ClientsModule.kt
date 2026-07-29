@@ -1,8 +1,10 @@
 package com.yellowtrack.platform.feature.clients
 
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsViewModel
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsViewModel
+import com.yellowtrack.platform.feature.clients.presentation.project.ProjectDetailsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -15,6 +17,10 @@ import org.koin.dsl.module
 val clientsModule =
     module {
         viewModel { ClientsViewModel(get(), get(), get(), get(), get()) }
+
+        viewModel { (projectId: ProjectId) ->
+            ProjectDetailsViewModel(projectId, get(), get(), get(), get(), get(), get())
+        }
 
         viewModel { (clientId: ClientId) ->
             ClientDetailsViewModel(clientId, get(), get(), get(), get(), get())

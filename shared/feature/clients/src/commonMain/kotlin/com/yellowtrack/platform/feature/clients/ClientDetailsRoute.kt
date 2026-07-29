@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsScreen
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -15,6 +16,7 @@ fun ClientDetailsRoute(
     clientId: ClientId,
     onBack: () -> Unit,
     onScheduleSession: (ClientId) -> Unit,
+    onBookingSelected: (ProjectId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Keyed on the client so navigating between two clients builds a new ViewModel rather
@@ -30,7 +32,7 @@ fun ClientDetailsRoute(
         onBack = onBack,
         onScheduleSession = { onScheduleSession(clientId) },
         onAddProject = viewModel::addProject,
-        onUpdateProject = viewModel::updateProject,
+        onOpenBooking = onBookingSelected,
         onUpdateClient = viewModel::updateClient,
         modifier = modifier,
     )

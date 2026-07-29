@@ -85,7 +85,7 @@ class ClientsScreenRenderTest {
                 onBack = {},
                 onScheduleSession = {},
                 onAddProject = {},
-                onUpdateProject = { _, _ -> },
+                onOpenBooking = {},
                 onUpdateClient = {},
             )
         }
