@@ -3,12 +3,14 @@ package com.yellowtrack.platform.feature.sessions
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.data.LocalStudioContext
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.testing.FakeClientRepository
+import com.yellowtrack.platform.core.testing.FakeCrewRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
@@ -16,6 +18,7 @@ import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsViewModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import kotlinx.coroutines.Dispatchers
@@ -81,16 +84,19 @@ class SessionDetailsViewModelTest {
     )
 
     private lateinit var shots: FakeShotRepository
+    private lateinit var crew: FakeCrewRepository
 
     private fun harness(existing: Session = session()): Pair<FakeSessionRepository, SessionDetailsViewModel> {
         val sessions = FakeSessionRepository(listOf(existing))
         shots = FakeShotRepository()
+        crew = FakeCrewRepository()
 
         return sessions to
             SessionDetailsViewModel(
                 sessionId = sessionId,
                 sessionRepository = sessions,
                 shotRepository = shots,
+                crewRepository = crew,
                 projectRepository = FakeProjectRepository(),
                 clientRepository = FakeClientRepository(),
                 studioContext = LocalStudioContext(),
@@ -444,5 +450,110 @@ class SessionDetailsViewModelTest {
             viewModel.deleteShot(shotId)
 
             assertTrue(viewModel.model().shotGroups.isEmpty())
+        }
+
+    // --- Crew --------------------------------------------------------------------------
+
+    @Test
+    fun `crew are listed earliest call first, which is the order the morning happens in`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addCrewMember(NewCrewMember("Alex Reed", CrewRole.Videographer, "", "15:00"))
+            viewModel.addCrewMember(NewCrewMember("Priya Shah", CrewRole.MakeUp, "", "09:00"))
+            viewModel.addCrewMember(NewCrewMember("Sam Ellis", CrewRole.SecondShooter, "", "13:30"))
+
+            assertEquals(
+                listOf("Priya Shah", "Sam Ellis", "Alex Reed"),
+                viewModel.model().crew.map { it.name },
+                "hair and make-up are called first and the videographer last",
+            )
+        }
+
+    @Test
+    fun `a call time is read in the session's own zone`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addCrewMember(NewCrewMember("Priya Shah", CrewRole.MakeUp, "", "09:00"))
+
+            val member = assertNotNull(crew.observeCrewForSession(sessionId).first().singleOrNull())
+            assertEquals(
+                instant("2026-08-15", "09:00"),
+                member.callTime,
+                "the crew are called at nine where the shoot is, not where the studio is",
+            )
+        }
+
+    @Test
+    fun `someone with no call time of their own sorts last rather than first`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addCrewMember(NewCrewMember("Sam Ellis", CrewRole.SecondShooter, "", ""))
+            viewModel.addCrewMember(NewCrewMember("Priya Shah", CrewRole.MakeUp, "", "09:00"))
+
+            val listed = viewModel.model().crew
+            assertEquals(
+                listOf("Priya Shah", "Sam Ellis"),
+                listed.map { it.name },
+                "a missing time means whenever, not before everyone",
+            )
+            assertNull(listed.last().callTimeLabel)
+        }
+
+    @Test
+    fun `an unreadable call time is not recorded at all`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addCrewMember(NewCrewMember("Priya Shah", CrewRole.MakeUp, "", "half nine"))
+
+            assertTrue(
+                crew
+                    .observeCrewForSession(sessionId)
+                    .first()
+                    .isEmpty(),
+                "a call sheet with a wrong time is worse than one with none",
+            )
+        }
+
+    @Test
+    fun `a crew member with no name is not added`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addCrewMember(NewCrewMember("  ", CrewRole.Assistant, "", "09:00"))
+
+            assertTrue(viewModel.model().crew.isEmpty())
+        }
+
+    @Test
+    fun `the role is carried through as it would be written on a call sheet`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addCrewMember(NewCrewMember("Priya Shah", CrewRole.MakeUp, "07700 900123", "09:00"))
+
+            val member = viewModel.model().crew.single()
+            assertEquals("Hair & make-up", member.role)
+            assertEquals("07700 900123", member.phone)
+        }
+
+    @Test
+    fun `someone removed leaves the day`() =
+        runTest {
+            val (_, viewModel) = harness()
+            viewModel.addCrewMember(NewCrewMember("Sam Ellis", CrewRole.SecondShooter, "", "13:30"))
+            val id =
+                viewModel
+                    .model()
+                    .crew
+                    .single()
+                    .id
+
+            viewModel.deleteCrewMember(id)
+
+            assertTrue(viewModel.model().crew.isEmpty())
         }
 }

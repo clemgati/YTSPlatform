@@ -5,15 +5,18 @@ import com.yellowtrack.platform.core.common.solar.SunEvents
 import com.yellowtrack.platform.core.common.solar.SunWindow
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.CrewItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.LightRow
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionLight
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ShotGroup
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ShotItem
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
+import com.yellowtrack.platform.feature.sessions.presentation.model.label
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -24,6 +27,7 @@ internal fun Session.toDetailsModel(
     project: Project?,
     client: Client?,
     shots: List<Shot>,
+    crew: List<CrewMember>,
     deviceZone: TimeZone,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
@@ -47,6 +51,16 @@ internal fun Session.toDetailsModel(
         light = light(zone),
         shotGroups = shots.toGroups(),
         shotsRemaining = shots.count { !it.isCaptured },
+        crew =
+            crew.map { member ->
+                CrewItem(
+                    id = member.id,
+                    name = member.name,
+                    role = member.role.label,
+                    phone = member.phone,
+                    callTimeLabel = member.callTime?.let { DateFormats.timeOfDay(it, zone) },
+                )
+            },
         editable = toEditableForm(zone),
         zoneId = timeZoneId,
     )

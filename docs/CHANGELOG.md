@@ -6,6 +6,20 @@ The project follows semantic versioning.
 
 ## Unreleased — 0.5.0 Shoot Day
 
+- **Crew, each with their own call time.** That last part is the feature: hair and make-up
+  are called hours before the photographer, the videographer arrives after, and a call
+  sheet giving everyone the same time is a call sheet nobody can use. The list is ordered
+  by call time, which is the order the morning actually happens in
+- Someone with no time of their own reads "with the crew, 12:30 PM" rather than a blank,
+  so nobody has to guess whether they were forgotten or are simply due with everyone else.
+  A missing time sorts last, since it means *whenever* and not *before everyone*
+- An unreadable call time is refused outright: a call sheet with a wrong time on it is
+  worse than one with none
+- Crew are held per session rather than as a studio directory, because that is how the work
+  arrives — a second shooter booked for one wedding, a make-up artist the client brought. A
+  directory of regulars would link to `Contact` and can arrive later without moving this
+- **Schema migration 4 → 5**, purely additive: a new `crew_member` table, `5.db` committed,
+  with tests covering a version-four database keeping its shot lists
 - **Shot lists, grouped.** The photographs promised for a day, gathered under headings and
   ticked off as they are taken. Grouping is the whole feature: a photographer works a group
   at a time and releases people once their group is done, so each group shows what it still

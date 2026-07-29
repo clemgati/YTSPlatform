@@ -1,0 +1,58 @@
+-- Someone working a shoot day, with their own call time; see migration 4.sqm.
+CREATE TABLE crew_member (
+    id          TEXT    NOT NULL PRIMARY KEY,
+    studio_id   TEXT    NOT NULL,
+    session_id  TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
+    role        TEXT    NOT NULL,
+    phone       TEXT,
+    call_time   INTEGER,
+    notes       TEXT,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER,
+    version     INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (session_id) REFERENCES session(id)
+);
+
+CREATE INDEX crew_session_idx ON crew_member(session_id, deleted_at, call_time);
+
+-- Earliest call first: the order the day actually happens in, and the order a call sheet
+-- is read in. Crew with no call time sort last rather than first, since a missing time is
+-- "whenever" and not "before everyone".
+selectBySession:
+SELECT *
+FROM crew_member
+WHERE session_id = :sessionId AND deleted_at IS NULL
+ORDER BY call_time IS NULL, call_time, created_at;
+
+selectById:
+SELECT *
+FROM crew_member
+WHERE id = :id AND deleted_at IS NULL;
+
+-- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
+insertOrIgnore:
+INSERT OR IGNORE INTO crew_member(
+    id, studio_id, session_id, name, role, phone, call_time, notes,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE crew_member
+SET session_id = :sessionId,
+    name       = :name,
+    role       = :role,
+    phone      = :phone,
+    call_time  = :callTime,
+    notes      = :notes,
+    updated_at = :updatedAt,
+    deleted_at = :deletedAt,
+    version    = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE crew_member
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

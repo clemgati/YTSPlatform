@@ -5,6 +5,7 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightCodbRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightContractRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightCrewRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightExpenseRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightLeadRepository
@@ -34,6 +35,7 @@ val dataModule =
         single<ProjectRepository> { SqlDelightProjectRepository(get(), get(), get(), ioDispatcher) }
         single<SessionRepository> { SqlDelightSessionRepository(get(), get(), get(), ioDispatcher) }
         single<ShotRepository> { SqlDelightShotRepository(get(), get(), ioDispatcher) }
+        single<CrewRepository> { SqlDelightCrewRepository(get(), get(), ioDispatcher) }
         single<ServiceTemplateRepository> { SqlDelightServiceTemplateRepository(get(), get(), get(), ioDispatcher) }
 
         single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }

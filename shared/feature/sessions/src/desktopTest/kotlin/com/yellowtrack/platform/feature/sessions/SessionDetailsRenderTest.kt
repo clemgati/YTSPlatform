@@ -14,6 +14,9 @@ import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -98,6 +101,13 @@ class SessionDetailsRenderTest {
                 shot("Detail of the rings", "", null),
             )
 
+        val crew =
+            listOf(
+                crewMember("Priya Shah", CrewRole.MakeUp, "07700 900123", "09:00"),
+                crewMember("Sam Ellis", CrewRole.SecondShooter, "07700 900456", "13:30"),
+                crewMember("Alex Reed", CrewRole.Videographer, null, null),
+            )
+
         val scene =
             ImageComposeScene(width = 1_280, height = 2_600, density = Density(2f)) {
                 YellowTrackTheme {
@@ -110,7 +120,7 @@ class SessionDetailsRenderTest {
                                 SessionDetailsUiState(
                                     session =
                                         UiState.Success(
-                                            session.toDetailsModel(project, client, shots, zone),
+                                            session.toDetailsModel(project, client, shots, crew, zone),
                                         ),
                                     today = LocalDate(2026, 7, 28),
                                 ),
@@ -119,6 +129,8 @@ class SessionDetailsRenderTest {
                             onUpdateSession = {},
                             onMoveSession = {},
                             onAddShot = {},
+                            onAddCrew = {},
+                            onRemoveCrew = {},
                             onToggleShot = { _, _ -> },
                             onDeleteShot = {},
                         )
@@ -150,6 +162,22 @@ class SessionDetailsRenderTest {
         group = group.ifBlank { null },
         people = people,
         isCaptured = captured,
+        audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+    )
+
+    private fun crewMember(
+        name: String,
+        role: CrewRole,
+        phone: String?,
+        callTime: String?,
+    ) = CrewMember(
+        id = CrewMemberId.new(),
+        studioId = LocalStudioContext.LOCAL_STUDIO_ID,
+        sessionId = SessionId.new(),
+        name = name,
+        role = role,
+        phone = phone,
+        callTime = callTime?.let { LocalDateTime.parse("2026-08-15T$it").toInstant(zone) },
         audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
     )
 }

@@ -4,11 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
+import com.yellowtrack.platform.core.data.CrewRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.ShotRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionStatus
@@ -17,6 +22,7 @@ import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import com.yellowtrack.platform.feature.sessions.presentation.model.coordinates
@@ -29,7 +35,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 
 /**
@@ -42,6 +51,7 @@ internal class SessionDetailsViewModel(
     private val sessionId: SessionId,
     private val sessionRepository: SessionRepository,
     private val shotRepository: ShotRepository,
+    private val crewRepository: CrewRepository,
     projectRepository: ProjectRepository,
     clientRepository: ClientRepository,
     private val studioContext: StudioContext,
@@ -50,31 +60,62 @@ internal class SessionDetailsViewModel(
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
+    /**
+     * The day itself, grouped so the join stays within `combine`'s typed arity.
+     *
+     * Six sources would otherwise need an untyped array and a cast per element; the Ledger
+     * groups for the same reason, and the destructuring reads as named things rather than
+     * positions.
+     */
+    private data class Day(
+        val session: Session?,
+        val shots: List<Shot>,
+        val crew: List<CrewMember>,
+    )
+
+    private data class Booking(
+        val projects: List<Project>,
+        val clients: List<Client>,
+    )
+
     val uiState: StateFlow<SessionDetailsUiState> =
         combine(
-            sessionRepository.observeSession(sessionId),
-            shotRepository.observeShotsForSession(sessionId),
-            projectRepository.observeProjects(),
-            clientRepository.observeClients(),
+            combine(
+                sessionRepository.observeSession(sessionId),
+                shotRepository.observeShotsForSession(sessionId),
+                crewRepository.observeCrewForSession(sessionId),
+                ::Day,
+            ),
+            combine(
+                projectRepository.observeProjects(),
+                clientRepository.observeClients(),
+                ::Booking,
+            ),
             retryTrigger,
-        ) { session, shots, projects, clients, _ ->
+        ) { day, booking, _ ->
+            val session = day.session
+
             if (session == null) {
                 SessionDetailsUiState(session = UiState.Error("This session could not be found."))
             } else {
-                val project = projects.firstOrNull { it.id == session.projectId }
-                val client = project?.let { booking -> clients.firstOrNull { it.id == booking.clientId } }
+                val project = booking.projects.firstOrNull { it.id == session.projectId }
+                val client =
+                    project?.let { it -> booking.clients.firstOrNull { candidate -> candidate.id == it.clientId } }
 
                 SessionDetailsUiState(
-                    session = UiState.Success(session.toDetailsModel(project, client, shots, deviceZone)),
+                    session =
+                        UiState.Success(
+                            session.toDetailsModel(project, client, day.shots, day.crew, deviceZone),
+                        ),
                     bookings =
-                        projects.map { booking ->
+                        booking.projects.map { project ->
                             BookingOption(
-                                id = booking.id,
+                                id = project.id,
                                 label =
-                                    clients
-                                        .firstOrNull { it.id == booking.clientId }
-                                        ?.let { "${booking.name} — ${it.displayName}" }
-                                        ?: booking.name,
+                                    booking.clients
+                                        .firstOrNull { it.id == project.clientId }
+                                        ?.let { "${project.name} — ${it.displayName}" }
+                                        ?: project.name,
                             )
                         },
                     today = clock.now().toLocalDateTime(deviceZone).date,
@@ -234,6 +275,46 @@ internal class SessionDetailsViewModel(
 
     fun deleteShot(shotId: ShotId) {
         viewModelScope.launch { shotRepository.deleteShot(shotId) }
+    }
+
+    /** Adds someone to the day, with the time they are due. */
+    fun addCrewMember(member: NewCrewMember) {
+        viewModelScope.launch {
+            if (member.name.isBlank()) return@launch
+
+            val session = sessionRepository.getSession(sessionId) ?: return@launch
+            val zone = TimeZone.of(session.timeZoneId)
+            val day = session.startsAt.toLocalDateTime(zone).date
+
+            val callTime =
+                when {
+                    member.callTime.isBlank() -> null
+                    else ->
+                        runCatching { LocalTime.parse(member.callTime.trim()) }
+                            .getOrNull()
+                            ?.let { LocalDateTime(day, it).toInstant(zone) }
+                            ?: return@launch
+                }
+
+            val now = clock.now()
+
+            crewRepository.saveCrewMember(
+                CrewMember(
+                    id = CrewMemberId.new(),
+                    studioId = studioContext.studioId,
+                    sessionId = sessionId,
+                    name = member.name.trim(),
+                    role = member.role,
+                    phone = member.phone.trim().ifBlank { null },
+                    callTime = callTime,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    fun deleteCrewMember(crewMemberId: CrewMemberId) {
+        viewModelScope.launch { crewRepository.deleteCrewMember(crewMemberId) }
     }
 
     fun retry() {

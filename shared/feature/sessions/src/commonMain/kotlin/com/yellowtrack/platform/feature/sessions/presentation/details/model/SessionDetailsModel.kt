@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.sessions.presentation.details.model
 
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
@@ -49,6 +50,16 @@ internal data class ShotGroup(
     val isComplete: Boolean get() = remaining == 0
 }
 
+/** Someone working the day, as the call sheet lists them. */
+internal data class CrewItem(
+    val id: CrewMemberId,
+    val name: String,
+    val role: String,
+    val phone: String?,
+    /** Null when they are simply due with everyone else. */
+    val callTimeLabel: String?,
+)
+
 internal data class SessionDetailsModel(
     val id: SessionId,
     val title: String,
@@ -70,6 +81,8 @@ internal data class SessionDetailsModel(
     /** Shots promised for this day, grouped so a group can be worked and released. */
     val shotGroups: List<ShotGroup>,
     val shotsRemaining: Int,
+    /** Everyone working the day, earliest call first. */
+    val crew: List<CrewItem>,
     /** The session as the form takes it, so editing opens showing what is already there. */
     val editable: NewSession,
     val zoneId: String,

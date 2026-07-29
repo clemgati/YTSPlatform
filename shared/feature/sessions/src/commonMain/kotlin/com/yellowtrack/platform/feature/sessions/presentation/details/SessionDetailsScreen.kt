@@ -22,14 +22,18 @@ import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotListSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionLight
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
 import kotlinx.datetime.TimeZone
@@ -42,12 +46,15 @@ internal fun SessionDetailsScreen(
     onUpdateSession: (NewSession) -> Unit,
     onMoveSession: (NewSession) -> Unit,
     onAddShot: (NewShot) -> Unit,
+    onAddCrew: (NewCrewMember) -> Unit,
+    onRemoveCrew: (CrewMemberId) -> Unit,
     onToggleShot: (ShotId, Boolean) -> Unit,
     onDeleteShot: (ShotId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf(false) }
     var addingShot by remember { mutableStateOf(false) }
+    var addingCrew by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.session,
@@ -83,6 +90,17 @@ internal fun SessionDetailsScreen(
                     addingShot = false
                 },
                 onDismiss = { addingShot = false },
+            )
+        }
+
+        if (addingCrew) {
+            CrewFormDialog(
+                sessionCallTime = session.callTimeLabel,
+                onSave = {
+                    onAddCrew(it)
+                    addingCrew = false
+                },
+                onDismiss = { addingCrew = false },
             )
         }
 
@@ -124,6 +142,13 @@ internal fun SessionDetailsScreen(
             }
 
             LightPanel(session.light)
+
+            CrewSection(
+                crew = session.crew,
+                sessionCallTime = session.callTimeLabel,
+                onAddCrew = { addingCrew = true },
+                onRemoveCrew = onRemoveCrew,
+            )
 
             ShotListSection(
                 groups = session.shotGroups,

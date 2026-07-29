@@ -30,6 +30,8 @@ fun SessionDetailsRoute(
         onUpdateSession = viewModel::updateSession,
         onMoveSession = viewModel::moveSession,
         onAddShot = viewModel::addShot,
+        onAddCrew = viewModel::addCrewMember,
+        onRemoveCrew = viewModel::deleteCrewMember,
         onToggleShot = viewModel::setShotCaptured,
         onDeleteShot = viewModel::deleteShot,
         modifier = modifier,
