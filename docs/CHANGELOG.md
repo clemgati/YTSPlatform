@@ -68,6 +68,17 @@ The project follows semantic versioning.
 - Cancelling needs no separate action: the status is on the form, and a cancelled day stays
   on the record rather than vanishing from it
 
+- **A client's bookings are listed on their own page**, with what each is worth and where
+  it stands. A booking is the unit everything else hangs from — a contract, a set of
+  invoices, and the days in the diary all point at one — so a client whose bookings were
+  invisible was a client whose money and calendar could not be reached from their own page
+- **A booking can be corrected**, which is chiefly how a job moves from Enquiry to Booked:
+  the transition the contract and retainer rules are built around
+- `bookedAt` is stamped the first time a booking reaches a status that holds studio time,
+  and never cleared afterwards. **A cancelled job keeps the date it was booked on purpose**
+  — that date is what a cancellation fee is measured against, and clearing it would destroy
+  the evidence at the moment it is needed. A later edit does not restamp it either
+
 ### Fixed
 
 - Selecting a session used to do nothing — `onSessionSelected` was wired to an empty lambda

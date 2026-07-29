@@ -11,6 +11,8 @@ internal data class ClientDetailsModel(
     val contact: ClientContact,
     val upcomingSession: ClientUpcomingSession?,
     val sessionHistory: List<ClientSessionHistoryItem>,
+    /** Every booking on this account, newest enquiry first. */
+    val bookings: List<BookingSummary>,
     val notes: List<String>,
     /**
      * The account as the form takes it, so editing opens showing what is already there.

@@ -15,6 +15,7 @@ private fun ClientDetailsScreenPreview() {
             onBack = {},
             onUpdateClient = {},
             onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }
@@ -30,6 +31,7 @@ private fun ClientDetailsScreenLoadingPreview() {
             onBack = {},
             onUpdateClient = {},
             onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }
@@ -45,6 +47,7 @@ private fun ClientDetailsScreenEmptyPreview() {
             onBack = {},
             onUpdateClient = {},
             onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }
@@ -60,6 +63,7 @@ private fun ClientDetailsScreenErrorPreview() {
             onBack = {},
             onUpdateClient = {},
             onAddProject = {},
+            onUpdateProject = { _, _ -> },
             onScheduleSession = {},
         )
     }

@@ -11,6 +11,8 @@ import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.component.ClientFormDialog
+import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsScreen
+import com.yellowtrack.platform.feature.clients.presentation.details.preview.ClientDetailsPreviewData
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsScreen
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsUiState
 import java.io.File
@@ -70,6 +72,21 @@ class ClientsScreenRenderTest {
                 onQueryChange = {},
                 onClientSelected = {},
                 onAddClient = {},
+            )
+        }
+    }
+
+    @Test
+    fun `renders the client detail page`() {
+        render("client-details.png", height = 2_200) {
+            ClientDetailsScreen(
+                uiState = ClientDetailsPreviewData.successState,
+                onRetry = {},
+                onBack = {},
+                onScheduleSession = {},
+                onAddProject = {},
+                onUpdateProject = { _, _ -> },
+                onUpdateClient = {},
             )
         }
     }

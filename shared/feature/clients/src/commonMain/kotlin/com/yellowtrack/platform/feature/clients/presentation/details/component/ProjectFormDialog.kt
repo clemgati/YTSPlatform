@@ -28,6 +28,9 @@ import com.yellowtrack.platform.feature.clients.presentation.details.model.NewPr
  *
  * The contract value is optional and kept on the booking rather than derived from
  * invoices, so that work agreed but not yet billed still reports as pipeline.
+ *
+ * Pass [initial] to edit a booking that already exists — which is chiefly how a job moves
+ * from Enquiry to Booked, the transition the contract and retainer rules are built around.
  */
 @Composable
 internal fun ProjectFormDialog(
@@ -35,18 +38,19 @@ internal fun ProjectFormDialog(
     currency: CurrencyCode,
     onSave: (NewProject) -> Unit,
     onDismiss: () -> Unit,
+    initial: NewProject? = null,
 ) {
-    var name by remember { mutableStateOf("") }
-    var serviceLine by remember { mutableStateOf(ServiceLine.Wedding) }
-    var status by remember { mutableStateOf(ProjectStatus.Enquiry) }
-    var contractValue by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var serviceLine by remember { mutableStateOf(initial?.serviceLine ?: ServiceLine.Wedding) }
+    var status by remember { mutableStateOf(initial?.status ?: ProjectStatus.Enquiry) }
+    var contractValue by remember { mutableStateOf(initial?.contractValue.orEmpty()) }
+    var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
 
     val valueValid = contractValue.isBlank() || parseMoney(contractValue, currency)?.isPositive == true
 
     YTFormDialog(
-        title = "Open a booking",
-        confirmLabel = "Save",
+        title = if (initial == null) "Open a booking" else "Edit booking",
+        confirmLabel = if (initial == null) "Save" else "Save changes",
         supportingText = "For $clientName",
         confirmEnabled = name.isNotBlank() && valueValid,
         onConfirm = {

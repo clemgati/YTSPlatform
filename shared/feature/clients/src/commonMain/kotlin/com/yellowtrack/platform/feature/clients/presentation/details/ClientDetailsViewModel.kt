@@ -58,7 +58,7 @@ internal class ClientDetailsViewModel(
                 val sessions = allSessions.filter { it.projectId in projectIds }
 
                 ClientDetailsUiState(
-                    client = UiState.Success(client.toClientDetailsModel(sessions, clock.now())),
+                    client = UiState.Success(client.toClientDetailsModel(sessions, projects, clock.now())),
                 )
             }
         }.catch { throwable ->
@@ -175,6 +175,44 @@ internal class ClientDetailsViewModel(
                     accountName = edited.accountName.trim(),
                     accountType = edited.accountType,
                     contacts = contacts,
+                    notes = edited.notes.trim().ifBlank { null },
+                    audit = existing.audit.touched(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Corrects a booking, which is chiefly how a job moves from Enquiry to Booked.
+     *
+     * `bookedAt` is stamped the first time the booking reaches a status that holds studio
+     * time, and never cleared afterwards. A cancelled job keeps the date it was booked on
+     * purpose: that date is what a cancellation fee is measured against, and clearing it
+     * would destroy the evidence at exactly the moment it is needed.
+     */
+    fun updateProject(
+        projectId: ProjectId,
+        edited: NewProject,
+    ) {
+        viewModelScope.launch {
+            if (edited.name.isBlank()) return@launch
+
+            val existing = projectRepository.getProject(projectId) ?: return@launch
+            val contractValue =
+                when {
+                    edited.contractValue.isBlank() -> null
+                    else -> parseMoney(edited.contractValue, currency)?.takeIf { it.isPositive } ?: return@launch
+                }
+
+            val now = clock.now()
+
+            projectRepository.saveProject(
+                existing.copy(
+                    name = edited.name.trim(),
+                    serviceLine = edited.serviceLine,
+                    status = edited.status,
+                    contractValue = contractValue,
+                    bookedAt = existing.bookedAt ?: now.takeIf { edited.status.isCommitted },
                     notes = edited.notes.trim().ifBlank { null },
                     audit = existing.audit.touched(now),
                 ),
