@@ -21,6 +21,7 @@ fun SessionsRoute(
         uiState = uiState,
         onRetry = viewModel::retry,
         onSessionSelected = onSessionSelected,
+        onAddSession = viewModel::addSession,
         modifier = modifier,
     )
 }

@@ -41,6 +41,20 @@ The project follows semantic versioning.
 - Clearing a single email or phone removes that entry rather than the list, so a contact
   with a work number and a personal one does not lose both to an edit of one
 
+- **A session can be scheduled**, completing the chain a studio actually works down:
+  client, then booking, then the days inside it. The booking comes first on the form
+  because a session belonging to nothing cannot be costed, invoiced, or answered for
+- **A wedding running past midnight is entered exactly as it reads.** An end time at or
+  before the start is taken as the following morning rather than refused — 14:00 to 01:00
+  is eleven hours, not an error, and rejecting it would make the commonest job in the
+  business unenterable. The form shows the resulting hours back, so a genuine typo
+  announces itself as an implausible duration
+- The zone is stored with the session rather than assumed on read, which is what the model
+  has asked for since 0.3.0: a destination wedding booked from home and a shoot straddling
+  a daylight-saving boundary both come out wrong when local time is treated as unambiguous
+- Crew call times resolve against the shoot's own day, so 12:30 for a 14:00 start is the
+  morning of the shoot rather than the morning after
+
 ### Fixed
 
 - **"Edit Client" was a button that did nothing.** It has sat on the client detail page
