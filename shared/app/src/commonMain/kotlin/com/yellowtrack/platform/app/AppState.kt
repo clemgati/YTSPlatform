@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.navigation.BackStack
 
 /**
@@ -36,6 +37,10 @@ class AppState internal constructor() {
 
     fun openClient(clientId: ClientId) {
         backStack = backStack.push(AppRoute.ClientDetails(clientId))
+    }
+
+    fun openSession(sessionId: SessionId) {
+        backStack = backStack.push(AppRoute.SessionDetails(sessionId))
     }
 
     fun navigateBack() {

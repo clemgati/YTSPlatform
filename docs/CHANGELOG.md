@@ -6,6 +6,18 @@ The project follows semantic versioning.
 
 ## Unreleased — 0.5.0 Shoot Day
 
+- **A session detail screen**, reached by selecting a shoot day. It carries when, where,
+  the notes, and the light — and it is what shot lists, crew, and call sheets will hang
+  from, none of which fit in a dialog
+- **The light panel**: blue hour, golden hour, sunrise, solar noon with the sun's height,
+  sunset, and the evening windows, in the session's own zone, with the sun's height and
+  bearing at the moment the shoot starts. The bearing is a compass point rather than a
+  number, because "in the south-south-west" is what someone standing in a field can act on
+  and 203° is not. Without a coordinate the panel says what it would do if given one,
+  rather than rendering nothing
+- Editing and moving a day moved from the list to that screen. The list navigates; the
+  detail screen edits — which is also where there is room to show what an edit affects,
+  since changing the date moves the golden hours with it
 - **A session can carry where it happens**, and the light is worked out from it. The
   coordinate is optional and nullable: a studio portrait has no use for the sun's position,
   and demanding one to save a session would charge every booking for what only outdoor work

@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.app
 
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.session.SessionId
 
 /**
  * A place in the application.
@@ -28,6 +29,12 @@ sealed interface AppRoute {
     }
 
     data object Sessions : AppRoute {
+        override val destination = AppDestination.Sessions
+    }
+
+    data class SessionDetails(
+        val sessionId: SessionId,
+    ) : AppRoute {
         override val destination = AppDestination.Sessions
     }
 

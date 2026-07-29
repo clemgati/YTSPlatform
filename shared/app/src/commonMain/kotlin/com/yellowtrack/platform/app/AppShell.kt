@@ -16,6 +16,7 @@ import com.yellowtrack.platform.feature.clients.ClientDetailsRoute
 import com.yellowtrack.platform.feature.clients.ClientsRoute
 import com.yellowtrack.platform.feature.dashboard.DashboardRoute
 import com.yellowtrack.platform.feature.ledger.LedgerRoute
+import com.yellowtrack.platform.feature.sessions.SessionDetailsRoute
 import com.yellowtrack.platform.feature.sessions.SessionsRoute
 import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
 import com.yellowtrack.platform.feature.studio.StudioRoute
@@ -108,9 +109,17 @@ private fun CurrentRoute(
             )
 
         AppRoute.Sessions ->
-            // Selecting a session opens its editor, which the feature owns. There is no
-            // separate detail route for the app module to push.
-            SessionsRoute(modifier = modifier)
+            SessionsRoute(
+                onSessionSelected = appState::openSession,
+                modifier = modifier,
+            )
+
+        is AppRoute.SessionDetails ->
+            SessionDetailsRoute(
+                sessionId = route.sessionId,
+                onBack = appState::navigateBack,
+                modifier = modifier,
+            )
 
         AppRoute.Ledger -> LedgerRoute(modifier = modifier)
 
