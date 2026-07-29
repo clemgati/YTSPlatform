@@ -100,6 +100,8 @@ internal class SqlDelightSessionRepository(
                 updated_at = now,
                 deleted_at = session.audit.deletedAt.toEpochMillisOrNull(),
                 version = session.audit.version.toLong(),
+                latitude = session.coordinates?.latitude,
+                longitude = session.coordinates?.longitude,
             )
 
             db.sessionQueries.update(
@@ -112,6 +114,8 @@ internal class SqlDelightSessionRepository(
                 timeZoneId = session.timeZoneId,
                 locationName = session.locationName,
                 locationAddress = session.locationAddress,
+                latitude = session.coordinates?.latitude,
+                longitude = session.coordinates?.longitude,
                 callTime = session.callTime.toEpochMillisOrNull(),
                 notes = session.notes,
                 updatedAt = now,

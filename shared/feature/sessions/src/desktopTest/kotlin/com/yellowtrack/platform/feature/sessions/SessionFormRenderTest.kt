@@ -9,8 +9,11 @@ import androidx.compose.ui.unit.Density
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.session.SessionKind
+import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import java.io.File
@@ -32,7 +35,7 @@ class SessionFormRenderTest {
         val target = File(outputDir, "session-form.png")
 
         val scene =
-            ImageComposeScene(width = 1_280, height = 1_800, density = Density(2f)) {
+            ImageComposeScene(width = 1_280, height = 2_400, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -48,6 +51,22 @@ class SessionFormRenderTest {
                                 ),
                             today = LocalDate(2026, 8, 15),
                             zone = TimeZone.of("Europe/London"),
+                            initial =
+                                NewSession(
+                                    projectId = ProjectId.new(),
+                                    title = "Wedding day",
+                                    kind = SessionKind.Shoot,
+                                    status = SessionStatus.Confirmed,
+                                    date = "2026-08-15",
+                                    startTime = "14:00",
+                                    endTime = "01:00",
+                                    callTime = "12:30",
+                                    locationName = "Thornbury Manor",
+                                    locationAddress = "",
+                                    latitude = "50.2",
+                                    longitude = "-5.5",
+                                    notes = "",
+                                ),
                             onSave = { _, _ -> },
                             onDismiss = {},
                         )

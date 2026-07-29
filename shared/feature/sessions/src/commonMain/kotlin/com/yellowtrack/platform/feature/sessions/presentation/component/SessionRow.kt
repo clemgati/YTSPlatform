@@ -45,6 +45,14 @@ internal fun SessionRow(
                     color = YTTheme.colors.onSurfaceVariant,
                 )
 
+                session.goldenHourLabel?.let { golden ->
+                    Text(
+                        text = golden,
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
                 session.timeZoneNote?.let { zone ->
                     Text(
                         text = "Local time in $zone",

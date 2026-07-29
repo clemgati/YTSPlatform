@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.sessions.presentation.component
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Checkbox
@@ -13,6 +14,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import com.yellowtrack.platform.core.common.solar.SolarCalculator
+import com.yellowtrack.platform.core.common.solar.SunEvents
+import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.designsystem.component.YTDropdownField
 import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
@@ -21,6 +26,8 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
+import com.yellowtrack.platform.feature.sessions.presentation.model.coordinates
+import com.yellowtrack.platform.feature.sessions.presentation.model.coordinatesValid
 import com.yellowtrack.platform.feature.sessions.presentation.model.timing
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -66,6 +73,8 @@ internal fun SessionFormDialog(
     var callTime by remember { mutableStateOf(initial?.callTime.orEmpty()) }
     var locationName by remember { mutableStateOf(initial?.locationName.orEmpty()) }
     var locationAddress by remember { mutableStateOf(initial?.locationAddress.orEmpty()) }
+    var latitude by remember { mutableStateOf(initial?.latitude.orEmpty()) }
+    var longitude by remember { mutableStateOf(initial?.longitude.orEmpty()) }
     var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
     var movedToNewDate by remember { mutableStateOf(false) }
 
@@ -84,11 +93,22 @@ internal fun SessionFormDialog(
                 callTime = callTime,
                 locationName = locationName,
                 locationAddress = locationAddress,
+                latitude = latitude,
+                longitude = longitude,
                 notes = notes,
             )
         }
 
     val timing = form?.timing(zone)
+
+    // Computed as the coordinate is typed, so the studio sees the light for the day it is
+    // actually looking at before committing to it.
+    val light =
+        form?.coordinates()?.let { coordinates ->
+            runCatching { LocalDate.parse(date) }.getOrNull()?.let { day ->
+                SolarCalculator.eventsOn(day, coordinates)
+            }
+        }
 
     YTFormDialog(
         title = if (initial == null) "Schedule a session" else "Edit session",
@@ -104,7 +124,7 @@ internal fun SessionFormDialog(
             } else {
                 null
             },
-        confirmEnabled = form != null && title.isNotBlank() && timing != null,
+        confirmEnabled = form != null && title.isNotBlank() && timing != null && form.coordinatesValid,
         onConfirm = { form?.let { onSave(it, movedToNewDate) } },
         onDismiss = onDismiss,
     ) {
@@ -185,6 +205,26 @@ internal fun SessionFormDialog(
             onValueChange = { locationAddress = it },
             label = "Address",
         )
+
+        YTTextField(
+            value = latitude,
+            onValueChange = { latitude = it },
+            label = "Latitude",
+            placeholder = "50.2",
+            keyboardType = KeyboardType.Decimal,
+            help = "Optional. With a coordinate, the light is worked out for this spot.",
+            errorMessage = if (form?.coordinatesValid == false) "North is positive, and both are needed" else null,
+        )
+
+        YTTextField(
+            value = longitude,
+            onValueChange = { longitude = it },
+            label = "Longitude",
+            placeholder = "-5.5",
+            keyboardType = KeyboardType.Decimal,
+        )
+
+        light?.let { LightSummary(it, zone) }
 
         YTTextField(
             value = notes,
@@ -271,3 +311,62 @@ private val SessionStatus.explanation: String
             SessionStatus.Postponed -> "Moved to a new date."
             SessionStatus.Cancelled -> "Cancelled."
         }
+
+/**
+ * The day's light at the place the shoot is.
+ *
+ * Shown inside the form rather than only on the session afterwards, because the answer
+ * changes what someone types: a couple wanting golden-hour portraits need the call time
+ * set against the light, not against the venue's booking slot.
+ */
+@Composable
+private fun LightSummary(
+    events: SunEvents,
+    zone: TimeZone,
+) {
+    fun at(instant: kotlin.time.Instant) = DateFormats.timeOfDay(instant, zone)
+
+    Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
+        Text(
+            text = "The light here",
+            style = YTTheme.typography.labelLarge,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        when {
+            events.isPolarDay ->
+                Text(
+                    text = "The sun does not set on this date at this latitude.",
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+
+            events.isPolarNight ->
+                Text(
+                    text = "The sun does not rise on this date at this latitude.",
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+
+            else -> {
+                events.sunrise?.let { sunrise ->
+                    events.sunset?.let { sunset ->
+                        Text(
+                            text = "Sunrise ${at(sunrise)} • Sunset ${at(sunset)}",
+                            style = YTTheme.typography.bodySmall,
+                            color = YTTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                events.eveningGoldenHour?.let { golden ->
+                    Text(
+                        text = "Golden hour ${at(golden.start)} to ${at(golden.end)}",
+                        style = YTTheme.typography.bodySmall,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+            }
+        }
+    }
+}

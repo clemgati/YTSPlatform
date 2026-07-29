@@ -1,0 +1,19 @@
+-- Migration 2 → 3: where a session happens.
+--
+-- Adds a coordinate to the session, so sunrise, sunset, and the golden hours can be
+-- computed for the place the shoot is actually at. The maths is offline — see
+-- `core:common`'s SolarCalculator — so this is the only thing standing between a studio
+-- and knowing when the light goes on a moor with no signal.
+--
+-- Nullable, because most sessions will never carry one: a studio portrait needs no sun
+-- position, and demanding a coordinate to save a session would be friction charged to
+-- every booking to serve the few that shoot outdoors.
+--
+-- Purely additive. Two nullable columns on an existing table, so every row a studio
+-- already has survives untouched with both columns null.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+ALTER TABLE session ADD COLUMN latitude REAL;
+ALTER TABLE session ADD COLUMN longitude REAL;

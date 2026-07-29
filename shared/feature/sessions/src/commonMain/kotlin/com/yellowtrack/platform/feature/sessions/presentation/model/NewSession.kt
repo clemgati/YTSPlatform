@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.sessions.presentation.model
 
+import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
@@ -38,8 +39,30 @@ internal data class NewSession(
     val callTime: String,
     val locationName: String,
     val locationAddress: String,
+    /** Blank unless the light matters, which is only outdoors. Both or neither. */
+    val latitude: String,
+    val longitude: String,
     val notes: String,
 )
+
+/**
+ * The typed coordinate, or null if it is absent or will not parse.
+ *
+ * Half a coordinate is not a place, so one field alone yields nothing rather than putting
+ * the shoot on the Greenwich meridian.
+ */
+internal fun NewSession.coordinates(): GeoCoordinates? {
+    if (latitude.isBlank() || longitude.isBlank()) return null
+
+    val lat = latitude.trim().toDoubleOrNull() ?: return null
+    val lon = longitude.trim().toDoubleOrNull() ?: return null
+
+    return runCatching { GeoCoordinates(latitude = lat, longitude = lon) }.getOrNull()
+}
+
+/** Whether what was typed is usable: either empty, or a coordinate that exists. */
+internal val NewSession.coordinatesValid: Boolean
+    get() = (latitude.isBlank() && longitude.isBlank()) || coordinates() != null
 
 /** A session's instants, resolved in the zone it happens in. */
 internal data class SessionTiming(

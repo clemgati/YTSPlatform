@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.sessions.presentation.mapper
 
+import com.yellowtrack.platform.core.common.solar.SolarCalculator
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.project.Project
@@ -41,6 +42,7 @@ internal fun buildSessionGroups(
             timeZoneNote = timeZoneId.takeIf { zone != deviceZone },
             zoneId = timeZoneId,
             editable = toEditableForm(zone),
+            goldenHourLabel = goldenHourLabel(zone),
         )
     }
 
@@ -73,6 +75,8 @@ private fun Session.toEditableForm(zone: TimeZone): NewSession {
                 .orEmpty(),
         locationName = locationName.orEmpty(),
         locationAddress = locationAddress.orEmpty(),
+        latitude = coordinates?.latitude?.toString().orEmpty(),
+        longitude = coordinates?.longitude?.toString().orEmpty(),
         notes = notes.orEmpty(),
     )
 }
@@ -85,3 +89,25 @@ private fun Session.toEditableForm(zone: TimeZone): NewSession {
  */
 private fun LocalTime.hourAndMinute(): String =
     "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+/**
+ * When the good light is on this shoot day, or null where there is no coordinate.
+ *
+ * The evening window is the one shown: it is the one a shoot is planned around far more
+ * often than dawn, and a row has space for one figure rather than four.
+ */
+private fun Session.goldenHourLabel(zone: TimeZone): String? {
+    val where = coordinates ?: return null
+    val day = startsAt.toLocalDateTime(zone).date
+    val events = SolarCalculator.eventsOn(day, where)
+
+    return when {
+        events.isPolarDay -> "Sun up all day"
+        events.isPolarNight -> "Sun never rises"
+        else ->
+            events.eveningGoldenHour?.let { golden ->
+                "Golden ${DateFormats.timeOfDay(golden.start, zone)}" +
+                    "–${DateFormats.timeOfDay(golden.end, zone)}"
+            }
+    }
+}

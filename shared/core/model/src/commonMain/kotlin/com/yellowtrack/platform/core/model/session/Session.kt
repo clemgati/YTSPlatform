@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.model.session
 
+import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.common.StudioScoped
@@ -34,6 +35,14 @@ data class Session(
     val timeZoneId: String,
     val locationName: String? = null,
     val locationAddress: String? = null,
+    /**
+     * Where the shoot is, when it matters.
+     *
+     * Null for the great majority of sessions — a studio portrait has no use for the sun's
+     * position. Present, it is what lets sunrise, sunset, and the golden hours be computed
+     * for this day at this place, offline.
+     */
+    val coordinates: GeoCoordinates? = null,
     val callTime: Instant? = null,
     val notes: String? = null,
     override val audit: AuditMetadata,

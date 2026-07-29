@@ -6,6 +6,17 @@ The project follows semantic versioning.
 
 ## Unreleased — 0.5.0 Shoot Day
 
+- **A session can carry where it happens**, and the light is worked out from it. The
+  coordinate is optional and nullable: a studio portrait has no use for the sun's position,
+  and demanding one to save a session would charge every booking for what only outdoor work
+  needs. Half a coordinate is refused — one field alone would put the shoot on the
+  Greenwich meridian
+- The golden hour appears on the session as it is typed and on the row afterwards, in the
+  session's own zone
+- **Schema migration 2 → 3**, purely additive: two nullable columns on `session`, with the
+  `3.db` snapshot committed. Tests cover a version-two database keeping its sessions, a
+  coordinate surviving a round trip, and — for a studio that skipped a release — a
+  version-one database being brought all the way to the current schema in one go
 - **Golden hour, blue hour, sunrise, sunset, and the sun's bearing**, computed from a date
   and a coordinate with no network involved. A call sheet is written in an office and read
   in a field, and the field is where the signal is not

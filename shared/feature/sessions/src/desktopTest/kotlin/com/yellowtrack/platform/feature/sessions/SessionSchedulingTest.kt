@@ -8,6 +8,7 @@ import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
+import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.SessionsViewModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +70,8 @@ class SessionSchedulingTest {
         callTime: String = "",
         kind: SessionKind = SessionKind.Shoot,
         status: SessionStatus = SessionStatus.Scheduled,
+        latitude: String = "",
+        longitude: String = "",
     ) = NewSession(
         projectId = projectId,
         title = title,
@@ -80,6 +83,8 @@ class SessionSchedulingTest {
         callTime = callTime,
         locationName = "Thornbury Manor",
         locationAddress = "",
+        latitude = latitude,
+        longitude = longitude,
         notes = "",
     )
 
@@ -342,5 +347,148 @@ class SessionSchedulingTest {
                     .single()
             assertEquals(SessionStatus.Cancelled, stored.status)
             assertTrue(!stored.status.occupiesCalendar)
+        }
+
+    // --- Where the shoot is ------------------------------------------------------------
+
+    @Test
+    fun `a coordinate is stored with the session`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+
+            viewModel.addSession(newSession(latitude = "50.2", longitude = "-5.5"))
+
+            val stored =
+                assertNotNull(
+                    sessions
+                        .observeSessions()
+                        .first()
+                        .single()
+                        .coordinates,
+                )
+            assertEquals(50.2, stored.latitude)
+            assertEquals(-5.5, stored.longitude)
+        }
+
+    @Test
+    fun `most sessions carry no coordinate and are stored all the same`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+
+            viewModel.addSession(newSession())
+
+            assertNull(
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+                    .coordinates,
+                "a studio portrait has no use for the sun's position",
+            )
+        }
+
+    @Test
+    fun `half a coordinate is not a place`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+
+            viewModel.addSession(newSession(latitude = "50.2", longitude = ""))
+
+            assertNull(
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+                    .coordinates,
+                "one field alone must not put the shoot on the Greenwich meridian",
+            )
+        }
+
+    @Test
+    fun `an impossible coordinate is not stored`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+
+            viewModel.addSession(newSession(latitude = "151.2", longitude = "-33.8"))
+
+            assertNull(
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+                    .coordinates,
+            )
+        }
+
+    @Test
+    fun `a coordinate survives being moved to a new date`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+            viewModel.addSession(newSession(latitude = "50.2", longitude = "-5.5"))
+            val original =
+                sessions
+                    .observeSessions()
+                    .first()
+                    .single()
+
+            viewModel.moveSession(
+                original.id,
+                newSession(date = "2026-09-19", latitude = "50.2", longitude = "-5.5"),
+            )
+
+            val replacement =
+                assertNotNull(
+                    sessions
+                        .observeSessions()
+                        .first()
+                        .firstOrNull { it.id != original.id },
+                )
+            assertNotNull(replacement.coordinates, "the shoot did not move to a different place")
+        }
+
+    @Test
+    fun `a session with a coordinate reports when the good light is`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            // Cornwall in mid-August: sunset around 20:30 British Summer Time.
+            viewModel.addSession(
+                newSession(date = "2026-08-15", latitude = "50.2", longitude = "-5.5"),
+            )
+
+            val listed =
+                viewModel.uiState
+                    .first { it.groups is UiState.Success }
+                    .groups
+            val item =
+                ((listed as UiState.Success).data)
+                    .first()
+                    .sessions
+                    .single()
+
+            // Rendered in the session's own zone and in the app's usual 12-hour form:
+            // roughly 19:55 to 21:02 British Summer Time, straddling a 20:30 sunset.
+            val label = assertNotNull(item.goldenHourLabel, "a coordinate was given, so the light is knowable")
+            assertEquals("Golden 7:55 PM–9:02 PM", label)
+        }
+
+    @Test
+    fun `a session with no coordinate reports no light, rather than a guess`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.addSession(newSession())
+
+            val listed =
+                viewModel.uiState
+                    .first { it.groups is UiState.Success }
+                    .groups
+            val item =
+                ((listed as UiState.Success).data)
+                    .first()
+                    .sessions
+                    .single()
+
+            assertNull(item.goldenHourLabel)
         }
 }

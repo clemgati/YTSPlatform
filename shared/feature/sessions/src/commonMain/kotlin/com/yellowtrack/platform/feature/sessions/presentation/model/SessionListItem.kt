@@ -26,4 +26,6 @@ internal data class SessionListItem(
     val zoneId: String,
     /** The session as the form takes it, so editing opens showing what is already there. */
     val editable: NewSession,
+    /** The day's good light at this place, or null where no coordinate was given. */
+    val goldenHourLabel: String?,
 )

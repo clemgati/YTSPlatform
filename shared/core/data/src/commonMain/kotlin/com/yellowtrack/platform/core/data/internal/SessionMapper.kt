@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.session.Session
@@ -21,6 +22,12 @@ internal fun SessionRow.toDomain(): Session =
         timeZoneId = time_zone_id,
         locationName = location_name,
         locationAddress = location_address,
+        // Both or neither: half a coordinate is not a place, and constructing one from a
+        // stray latitude would put the shoot on the Greenwich meridian.
+        coordinates =
+            latitude?.let { lat ->
+                longitude?.let { lon -> GeoCoordinates(latitude = lat, longitude = lon) }
+            },
         callTime = call_time.toInstantOrNull(),
         notes = notes,
         audit = auditOf(created_at, updated_at, deleted_at, version),

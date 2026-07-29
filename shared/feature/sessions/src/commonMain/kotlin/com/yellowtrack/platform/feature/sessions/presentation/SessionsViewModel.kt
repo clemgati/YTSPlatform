@@ -15,6 +15,7 @@ import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.mapper.buildSessionGroups
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
+import com.yellowtrack.platform.feature.sessions.presentation.model.coordinates
 import com.yellowtrack.platform.feature.sessions.presentation.model.timing
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,6 +107,7 @@ internal class SessionsViewModel(
                     timeZoneId = deviceZone.id,
                     locationName = session.locationName.trim().ifBlank { null },
                     locationAddress = session.locationAddress.trim().ifBlank { null },
+                    coordinates = session.coordinates(),
                     callTime = timing.callTime,
                     notes = session.notes.trim().ifBlank { null },
                     audit = AuditMetadata.createdAt(now),
@@ -142,6 +144,7 @@ internal class SessionsViewModel(
                     endsAt = timing.endsAt,
                     locationName = edited.locationName.trim().ifBlank { null },
                     locationAddress = edited.locationAddress.trim().ifBlank { null },
+                    coordinates = edited.coordinates(),
                     callTime = timing.callTime,
                     notes = edited.notes.trim().ifBlank { null },
                     audit = existing.audit.touched(now),
@@ -195,6 +198,7 @@ internal class SessionsViewModel(
                     timeZoneId = original.timeZoneId,
                     locationName = rescheduled.locationName.trim().ifBlank { null },
                     locationAddress = rescheduled.locationAddress.trim().ifBlank { null },
+                    coordinates = rescheduled.coordinates(),
                     callTime = timing.callTime,
                     notes = rescheduled.notes.trim().ifBlank { null },
                     audit = AuditMetadata.createdAt(now),
