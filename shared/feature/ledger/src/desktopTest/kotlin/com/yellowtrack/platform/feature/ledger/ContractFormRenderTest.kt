@@ -13,6 +13,7 @@ import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.feature.ledger.presentation.component.ContractFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.ContractSignatureDialog
+import com.yellowtrack.platform.feature.ledger.presentation.component.QuoteFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
@@ -84,6 +85,23 @@ class ContractFormRenderTest {
     fun `renders the contract form`() {
         render("contract-form.png") {
             ContractFormDialog(
+                today = today,
+                currency = CurrencyCode.USD,
+                projects =
+                    listOf(
+                        ProjectOption(id = ProjectId.new(), label = "Johnson Wedding — Sarah & Michael Johnson"),
+                    ),
+                onSave = {},
+                onDismiss = {},
+            )
+        }
+    }
+
+    @Test
+    fun `renders the quote form with several lines`() {
+        render("quote-form.png") {
+            QuoteFormDialog(
+                suggestedNumber = "QUO-012",
                 today = today,
                 currency = CurrencyCode.USD,
                 projects =

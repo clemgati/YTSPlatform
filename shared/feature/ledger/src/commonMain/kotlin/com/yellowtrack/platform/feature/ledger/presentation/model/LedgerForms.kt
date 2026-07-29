@@ -33,12 +33,31 @@ internal data class NewPayment(
     val reference: String?,
 )
 
+/**
+ * One billable line as the form collected it.
+ *
+ * [quantity] is text like the rest: a quantity that will not parse is a typo to be shown
+ * back, not a silent one. It defaults to a single unit, which is what most lines are.
+ */
+internal data class NewLineItem(
+    val description: String,
+    val quantity: String = "1",
+    val unitPrice: String,
+    /** Blank means no tax on this line, which is common and not an omission. */
+    val taxRate: String = "",
+)
+
+/**
+ * What the quote form collected.
+ *
+ * Several lines, because that is how work is actually priced: coverage, a second shooter,
+ * and an album are three figures a client wants to see separately, and collapsing them
+ * into one total is how a studio loses the argument about what was included.
+ */
 internal data class NewQuote(
     val number: String,
     val projectId: ProjectId,
-    val description: String,
-    val amount: String,
-    val taxRate: String,
+    val lines: List<NewLineItem>,
     /** Blank means no expiry is set, which the form warns about rather than forbids. */
     val validUntil: String,
     val terms: String?,
@@ -48,9 +67,7 @@ internal data class NewInvoice(
     val number: String,
     val projectId: ProjectId,
     val kind: InvoiceKind,
-    val description: String,
-    val amount: String,
-    val taxRate: String,
+    val lines: List<NewLineItem>,
     val dueOn: String,
     /**
      * Whether to issue it now.

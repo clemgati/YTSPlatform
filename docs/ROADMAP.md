@@ -120,7 +120,8 @@ The biggest gap in the original roadmap.
 - ✓ Create forms for leads, quotes, invoices, expenses, and payments
 - ✓ Contract creation and signing from a screen, with the licence priced deliberately and
   the date held only once the retainer is paid
-- □ Line editing, so quotes and invoices can carry more than one line
+- ✓ Line editing, so quotes and invoices carry as many lines as the work has, with
+  quantities and per-line tax
 - □ Editing and deleting existing records
 
 ## 0.5.0 — Shoot Day

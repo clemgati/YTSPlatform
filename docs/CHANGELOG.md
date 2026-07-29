@@ -120,6 +120,24 @@ quotes, contracts, invoices, or any notion of what a job costs to deliver.
 - `YTChipField` in the design system, for choosing several values from a fixed list
 - 21 tests across drawing up, licensing, sending, signing, and what actually holds a date
 
+### Added — line editing
+
+- **Quotes and invoices carry as many lines as the work has.** Coverage, a second shooter,
+  and an album are three figures a client wants to see separately, and collapsing them into
+  one total is how a studio loses the argument about what was included
+- `LineItemsEditor`, shared by both forms, with a **running total** computed by exactly the
+  rule that will store the document — so the figure watched while typing and the figure the
+  client is sent cannot diverge. Tax appears as its own line only when there is some
+- **Quantity**, which `LineItem` has modelled since 0.3.0 without anything ever setting it.
+  Three extra hours at $250 is now three hours at $250, not a $750 line that no longer says
+  what it was
+- **One bad line rejects the whole document.** Saving with the unreadable line quietly
+  dropped would bill a client for less than the studio entered, with nothing on screen
+  saying so. The last remaining line cannot be removed either — a document with no lines
+  has no figure
+- Parsing lives in one place, `NewLineItem.toLineItem`, called by both the form and the
+  ViewModel, so there is a single answer to what counts as a valid line
+
 ### Changed
 
 - `YTFormDialog` may now grow to 560dp before scrolling, up from 420dp. Found by looking:
@@ -130,8 +148,6 @@ quotes, contracts, invoices, or any notion of what a job costs to deliver.
 
 ### Known gaps
 
-- Quotes and invoices are created with a single line; multi-line documents need line
-  editing, which is its own piece of work
 - A contract records that it was signed, not the signature itself; there is no document to
   countersign and `documentReference` stays empty until media hosting exists
 - Clients, projects, and sessions still cannot be created in the app
@@ -140,10 +156,12 @@ quotes, contracts, invoices, or any notion of what a job costs to deliver.
 - `DateFormats` remains English-only
 - All six tabs have been seen running on desktop, and the two contract dialogs have now
   been rasterised and looked at, which is what found the form height cap. The expense,
-  quote, invoice, and payment dialogs still have not been seen, no screen has been seen on
+  invoice, expense, and payment dialogs still have not been seen, no screen has been seen on
   Android, iOS, or the web, and nothing has yet been driven by a person rather than rendered
 - A fourteen-field contract still belongs on a screen rather than in a dialog on a phone,
   which is the revisit `YTFormDialog` has always said it was waiting for
+- Lines can be added and removed but not reordered, and an existing document's lines still
+  cannot be edited after it is saved — that waits on editing existing records
 
 ## Unreleased — 0.3.0 Bedrock
 

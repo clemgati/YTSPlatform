@@ -16,7 +16,6 @@ import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.QuoteRepository
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.StudioContext
-import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.codb.CodbBreakdown
 import com.yellowtrack.platform.core.model.codb.CodbProfile
@@ -58,6 +57,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
+import com.yellowtrack.platform.feature.ledger.presentation.model.toLineItems
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -293,7 +293,7 @@ internal class LedgerViewModel(
      */
     fun addQuote(quote: NewQuote) {
         viewModelScope.launch {
-            val line = lineItemOf(quote.description, quote.amount, quote.taxRate) ?: return@launch
+            val lines = quote.lines.toLineItems(currency) ?: return@launch
             val now = clock.now()
             val validUntil =
                 if (quote.validUntil.isBlank()) {
@@ -311,7 +311,7 @@ internal class LedgerViewModel(
                     number = quote.number.trim(),
                     status = QuoteStatus.Sent,
                     currency = currency,
-                    lines = listOf(line),
+                    lines = lines,
                     issuedAt = now,
                     validUntil = validUntil,
                     terms = quote.terms,
@@ -492,7 +492,7 @@ internal class LedgerViewModel(
 
     fun addInvoice(invoice: NewInvoice) {
         viewModelScope.launch {
-            val line = lineItemOf(invoice.description, invoice.amount, invoice.taxRate) ?: return@launch
+            val lines = invoice.lines.toLineItems(currency) ?: return@launch
             val dueOn = runCatching { LocalDate.parse(invoice.dueOn) }.getOrNull() ?: return@launch
             val now = clock.now()
 
@@ -505,7 +505,7 @@ internal class LedgerViewModel(
                     kind = invoice.kind,
                     status = if (invoice.sendNow) InvoiceStatus.Sent else InvoiceStatus.Draft,
                     currency = currency,
-                    lines = listOf(line),
+                    lines = lines,
                     // Stamped only when sent: an unissued invoice has no issue date, and
                     // inventing one would make a draft look like a demand already made.
                     issuedAt = now.takeIf { invoice.sendNow },
@@ -514,33 +514,6 @@ internal class LedgerViewModel(
                 ),
             )
         }
-    }
-
-    /**
-     * Builds a billable line, or null if the amount does not parse.
-     *
-     * A blank tax rate is zero rather than a rejection: most portrait and wedding work is
-     * quoted tax-inclusive or tax-free, and forcing a `0` into the field to proceed would
-     * be friction with no meaning.
-     */
-    private fun lineItemOf(
-        description: String,
-        amount: String,
-        taxRate: String,
-    ): LineItem? {
-        val price = parseMoney(amount, currency)?.takeIf { it.isPositive } ?: return null
-        val basisPoints =
-            if (taxRate.isBlank()) {
-                0
-            } else {
-                parsePercentageToBasisPoints(taxRate)?.takeIf { it >= 0 } ?: return null
-            }
-
-        return LineItem(
-            description = description.trim(),
-            unitPrice = price,
-            taxRateBasisPoints = basisPoints,
-        )
     }
 
     fun recordPayment(payment: NewPayment) {
