@@ -1,0 +1,9 @@
+-- Version 11 to 12: what the studio charges in.
+--
+-- Defaulted to USD rather than left null so that every existing row keeps working without
+-- a nullable currency having to be handled at each of the dozen places money is rendered.
+-- A studio that charges in something else changes it once, in Settings.
+--
+-- Appended at the end of the table, because ALTER TABLE appends and the .sq declaration
+-- has to match the shape a migrated database actually has.
+ALTER TABLE studio_profile ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD';

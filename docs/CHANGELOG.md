@@ -8,6 +8,26 @@ The project follows semantic versioning.
 
 ### Added
 
+- **The application was silently dollars-only.** `CurrencyCode` has carried a comment since
+  it was written saying a studio's currency "is a per-studio setting rather than a global
+  constant" — and it was a global constant: a hardcoded default argument on six ViewModels,
+  settable nowhere. Every price, total, and figure on screen said dollars whatever the
+  studio actually charged, and once invoices started leaving the building in the same
+  milestone, so did they
+- The currency now lives on the studio profile, beside the name and the tax number, with
+  one fallback in one place rather than a default repeated per ViewModel — which is exactly
+  how it became a global constant the first time. **Migration 11 → 12** adds the column,
+  defaulted to `USD` so every existing row keeps working
+- **Money in two currencies cannot be added, and now the Ledger says so.** `Money` refuses
+  to add pounds to dollars, which is right; `buildMoneyOwed` was summing across every
+  outstanding invoice without checking, so the first studio to change currency would have
+  taken the whole screen down. The totals now cover what matches and report what they leave
+  out — a total quietly missing an invoice is worse than one that says it is short. The
+  expense and proposal summaries had filtered this way from the start; this one had not,
+  which went unnoticed while every figure in the application was hardcoded to dollars
+- Found by a test that hung rather than failed: the exception was caught into an error
+  state, so waiting for a success that never came looked like a slow test
+
 - **Studio details, at last.** The Settings screen has said since 0.1.0 that there was
   nothing to configure and that studio details "arrive with the account model". They are
   needed sooner: documents started leaving the building in this same milestone, and accounts

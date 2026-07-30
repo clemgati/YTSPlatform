@@ -2,13 +2,15 @@ package com.yellowtrack.platform.feature.clients.presentation.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.data.observeCurrency
 import com.yellowtrack.platform.core.model.client.ClientContact
 import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
@@ -37,8 +39,8 @@ internal class ClientDetailsViewModel(
     private val projectRepository: ProjectRepository,
     sessionRepository: SessionRepository,
     private val studioContext: StudioContext,
+    private val studioProfileRepository: StudioProfileRepository,
     private val clock: AppClock,
-    private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
@@ -47,8 +49,9 @@ internal class ClientDetailsViewModel(
             clientRepository.observeClient(clientId),
             projectRepository.observeProjectsForClient(clientId),
             sessionRepository.observeSessions(),
+            studioProfileRepository.observeCurrency(),
             retryTrigger,
-        ) { client, projects, allSessions, _ ->
+        ) { client, projects, allSessions, studioCurrency, _ ->
             if (client == null) {
                 ClientDetailsUiState(client = UiState.Error("Client could not be found."))
             } else {
@@ -59,6 +62,7 @@ internal class ClientDetailsViewModel(
 
                 ClientDetailsUiState(
                     client = UiState.Success(client.toClientDetailsModel(sessions, projects, clock.now())),
+                    currency = studioCurrency,
                 )
             }
         }.catch { throwable ->
@@ -87,7 +91,9 @@ internal class ClientDetailsViewModel(
             val contractValue =
                 when {
                     project.contractValue.isBlank() -> null
-                    else -> parseMoney(project.contractValue, currency)?.takeIf { it.isPositive } ?: return@launch
+                    else ->
+                        parseMoney(project.contractValue, studioProfileRepository.currency())?.takeIf { it.isPositive }
+                            ?: return@launch
                 }
 
             val now = clock.now()

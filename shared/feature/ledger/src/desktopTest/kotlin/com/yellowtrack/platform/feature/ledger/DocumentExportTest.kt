@@ -31,9 +31,11 @@ import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
+import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -78,14 +80,17 @@ class DocumentExportTest {
         val sink: RecordingDocumentSink,
     )
 
-    private fun harness(profile: StudioProfile? = studioProfile()): Harness {
+    private fun harness(
+        profile: StudioProfile? = studioProfile(),
+        invoices: List<Invoice> = listOf(invoice()),
+    ): Harness {
         val sink = RecordingDocumentSink()
         val expenses = FakeExpenseRepository()
 
         return Harness(
             viewModel =
                 LedgerViewModel(
-                    invoiceRepository = FakeInvoiceRepository(listOf(invoice())),
+                    invoiceRepository = FakeInvoiceRepository(invoices),
                     quoteRepository = FakeQuoteRepository(),
                     contractRepository = FakeContractRepository(),
                     expenseRepository = expenses,
@@ -105,15 +110,18 @@ class DocumentExportTest {
         )
     }
 
-    private fun studioProfile(name: String = "Yellow Track Studios") =
-        StudioProfile(
-            id = StudioProfileId.new(),
-            studioId = studioId,
-            name = name,
-            address = "12 Harbour Road",
-            paymentInstructions = "Bank transfer, sort 00-00-00",
-            audit = AuditMetadata.createdAt(now),
-        )
+    private fun studioProfile(
+        name: String = "Yellow Track Studios",
+        currency: CurrencyCode = usd,
+    ) = StudioProfile(
+        id = StudioProfileId.new(),
+        studioId = studioId,
+        name = name,
+        address = "12 Harbour Road",
+        paymentInstructions = "Bank transfer, sort 00-00-00",
+        currency = currency,
+        audit = AuditMetadata.createdAt(now),
+    )
 
     private fun client() =
         Client(
@@ -135,20 +143,22 @@ class DocumentExportTest {
             audit = AuditMetadata.createdAt(now),
         )
 
-    private fun invoice() =
-        Invoice(
-            id = invoiceId,
-            studioId = studioId,
-            projectId = projectId,
-            number = "INV-004",
-            kind = InvoiceKind.Balance,
-            status = InvoiceStatus.Sent,
-            currency = usd,
-            lines = listOf(LineItem("Wedding coverage", Money(400_000L, usd))),
-            issuedAt = now,
-            dueAt = now + 14.days,
-            audit = AuditMetadata.createdAt(now),
-        )
+    private fun invoice(
+        id: InvoiceId = invoiceId,
+        currency: CurrencyCode = usd,
+    ) = Invoice(
+        id = id,
+        studioId = studioId,
+        projectId = projectId,
+        number = "INV-004",
+        kind = InvoiceKind.Balance,
+        status = InvoiceStatus.Sent,
+        currency = currency,
+        lines = listOf(LineItem("Wedding coverage", Money(400_000L, currency))),
+        issuedAt = now,
+        dueAt = now + 14.days,
+        audit = AuditMetadata.createdAt(now),
+    )
 
     // --- The happy path ------------------------------------------------------------------
 
@@ -209,6 +219,55 @@ class DocumentExportTest {
     fun `nothing blocks a studio that has filled its details in`() =
         runTest {
             assertNull(harness().viewModel.documentBlocker())
+        }
+
+    // --- What the studio charges in ------------------------------------------------------
+
+    @Test
+    fun `a studio charging in pounds sees pounds on its screen`() =
+        runTest {
+            val harness = harness(profile = studioProfile(currency = CurrencyCode.GBP))
+
+            val content = harness.viewModel.uiState.first { it.content is UiState.Success }
+
+            assertEquals(
+                CurrencyCode.GBP,
+                (content.content as UiState.Success).data.currency,
+                "CurrencyCode has said since it was written that this is a per-studio setting",
+            )
+        }
+
+    @Test
+    fun `a studio that has said nothing is charging in dollars rather than in nothing`() =
+        runTest {
+            val harness = harness(profile = null)
+
+            val content = harness.viewModel.uiState.first { it.content is UiState.Success }
+
+            assertEquals(usd, (content.content as UiState.Success).data.currency)
+        }
+
+    @Test
+    fun `an invoice in the old currency does not break the ledger`() =
+        runTest {
+            // A studio that has changed what it charges in still has invoices in the old
+            // one. Money refuses to add pounds to dollars — rightly — and until the totals
+            // filtered, that refusal took the whole screen down.
+            val harness =
+                harness(
+                    profile = studioProfile(currency = CurrencyCode.GBP),
+                    invoices =
+                        listOf(
+                            invoice(currency = usd),
+                            invoice(id = InvoiceId.new(), currency = CurrencyCode.GBP),
+                        ),
+                )
+
+            val content = harness.viewModel.uiState.first { it.content is UiState.Success }
+            val owed = (content.content as UiState.Success).data.moneyOwed
+
+            assertEquals(2, owed.invoices.size, "both are still listed, each in its own currency")
+            assertEquals(1, owed.otherCurrencyCount, "and the total says what it leaves out")
         }
 
     @Test

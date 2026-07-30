@@ -2,12 +2,14 @@ package com.yellowtrack.platform.feature.studio.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.GearRepository
 import com.yellowtrack.platform.core.data.LightingRecipeRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.data.observeCurrency
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
@@ -44,8 +46,8 @@ internal class StudioViewModel(
     private val recipeRepository: LightingRecipeRepository,
     private val studioContext: StudioContext,
     private val clock: AppClock,
+    private val studioProfileRepository: StudioProfileRepository,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
-    private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
@@ -58,7 +60,8 @@ internal class StudioViewModel(
                 combine(
                     gearRepository.observeGear(),
                     recipeRepository.observeRecipes(),
-                ) { gear, recipes ->
+                    studioProfileRepository.observeCurrency(),
+                ) { gear, recipes, currency ->
                     StudioUiState(
                         content =
                             UiState.Success(
@@ -99,7 +102,7 @@ internal class StudioViewModel(
                     category = form.category,
                     status = form.status,
                     serialNumber = form.serialNumber?.trim()?.ifBlank { null },
-                    purchasePrice = form.purchasePrice?.let { parseMoney(it, currency) },
+                    purchasePrice = form.purchasePrice?.let { parseMoney(it, studioProfileRepository.currency()) },
                     purchasedOn = form.purchasedOn?.toLocalDateOrNull(),
                     // Stored as an instant because a service is an event, but entered as a
                     // date because nobody remembers the hour they dropped a body off.

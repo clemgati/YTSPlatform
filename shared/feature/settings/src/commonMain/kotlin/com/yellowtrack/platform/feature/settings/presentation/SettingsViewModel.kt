@@ -2,6 +2,7 @@ package com.yellowtrack.platform.feature.settings.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
@@ -87,6 +88,7 @@ internal class SettingsViewModel(
                             .trim()
                             .ifBlank { null },
                     documentFooter = fields.documentFooter.trim().ifBlank { null },
+                    currency = fields.currency,
                     audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 )
 
@@ -111,6 +113,7 @@ internal class SettingsViewModel(
             taxNumber = this?.taxNumber.orEmpty(),
             paymentInstructions = this?.paymentInstructions.orEmpty(),
             documentFooter = this?.documentFooter.orEmpty(),
+            currency = this?.currency ?: CurrencyCode.USD,
         )
 
     private companion object {

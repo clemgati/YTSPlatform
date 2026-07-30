@@ -56,6 +56,13 @@ internal data class MoneyOwedSummary(
     val overdueAmount: String,
     val overdueCount: Int,
     val invoices: List<OutstandingInvoiceItem>,
+    /**
+     * Outstanding invoices in some other currency, which the totals above cannot include.
+     *
+     * They are still listed, each showing its own currency. Only the sum leaves them out,
+     * because adding pounds to dollars produces a number that is not money.
+     */
+    val otherCurrencyCount: Int = 0,
     /** Raised and not yet sent, oldest first — the longest-agreed work goes uncollected. */
     val drafts: List<DraftInvoiceItem> = emptyList(),
 ) {

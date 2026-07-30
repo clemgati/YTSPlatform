@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
@@ -46,6 +47,7 @@ internal class SqlDelightStudioProfileRepository(
                 tax_number = profile.taxNumber,
                 payment_instructions = profile.paymentInstructions,
                 document_footer = profile.documentFooter,
+                currency = profile.currency.code,
                 created_at = profile.audit.createdAt.toEpochMillis(),
                 updated_at = now,
                 deleted_at = profile.audit.deletedAt.toEpochMillisOrNull(),
@@ -54,6 +56,7 @@ internal class SqlDelightStudioProfileRepository(
 
             db.studioProfileQueries.update(
                 name = profile.name,
+                currency = profile.currency.code,
                 address = profile.address,
                 email = profile.email,
                 phone = profile.phone,
@@ -82,5 +85,9 @@ internal fun StudioProfileRow.toDomain(): StudioProfile =
         taxNumber = tax_number,
         paymentInstructions = payment_instructions,
         documentFooter = document_footer,
+        // An unreadable code falls back to dollars rather than throwing: CurrencyCode
+        // rejects anything that is not three letters, and a corrupt row must not make the
+        // whole studio unopenable.
+        currency = runCatching { CurrencyCode(currency) }.getOrDefault(CurrencyCode.USD),
         audit = auditOf(created_at, updated_at, deleted_at, version),
     )

@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.core.model.studio
 
 import com.yellowtrack.platform.core.common.id.uuidV7
+import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.common.StudioScoped
@@ -46,6 +47,10 @@ value class StudioProfileId(
  * @param documentFooter the line at the bottom of everything — payment terms, a late
  *   payment notice, a company registration statement. One place rather than a field per
  *   jurisdiction's requirement.
+ * @param currency what the studio charges in. `CurrencyCode` has said since it was written
+ *   that this "is a per-studio setting rather than a global constant", and until now it was
+ *   a global constant — every screen and every invoice was denominated in dollars whatever
+ *   the studio actually charged. This is where that setting lives.
  */
 @Serializable
 data class StudioProfile(
@@ -60,6 +65,7 @@ data class StudioProfile(
     val taxNumber: String? = null,
     val paymentInstructions: String? = null,
     val documentFooter: String? = null,
+    val currency: CurrencyCode = CurrencyCode.USD,
     override val audit: AuditMetadata,
 ) : StudioScoped {
     /**

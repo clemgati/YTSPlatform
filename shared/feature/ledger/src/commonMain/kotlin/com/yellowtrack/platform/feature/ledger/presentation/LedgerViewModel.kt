@@ -2,7 +2,6 @@ package com.yellowtrack.platform.feature.ledger.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.basisPointsAsPercentage
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.money.parsePercentageToBasisPoints
@@ -19,6 +18,8 @@ import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.data.observeCurrency
 import com.yellowtrack.platform.core.export.Document
 import com.yellowtrack.platform.core.export.DocumentFormat
 import com.yellowtrack.platform.core.export.DocumentSink
@@ -106,7 +107,6 @@ internal class LedgerViewModel(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
-    private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
@@ -177,7 +177,8 @@ internal class LedgerViewModel(
                         postProductionRepository.observeCompletedTasks(),
                         ::Work,
                     ),
-                ) { books, costs, proposals, work ->
+                    studioProfileRepository.observeCurrency(),
+                ) { books, costs, proposals, work, currency ->
                     LedgerUiState(
                         content =
                             UiState.Success(
@@ -372,6 +373,7 @@ internal class LedgerViewModel(
         taxRateText: String,
     ) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val salary = parseMoney(salaryText, currency) ?: return@launch
             val billableDays = billableDaysText.toIntOrNull()?.takeIf { it in 1..366 } ?: return@launch
             val taxBasisPoints =
@@ -405,6 +407,7 @@ internal class LedgerViewModel(
 
     fun addExpense(expense: NewExpense) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val amount = parseMoney(expense.amount, currency)?.takeIf { it.isPositive } ?: return@launch
             val incurredOn = runCatching { LocalDate.parse(expense.incurredOn) }.getOrNull() ?: return@launch
             val now = clock.now()
@@ -434,6 +437,7 @@ internal class LedgerViewModel(
      */
     fun addQuote(quote: NewQuote) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val lines = quote.lines.toLineItems(currency) ?: return@launch
             val now = clock.now()
             val validUntil =
@@ -504,6 +508,7 @@ internal class LedgerViewModel(
      */
     fun addContract(contract: NewContract) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val retainer =
                 when {
                     contract.retainerAmount.isBlank() -> null
@@ -633,6 +638,7 @@ internal class LedgerViewModel(
 
     fun addInvoice(invoice: NewInvoice) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val lines = invoice.lines.toLineItems(currency) ?: return@launch
             val dueOn = runCatching { LocalDate.parse(invoice.dueOn) }.getOrNull() ?: return@launch
             val now = clock.now()
@@ -722,6 +728,7 @@ internal class LedgerViewModel(
 
     fun recordPayment(payment: NewPayment) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val amount = parseMoney(payment.amount, currency)?.takeIf { it.isPositive } ?: return@launch
             val paidOn = runCatching { LocalDate.parse(payment.paidOn) }.getOrNull() ?: return@launch
             val now = clock.now()

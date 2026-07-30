@@ -15,7 +15,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.designsystem.component.YTButton
+import com.yellowtrack.platform.core.designsystem.component.YTDropdownField
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
@@ -105,6 +107,15 @@ internal fun SettingsScreen(
                     onValueChange = { fields = fields.copy(website = it) },
                     label = "Website",
                 )
+
+                YTDropdownField(
+                    label = "You charge in",
+                    selected = fields.currency,
+                    options = CURRENCIES,
+                    optionLabel = { it.code },
+                    onSelect = { fields = fields.copy(currency = it) },
+                    help = "Every price, total, and invoice is denominated in this.",
+                )
             }
 
             YTSectionCard(title = "For invoices") {
@@ -160,3 +171,20 @@ internal fun SettingsScreen(
         }
     }
 }
+
+/**
+ * The currencies offered.
+ *
+ * A short list rather than all of ISO 4217: these are the ones the money formatter has a
+ * symbol for, and offering a hundred and eighty codes that render as "XPF 4,000.00" would
+ * be a worse answer than a short list plus a request.
+ */
+private val CURRENCIES =
+    listOf(
+        CurrencyCode.USD,
+        CurrencyCode.EUR,
+        CurrencyCode.GBP,
+        CurrencyCode.CAD,
+        CurrencyCode.AUD,
+        CurrencyCode.KES,
+    )

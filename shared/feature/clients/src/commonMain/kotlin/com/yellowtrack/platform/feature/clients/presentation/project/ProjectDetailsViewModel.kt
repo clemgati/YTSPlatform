@@ -2,7 +2,6 @@ package com.yellowtrack.platform.feature.clients.presentation.project
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
@@ -12,6 +11,9 @@ import com.yellowtrack.platform.core.data.PostProductionRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.data.observeCurrency
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contract.Contract
@@ -52,8 +54,8 @@ internal class ProjectDetailsViewModel(
     private val deliverableRepository: DeliverableRepository,
     contractRepository: ContractRepository,
     private val studioContext: StudioContext,
+    private val studioProfileRepository: StudioProfileRepository,
     private val clock: AppClock,
-    private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
@@ -87,8 +89,9 @@ internal class ProjectDetailsViewModel(
                 contractRepository.observeContractsForProject(projectId),
                 ::Work,
             ),
+            studioProfileRepository.observeCurrency(),
             retryTrigger,
-        ) { booking, work, _ ->
+        ) { booking, work, studioCurrency, _ ->
             val project = booking.project
             val clients = booking.clients
             val sessions = booking.sessions
@@ -112,7 +115,7 @@ internal class ProjectDetailsViewModel(
                                 now = clock.now(),
                             ),
                         ),
-                    currency = currency,
+                    currency = studioCurrency,
                 )
             }
         }.catch { throwable ->
@@ -221,7 +224,9 @@ internal class ProjectDetailsViewModel(
             val contractValue =
                 when {
                     edited.contractValue.isBlank() -> null
-                    else -> parseMoney(edited.contractValue, currency)?.takeIf { it.isPositive } ?: return@launch
+                    else ->
+                        parseMoney(edited.contractValue, studioProfileRepository.currency())?.takeIf { it.isPositive }
+                            ?: return@launch
                 }
 
             val now = clock.now()

@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.testing.FakeDeliverableRepository
 import com.yellowtrack.platform.core.testing.FakePostProductionRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
+import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.testing.TestData
 import com.yellowtrack.platform.core.ui.state.UiState
@@ -71,6 +72,7 @@ class ProjectDetailsViewModelTest {
             postProductionRepository = tasks,
             deliverableRepository = deliverables,
             contractRepository = FakeContractRepository(),
+            studioProfileRepository = FakeStudioProfileRepository(),
             studioContext = LocalStudioContext(),
             clock = clock,
         )

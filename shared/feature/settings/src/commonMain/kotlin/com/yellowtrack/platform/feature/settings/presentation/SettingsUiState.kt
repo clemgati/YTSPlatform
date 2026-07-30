@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.settings.presentation
 
+import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.ui.state.UiState
 
 internal data class SettingsUiState(
@@ -22,6 +23,7 @@ internal data class StudioProfileFields(
     val taxNumber: String = "",
     val paymentInstructions: String = "",
     val documentFooter: String = "",
+    val currency: CurrencyCode = CurrencyCode.USD,
 )
 
 internal data class SettingsContent(
