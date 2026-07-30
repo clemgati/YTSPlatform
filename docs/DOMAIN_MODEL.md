@@ -187,9 +187,9 @@ Notes from practice:
 
 | Entity | Notes |
 | --- | --- |
-| `GearItem` | Make/model, **serial**, purchase date + price, current value, warranty, insurance policy, condition, shutter count, firmware, owned vs rented |
-| `GearKit` | Packing template, per service template; checked state per session |
-| `MaintenanceRecord` | Sensor cleaning, calibration, repair, next-due date |
+| `GearItem` | Make/model, **serial**, purchase date + price, status (in service, in repair, retired, lost), last serviced. Current value, warranty, insurance policy, shutter count, firmware and owned-vs-rented are still on the map, not in the table |
+| `PackingEntry` | What went to one session, packed and returned tracked separately. Built per session rather than from a `GearKit` template, which is still to come |
+| `MaintenanceRecord` | Sensor cleaning, calibration, repair, next-due date. Only the last service date is held so far — a history, and a due date, are not |
 | `MemoryCard` | Label, capacity, first-use date, **retirement date**, current contents |
 | `LightingRecipe` | Diagram, modifiers, power settings, distances, camera settings, result reference |
 
@@ -287,7 +287,8 @@ what allows the future Ktor server to depend on the same module, so that adding 
 | Interaction | Not yet implemented |
 | Location, Shot, CallSheet, CrewAssignment, Release | Milestone 0.5.0 |
 | MediaBatch, StorageVolume, PostTask, Deliverable, Gallery | Milestone 0.6.0 |
-| GearItem, GearKit, MaintenanceRecord, MemoryCard, LightingRecipe | Milestone 0.6.0 |
+| GearItem, PackingEntry, LightingRecipe | Milestone 0.6.0 ✓ |
+| GearKit, MaintenanceRecord, MemoryCard | Not yet implemented |
 | Studio, User, StudioMember, sync | Milestone 0.7.0 |
 
 Entities not yet implemented still live on this map. The base columns and tenant scope are

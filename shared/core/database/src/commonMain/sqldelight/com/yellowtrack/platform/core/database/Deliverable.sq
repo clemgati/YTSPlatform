@@ -1,0 +1,62 @@
+-- Something promised to the client at the end of a job; see migration 7.sqm.
+CREATE TABLE deliverable (
+    id             TEXT    NOT NULL PRIMARY KEY,
+    studio_id      TEXT    NOT NULL,
+    project_id     TEXT    NOT NULL,
+    name           TEXT    NOT NULL,
+    kind           TEXT    NOT NULL,
+    status         TEXT    NOT NULL,
+    due_at         INTEGER,
+    delivered_at   INTEGER,
+    approved_at    INTEGER,
+    revisions_used INTEGER NOT NULL DEFAULT 0,
+    notes          TEXT,
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    deleted_at     INTEGER,
+    version        INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX deliverable_project_idx ON deliverable(project_id, deleted_at, status);
+
+-- Outstanding first: what the client is still owed is what the page is opened to see.
+selectByProject:
+SELECT *
+FROM deliverable
+WHERE project_id = :projectId AND deleted_at IS NULL
+ORDER BY status = 'Approved', created_at;
+
+selectById:
+SELECT *
+FROM deliverable
+WHERE id = :id AND deleted_at IS NULL;
+
+-- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
+insertOrIgnore:
+INSERT OR IGNORE INTO deliverable(
+    id, studio_id, project_id, name, kind, status, due_at, delivered_at, approved_at,
+    revisions_used, notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE deliverable
+SET project_id     = :projectId,
+    name           = :name,
+    kind           = :kind,
+    status         = :status,
+    due_at         = :dueAt,
+    delivered_at   = :deliveredAt,
+    approved_at    = :approvedAt,
+    revisions_used = :revisionsUsed,
+    notes          = :notes,
+    updated_at     = :updatedAt,
+    deleted_at     = :deletedAt,
+    version        = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE deliverable
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

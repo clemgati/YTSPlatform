@@ -1,0 +1,67 @@
+-- Post-production work on a booking; see migration 6.sqm.
+CREATE TABLE post_task (
+    id              TEXT    NOT NULL PRIMARY KEY,
+    studio_id       TEXT    NOT NULL,
+    project_id      TEXT    NOT NULL,
+    name            TEXT    NOT NULL,
+    kind            TEXT    NOT NULL,
+    status          TEXT    NOT NULL,
+    estimated_hours REAL,
+    actual_hours    REAL,
+    completed_at    INTEGER,
+    notes           TEXT,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    deleted_at      INTEGER,
+    version         INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (project_id) REFERENCES project(id)
+);
+
+CREATE INDEX post_task_project_idx ON post_task(project_id, deleted_at, status);
+
+-- Unfinished first: what is still owed on this booking is what a studio opens the page to
+-- see. Done work sorts after it, in the order it was created.
+selectByProject:
+SELECT *
+FROM post_task
+WHERE project_id = :projectId AND deleted_at IS NULL
+ORDER BY status = 'Done', created_at;
+
+-- Every finished task across the studio, for measuring what post-production really costs.
+selectCompleted:
+SELECT *
+FROM post_task
+WHERE studio_id = :studioId AND deleted_at IS NULL AND status = 'Done';
+
+selectById:
+SELECT *
+FROM post_task
+WHERE id = :id AND deleted_at IS NULL;
+
+-- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
+insertOrIgnore:
+INSERT OR IGNORE INTO post_task(
+    id, studio_id, project_id, name, kind, status, estimated_hours, actual_hours,
+    completed_at, notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE post_task
+SET project_id      = :projectId,
+    name            = :name,
+    kind            = :kind,
+    status          = :status,
+    estimated_hours = :estimatedHours,
+    actual_hours    = :actualHours,
+    completed_at    = :completedAt,
+    notes           = :notes,
+    updated_at      = :updatedAt,
+    deleted_at      = :deletedAt,
+    version         = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE post_task
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

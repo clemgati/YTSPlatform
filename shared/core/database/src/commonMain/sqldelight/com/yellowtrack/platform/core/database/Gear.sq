@@ -1,0 +1,155 @@
+-- What the studio owns, what went out, and the set-ups worth repeating; see migration 9.sqm.
+CREATE TABLE gear_item (
+    id                   TEXT    NOT NULL PRIMARY KEY,
+    studio_id            TEXT    NOT NULL,
+    name                 TEXT    NOT NULL,
+    category             TEXT    NOT NULL,
+    status               TEXT    NOT NULL,
+    serial_number        TEXT,
+    purchase_price_minor INTEGER,
+    purchase_currency    TEXT,
+    purchased_on         TEXT,
+    last_serviced_at     INTEGER,
+    notes                TEXT,
+    created_at           INTEGER NOT NULL,
+    updated_at           INTEGER NOT NULL,
+    deleted_at           INTEGER,
+    version              INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX gear_studio_idx ON gear_item(studio_id, deleted_at, status);
+
+CREATE TABLE packing_entry (
+    id           TEXT    NOT NULL PRIMARY KEY,
+    studio_id    TEXT    NOT NULL,
+    session_id   TEXT    NOT NULL,
+    gear_item_id TEXT    NOT NULL,
+    is_packed    INTEGER NOT NULL DEFAULT 0,
+    is_returned  INTEGER NOT NULL DEFAULT 0,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL,
+    deleted_at   INTEGER,
+    version      INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (session_id) REFERENCES session(id),
+    FOREIGN KEY (gear_item_id) REFERENCES gear_item(id)
+);
+
+CREATE INDEX packing_session_idx ON packing_entry(session_id, deleted_at);
+
+CREATE TABLE lighting_recipe (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    studio_id  TEXT    NOT NULL,
+    name       TEXT    NOT NULL,
+    lights     TEXT    NOT NULL DEFAULT '[]',
+    notes      TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    version    INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX lighting_studio_idx ON lighting_recipe(studio_id, deleted_at);
+
+selectGear:
+SELECT *
+FROM gear_item
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY category, name;
+
+selectGearById:
+SELECT *
+FROM gear_item
+WHERE id = :id AND deleted_at IS NULL;
+
+insertGearOrIgnore:
+INSERT OR IGNORE INTO gear_item(
+    id, studio_id, name, category, status, serial_number, purchase_price_minor,
+    purchase_currency, purchased_on, last_serviced_at, notes,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateGear:
+UPDATE gear_item
+SET name                 = :name,
+    category             = :category,
+    status               = :status,
+    serial_number        = :serialNumber,
+    purchase_price_minor = :purchasePriceMinor,
+    purchase_currency    = :purchaseCurrency,
+    purchased_on         = :purchasedOn,
+    last_serviced_at     = :lastServicedAt,
+    notes                = :notes,
+    updated_at           = :updatedAt,
+    deleted_at           = :deletedAt,
+    version              = :version
+WHERE id = :id;
+
+softDeleteGear:
+UPDATE gear_item
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;
+
+selectPackingForSession:
+SELECT *
+FROM packing_entry
+WHERE session_id = :sessionId AND deleted_at IS NULL
+ORDER BY created_at;
+
+selectPackingById:
+SELECT *
+FROM packing_entry
+WHERE id = :id AND deleted_at IS NULL;
+
+insertPackingOrIgnore:
+INSERT OR IGNORE INTO packing_entry(
+    id, studio_id, session_id, gear_item_id, is_packed, is_returned,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updatePacking:
+UPDATE packing_entry
+SET is_packed   = :isPacked,
+    is_returned = :isReturned,
+    updated_at  = :updatedAt,
+    deleted_at  = :deletedAt,
+    version     = :version
+WHERE id = :id;
+
+softDeletePacking:
+UPDATE packing_entry
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;
+
+selectRecipes:
+SELECT *
+FROM lighting_recipe
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY name;
+
+selectRecipeById:
+SELECT *
+FROM lighting_recipe
+WHERE id = :id AND deleted_at IS NULL;
+
+insertRecipeOrIgnore:
+INSERT OR IGNORE INTO lighting_recipe(
+    id, studio_id, name, lights, notes, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateRecipe:
+UPDATE lighting_recipe
+SET name       = :name,
+    lights     = :lights,
+    notes      = :notes,
+    updated_at = :updatedAt,
+    deleted_at = :deletedAt,
+    version    = :version
+WHERE id = :id;
+
+softDeleteRecipe:
+UPDATE lighting_recipe
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id;

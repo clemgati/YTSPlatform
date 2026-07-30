@@ -14,6 +14,7 @@ import com.yellowtrack.platform.core.designsystem.component.YTScaffold
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.feature.clients.ClientDetailsRoute
 import com.yellowtrack.platform.feature.clients.ClientsRoute
+import com.yellowtrack.platform.feature.clients.ProjectDetailsRoute
 import com.yellowtrack.platform.feature.dashboard.DashboardRoute
 import com.yellowtrack.platform.feature.ledger.LedgerRoute
 import com.yellowtrack.platform.feature.sessions.SessionDetailsRoute
@@ -103,8 +104,17 @@ private fun CurrentRoute(
                 clientId = route.clientId,
                 onBack = appState::navigateBack,
                 onScheduleSession = { appState.navigateTopLevel(AppDestination.Sessions) },
+                onBookingSelected = appState::openProject,
                 // Editing is the feature's own business and stays inside it, like every
                 // other form: the app module has no reason to learn about "edit client".
+                modifier = modifier,
+            )
+
+        is AppRoute.ProjectDetails ->
+            ProjectDetailsRoute(
+                projectId = route.projectId,
+                onBack = appState::navigateBack,
+                onSessionSelected = appState::openSession,
                 modifier = modifier,
             )
 

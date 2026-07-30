@@ -43,14 +43,13 @@ internal fun ClientDetailsScreen(
     onBack: () -> Unit,
     onScheduleSession: () -> Unit,
     onAddProject: (NewProject) -> Unit,
-    onUpdateProject: (ProjectId, NewProject) -> Unit,
+    onOpenBooking: (ProjectId) -> Unit,
     onUpdateClient: (NewClient) -> Unit,
     currency: CurrencyCode = CurrencyCode.USD,
     modifier: Modifier = Modifier,
 ) {
     var showProjectForm by remember { mutableStateOf(false) }
     var showEditForm by remember { mutableStateOf(false) }
-    var editingBooking by remember { mutableStateOf<BookingSummary?>(null) }
 
     StatefulContent(
         state = uiState.client,
@@ -76,19 +75,6 @@ internal fun ClientDetailsScreen(
             )
         }
 
-        editingBooking?.let { booking ->
-            ProjectFormDialog(
-                clientName = client.displayName,
-                currency = currency,
-                initial = booking.editable,
-                onSave = {
-                    onUpdateProject(booking.id, it)
-                    editingBooking = null
-                },
-                onDismiss = { editingBooking = null },
-            )
-        }
-
         if (showEditForm) {
             ClientFormDialog(
                 initial = client.editable,
@@ -104,7 +90,7 @@ internal fun ClientDetailsScreen(
             client = client,
             onBack = onBack,
             onAddProject = { showProjectForm = true },
-            onEditBooking = { editingBooking = it },
+            onOpenBooking = { onOpenBooking(it.id) },
             onScheduleSession = onScheduleSession,
             onEditClient = { showEditForm = true },
             modifier = contentModifier,
@@ -117,7 +103,7 @@ private fun ClientDetailsContent(
     client: ClientDetailsModel,
     onBack: () -> Unit,
     onAddProject: () -> Unit,
-    onEditBooking: (BookingSummary) -> Unit,
+    onOpenBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
     modifier: Modifier = Modifier,
@@ -149,7 +135,7 @@ private fun ClientDetailsContent(
                 ExpandedClientDetailsContent(
                     client = client,
                     onAddProject = onAddProject,
-                    onEditBooking = onEditBooking,
+                    onOpenBooking = onOpenBooking,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
                 )
@@ -157,7 +143,7 @@ private fun ClientDetailsContent(
                 CompactClientDetailsContent(
                     client = client,
                     onAddProject = onAddProject,
-                    onEditBooking = onEditBooking,
+                    onOpenBooking = onOpenBooking,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
                 )
@@ -170,7 +156,7 @@ private fun ClientDetailsContent(
 private fun CompactClientDetailsContent(
     client: ClientDetailsModel,
     onAddProject: () -> Unit,
-    onEditBooking: (BookingSummary) -> Unit,
+    onOpenBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
 ) {
@@ -191,7 +177,7 @@ private fun CompactClientDetailsContent(
 
         ClientBookingsSection(
             bookings = client.bookings,
-            onEditBooking = onEditBooking,
+            onOpenBooking = onOpenBooking,
             onAddBooking = onAddProject,
         )
 
@@ -215,7 +201,7 @@ private fun CompactClientDetailsContent(
 private fun ExpandedClientDetailsContent(
     client: ClientDetailsModel,
     onAddProject: () -> Unit,
-    onEditBooking: (BookingSummary) -> Unit,
+    onOpenBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
 ) {
@@ -243,7 +229,7 @@ private fun ExpandedClientDetailsContent(
 
             ClientBookingsSection(
                 bookings = client.bookings,
-                onEditBooking = onEditBooking,
+                onOpenBooking = onOpenBooking,
                 onAddBooking = onAddProject,
             )
 

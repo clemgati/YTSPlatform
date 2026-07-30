@@ -4,6 +4,169 @@ All notable changes to Yellow Track Platform will be documented here.
 
 The project follows semantic versioning.
 
+## Unreleased — 0.6.0 Pipeline
+
+### Added
+
+- **Documents can leave the application.** Everything built so far has been readable only
+  by the person holding the laptop. A new `core:export` module renders a document from the
+  domain and a `DocumentSink` decides where it goes, per platform, in the same shape
+  `DatabaseDriverFactory` already uses
+- **Call sheets, which 0.5.0 has been waiting on.** The session page has read as a call
+  sheet since that milestone and has never been able to send one. It now carries where to
+  be, when, who else is coming, and what was promised — and deliberately carries nothing
+  about the money, because this document leaves the studio and a second shooter has no
+  business seeing what the wedding cost. A test asserts that absence rather than trusting it
+- **Copy as text is offered before save as a file**, because that is what actually happens:
+  a second shooter is sent a message, not an attachment, and a sheet that has to be
+  downloaded and opened is one that gets read at the venue rather than the night before
+- **HTML rather than PDF.** A PDF library needs a per-platform implementation on four
+  targets; an HTML page opens on any phone and prints to PDF from the browser, which is
+  where the PDF was going to be made anyway. The page is self-contained — inline styles,
+  no scripts, nothing fetched — because it is opened at a venue with no signal
+- The sheet always states which time zone it means, unlike the screen it came from. A
+  screen is read by the person who typed the times in; this is read by a second shooter
+  flying in, and conditioning that line on the *sender's* device zone would decide what a
+  stranger needs to know from where the laptop happened to be
+- Both golden hours are printed, but only the one falling inside the hours being shot is
+  emphasised. On a two-o'clock wedding a 5:49 AM window in bold makes the 7:55 PM window
+  harder to find, and that is the one decision the sheet exists for
+- Where the file landed is reported back on screen. A document nobody can find was not
+  saved, and silence is how that happens. On Android and iOS it is written to a folder the
+  Files app can see; handing it to a share sheet needs an `Activity` or a
+  `UIViewController` and is deliberately not faked
+- No studio name appears on the sheet: there is no `Studio` entity until accounts arrive in
+  0.7.0, and printing a placeholder on a document that leaves the building would be worse
+  than printing nothing
+
+### Fixed
+
+- **The web build could not render a shoot day.** `kotlinx-datetime` resolves zone ids on
+  wasm through `@js-joda/core`, which ships with no zone data, so `TimeZone.of(...)` threw
+  `Invalid zone ID` for every zone — and every session carries one. The database is now
+  imported at start-up. Found because the call-sheet tests were the first in `commonTest`
+  to name a zone, so they ran on wasm and failed there
+
+- **The Studio tab is a screen at last.** It has been a placeholder since 0.1.0, naming
+  gear inventory, packing lists and lighting recipes as things that "arrive in a later
+  milestone". They have arrived
+- **An inventory that answers the question a claim turns on.** Nobody keeps a gear list to
+  remember what cameras they own; they keep it so that a break-in a year from now can be
+  settled — which turns on serial numbers and prices, not on names. The screen leads with
+  the insured total and with what would lose the claim: priced gear with no serial number,
+  named
+- **The total says what it is.** It is what the studio *paid*, not what replacement would
+  cost, and the line under it says so. A studio that insures a 2019 body for its 2019 price
+  is underinsured in a way it discovers only when it claims. Gear with no price recorded is
+  counted separately, so a short total is never read as a complete one
+- Sold or written-off gear leaves the insured total, because insuring a camera sold two
+  years ago is money spent for nothing. Gear at the repair shop stays on it — it is still
+  the studio's, and can still burn with the shop. So does lost gear, which is exactly what
+  gets claimed for
+- Servicing is reported only for gear the studio has serviced at least once. A reflector is
+  not overdue a shutter count, and a list that is wrong about half its rows gets ignored
+- **Packing lists live on the shoot day, not in a drawer.** Packed and returned are tracked
+  separately because they are ticked at opposite ends of the day: packing in a calm studio
+  in the morning, returning in the dark at the end of a fourteen-hour wedding — which is
+  when a light stand gets left behind a curtain and is not missed until the next booking
+- Ticking something back in also marks it packed. At midnight the only thing being checked
+  is what came off the van, and refusing the tick because nobody ticked the morning box
+  would teach a studio to stop using the list. Unticking *packed* clears the return, since
+  gear that never left cannot have come back
+- Only gear in service is offered for a kit list: a body at the repair shop cannot be
+  packed, and offering it would put a line on the list that can never be ticked
+- **Lighting recipes.** The same three-light headshot gets rebuilt from memory a hundred
+  times and comes out slightly different each time. Written down it is a starting point
+  that takes ten minutes instead of forty
+- Power, distance and position are free text on purpose. A power reading is "1/4" on one
+  light and "6.3" on another, and a position is "camera left, 45°, just above eye line" — a
+  normalised figure would have to be translated back before anyone could dial it in
+- **Schema migration 9 → 10**, purely additive: `gear_item`, `packing_entry` and
+  `lighting_recipe`, `10.db` committed. A recipe with no lights yet stores `[]` rather than
+  null, so nothing has to decode defensively, and a new packing entry is neither packed nor
+  returned — adding something to the list is not the same as putting it in the van
+
+- **3-2-1 backup checking per shoot.** Three copies, on at least two kinds of storage, at
+  least one away from the building. Each clause guards a different way of losing a wedding:
+  one copy fails, two copies of the same kind fail together, and everything in one room
+  burns or is stolen at once
+- **The card in the bag is not a backup.** A camera card is the original, and counting it
+  would let a studio believe it had three copies when it had one and two cards. It is
+  listed, and excluded from the count
+- **What is missing is listed in the order it should be fixed** — a second copy anywhere
+  beats a third, and getting one out of the building beats spreading copies across more
+  drives in the same room. A studio with a single copy is not told its copies are all
+  alike, because the advice it needs is above that
+- Cloud and offsite drives count as away without being marked so. Copies are recorded as
+  *unchecked*: a drive can fail silently, so a backup nobody has opened is a backup nobody
+  knows they have, and that count is surfaced separately from the rule
+- The rule lives in `core:model` as `BackupHealth`, not in a screen — it is a fact about
+  the studio's data, and the answer should be identical wherever it is asked
+- **Schema migration 8 → 9**, purely additive: a new `media_copy` table, `9.db` committed
+
+- **Deliverables, checked against the contract.** `Contract.turnaroundDays` and
+  `Contract.revisionRounds` have been stored since 0.4.0 and compared against nothing. A
+  studio that has agreed to both and tracks neither finds out it is late when the client
+  says so, and gives away a fourth revision on a two-revision contract because nobody was
+  counting
+- **The due date is computed, not typed.** It is the last shoot day plus the turnaround the
+  contract promises, and the row says so — "Due 29 Sept — 45 days after the shoot". Asking
+  a studio to work out its own deadline is asking it to get it wrong. A date set by hand
+  overrides it
+- **The round that exhausts the allowance says the next one is chargeable**, which is the
+  moment the money is still recoverable. Going past it is stated plainly, and rounds are
+  counted even where the contract sets no limit — a round given away free is still a round
+  that happened, and a studio that stops counting loses the evidence
+- Work already signed off is never late, however long it took: the question is what is owed
+  now, not what to feel bad about. A booking with no contract says so rather than implying
+  a promise nobody made
+- **Schema migration 7 → 8**, purely additive: a new `deliverable` table, `8.db` committed,
+  with the revision count defaulting to zero rather than null so every comparison holds
+
+- **Post-production tasks**, held against the booking rather than a shoot day, with what
+  each was expected to take and what it actually took. One wedding produces one cull and
+  one edit however many days were shot
+- **The pricing floor now measures instead of assuming.** `LedgerMapper` has assumed since
+  0.4.0 that an hour with a camera drags two more hours of culling, editing, and admin
+  behind it — every minimum price the studio has ever been shown rested on that guess, and
+  the code said so in a comment promising it would become a measurement "when
+  post-production hours are tracked in the Pipeline milestone". It now does
+- The rules for trusting the measurement are as important as the measurement. Fewer than
+  three finished tasks and the assumption stands, because a floor built on one unusual edit
+  is worse than one built on a stated guess. Unfinished work is excluded — a task half done
+  has not overrun, and counting it would flatter every open job. Finished tasks with no
+  hours recorded contribute nothing
+- The pricing screen says which it is: *"Measured from your finished work"* or *"Assumes
+  every hour shooting takes 2.0 more in post"*. A studio that does not know the number is a
+  guess has no reason to distrust a price built from it
+- **Schema migration 6 → 7**, purely additive: a new `post_task` table, `7.db` committed,
+  with hours stored as fractions since half hours are the normal unit of this work
+
+- **A booking has a page of its own** — the third detail screen, alongside the client and
+  the shoot day. It carries the agreed value, the dates it was enquired about and booked,
+  its shoot days, and its post-production. Selecting a booking on a client's page opens it
+  rather than opening a form
+- Post-production hours are entered here, which closes the loop: the Ledger can only
+  measure what someone has recorded, and until now nothing could record it
+- The estimate is asked for when work is added, not when it is finished. An estimate
+  written afterwards is a memory of how long it felt, and it agrees with the actual every
+  time — which would make the comparison worthless
+- Finishing work requires the hours it took. A task closed without them tells the pricing
+  floor nothing, and the floor is the only reason any of this is tracked. Reopening one
+  clears what it claimed to have taken
+- An overrun is reported only once work is finished — a task half done has not overrun, it
+  is simply unfinished — and a quarter of an hour either way is not reported at all, since
+  flagging six minutes would teach the studio to stop reading the figure
+- Editing a booking moved from the client page to the booking's own page, which removed the
+  duplicate write path that had appeared between the two
+
+### Superseded gap
+
+- **Nothing can enter a task yet.** The data layer, the measurement, and the pricing
+  integration are all in place and tested, but post-production belongs to a booking and
+  there is no project page to put it on. Until that exists the measurement cannot fire, and
+  the floor keeps using the assumption
+
 ## Unreleased — 0.5.0 Shoot Day
 
 - **Talent releases** — permission from the people in the photographs, which is what makes

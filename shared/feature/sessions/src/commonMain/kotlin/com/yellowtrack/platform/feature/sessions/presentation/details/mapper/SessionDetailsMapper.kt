@@ -6,14 +6,24 @@ import com.yellowtrack.platform.core.common.solar.SunWindow
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.PackingEntry
+import com.yellowtrack.platform.core.model.media.BackupHealth
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.release.ReleaseKind
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.BackupSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.CrewItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.LightRow
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.MediaCopyItem
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.PackableGear
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.PackingItem
+import com.yellowtrack.platform.feature.sessions.presentation.details.model.PackingSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.ReleaseSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
@@ -34,6 +44,9 @@ internal fun Session.toDetailsModel(
     shots: List<Shot>,
     crew: List<CrewMember>,
     releases: List<TalentRelease>,
+    mediaCopies: List<MediaCopy>,
+    gear: List<GearItem>,
+    packing: List<PackingEntry>,
     deviceZone: TimeZone,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
@@ -58,6 +71,8 @@ internal fun Session.toDetailsModel(
         shotGroups = shots.toGroups(),
         shotsRemaining = shots.count { !it.isCaptured },
         releases = releases.toSummary(),
+        backup = mediaCopies.toBackupSummary(),
+        packing = toPackingSummary(packing, gear),
         crew =
             crew.map { member ->
                 CrewItem(
@@ -260,3 +275,88 @@ private val ReleaseKind.label: String
             ReleaseKind.Minor -> "Minor"
             ReleaseKind.Property -> "Property"
         }
+
+/**
+ * The 3-2-1 verdict, with what is missing spelled out.
+ *
+ * The rule itself lives in `core:model` — it is a fact about the studio's data, not a way
+ * of drawing it — and this only renders the answer.
+ */
+private fun List<MediaCopy>.toBackupSummary(): BackupSummary {
+    val health = BackupHealth.of(this)
+
+    return BackupSummary(
+        copies =
+            map { copy ->
+                MediaCopyItem(
+                    id = copy.id,
+                    volumeName = copy.volumeName,
+                    kind = copy.kind.label,
+                    isOffsite = copy.isAwayFromStudio,
+                    isVerified = copy.verifiedAt != null,
+                )
+            },
+        isSatisfied = health.isSatisfied,
+        verdict =
+            if (health.isSatisfied) {
+                "Three copies, ${health.distinctKinds} kinds, ${health.offsiteCopies} away from the studio"
+            } else {
+                "${health.copies} of ${BackupHealth.REQUIRED_COPIES} copies"
+            },
+        shortfalls = health.shortfalls,
+        unverified = health.unverifiedCopies,
+    )
+}
+
+private val StorageKind.label: String
+    get() =
+        when (this) {
+            StorageKind.CameraCard -> "Camera card"
+            StorageKind.Computer -> "Computer"
+            StorageKind.ExternalDrive -> "External drive"
+            StorageKind.Nas -> "NAS"
+            StorageKind.Cloud -> "Cloud"
+            StorageKind.OffsiteDrive -> "Offsite drive"
+        }
+
+/**
+ * The kit list for this day.
+ *
+ * An entry whose gear has since been deleted is dropped rather than shown as a blank row:
+ * the list is only useful if every line names something that can be looked for.
+ */
+private fun toPackingSummary(
+    packing: List<PackingEntry>,
+    gear: List<GearItem>,
+): PackingSummary {
+    val byId = gear.associateBy { it.id }
+
+    val items =
+        packing.mapNotNull { entry ->
+            val item = byId[entry.gearItemId] ?: return@mapNotNull null
+
+            PackingItem(
+                id = entry.id,
+                gearItemId = entry.gearItemId,
+                name = item.name,
+                categoryLabel = item.category.name,
+                isPacked = entry.isPacked,
+                isReturned = entry.isReturned,
+            )
+        }
+
+    val listed = packing.map { it.gearItemId }.toSet()
+
+    return PackingSummary(
+        items = items.sortedBy { it.name.lowercase() },
+        // Only gear in service is offered. A body at the repair shop cannot be packed, and
+        // offering it would put a line on the list that can never be ticked.
+        available =
+            gear
+                .filter { it.status.isAvailable && it.id !in listed }
+                .sortedBy { it.name.lowercase() }
+                .map { PackableGear(id = it.id, label = it.name) },
+        packed = items.count { it.isPacked },
+        missing = items.count { it.isPacked && !it.isReturned },
+    )
+}

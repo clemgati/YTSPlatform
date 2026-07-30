@@ -133,17 +133,30 @@ The biggest gap in the original roadmap.
 - ✓ Shot lists with grouping, for family formals
 - ✓ Locations with computed golden hour and sun position — calculable offline from
   latitude, longitude, and date, stored against the session and shown on it
-- ◐ Call sheets, crew, and talent releases — crew with per-person call times and talent
-  releases, on a session page that reads as a call sheet. Sending that sheet to anyone
-  waits on the export work in 0.6.0
+- ✓ Call sheets, crew, and talent releases — crew with per-person call times and talent
+  releases, on a session page that reads as a call sheet, which can now be sent to the
+  people working the day
 
 ## 0.6.0 — Pipeline
 
-- Ingest and 3-2-1 backup tracking across storage volumes
-- Post-production tasks with **estimated versus actual hours**
-- Deliverables with revision rounds and turnaround SLA
-- Gear inventory with serials and purchase prices, packing lists, maintenance
-- Lighting recipes
+- ◐ Ingest and 3-2-1 backup tracking across storage volumes — the rule is checked per
+  shoot and says what is missing. A studio-wide volume register, and reading drives to
+  confirm the files are really there, are still to come
+- ✓ Post-production tasks with **estimated versus actual hours**, entered on a booking's
+  own page and feeding the pricing floor, which now measures rather than assumes
+- ✓ Deliverables with revision rounds and turnaround SLA, both checked against what the
+  contract actually promised
+- ✓ Gear inventory with serials and purchase prices, packing lists, maintenance — the
+  Studio tab totals what the studio paid for what it still owns and names the gear that
+  would lose a claim; the kit list lives on the shoot day it belongs to, ticked packed in
+  the morning and back at midnight
+- ✓ Lighting recipes — set-ups written down in the terms they are dialled in, so the
+  three-light headshot is a starting point rather than a rebuild from memory
+- ◐ Documents out of the app: call sheets first. The shoot day now leaves as a
+  self-contained web page or as text pasted into a message, carrying the light, the crew
+  and the shot list and none of the money. Handing it straight to a share sheet on Android
+  and iOS, and the other documents worth exporting — an invoice, a quote — are still to
+  come
 
 ## 0.7.0 — Cloud
 

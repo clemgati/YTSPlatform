@@ -12,6 +12,7 @@ import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.PaymentState
+import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
@@ -24,17 +25,45 @@ import kotlinx.datetime.TimeZone
 import kotlin.time.Instant
 
 /**
- * How much of a working day a shoot day really consumes.
+ * How much of a working day a shoot day really consumes, before the studio has measured it.
  *
  * A shoot is rarely just the shoot: culling, editing, colour, album design, and client
- * admin typically take two to three times as long as the time spent with a camera. This
- * factor exists so the pricing floor reflects the whole job rather than the visible part
- * of it.
+ * admin typically take two to three times as long as the time spent with a camera.
  *
- * It is an assumption, and the screen shows it as one. It becomes a measurement rather
- * than a guess when post-production hours are tracked in the Pipeline milestone.
+ * This is the fallback. Once enough post-production has been recorded and finished, the
+ * factor comes from the studio's own hours instead — see [measuredPostProductionFactor].
+ * A guess that never becomes a measurement is a guess the whole pricing floor rests on.
  */
-private const val POST_PRODUCTION_FACTOR = 2.0
+private const val ASSUMED_POST_PRODUCTION_FACTOR = 2.0
+
+/**
+ * The fewest finished tasks worth trusting.
+ *
+ * One long edit is not evidence about how a studio works. Below this the assumption stands,
+ * because a floor built on a single unusual job is worse than one built on a stated guess.
+ */
+private const val MINIMUM_TASKS_TO_MEASURE = 3
+
+/**
+ * What post-production actually costs this studio, per hour spent shooting.
+ *
+ * Null until there is enough finished work to say. Computed from tasks that are done and
+ * carry real hours: work still in progress has not overrun, it is simply unfinished, and
+ * counting it would flatter every open job.
+ */
+internal fun measuredPostProductionFactor(
+    completedTasks: List<PostProductionTask>,
+    shootHours: Double,
+): Double? {
+    if (shootHours <= 0.0) return null
+
+    val measured = completedTasks.filter { it.isMeasured }
+    if (measured.size < MINIMUM_TASKS_TO_MEASURE) return null
+
+    val postHours = measured.sumOf { it.actualHours ?: 0.0 }
+
+    return (postHours / shootHours).takeIf { it > 0.0 }
+}
 
 private const val HOURS_IN_WORKING_DAY = 8.0
 
@@ -126,8 +155,12 @@ private fun raisedLabel(
 internal fun buildPricing(
     breakdown: CodbBreakdown,
     templates: List<ServiceTemplate>,
+    /** Measured from finished post-production, or null while the assumption still stands. */
+    measuredFactor: Double? = null,
 ): PricingSummary =
     PricingSummary(
+        postProductionFactor = measuredFactor ?: ASSUMED_POST_PRODUCTION_FACTOR,
+        isFactorMeasured = measuredFactor != null,
         costPerBillableDay = breakdown.costPerBillableDay.display(),
         annualOverhead = breakdown.annualOverhead.display(),
         targetSalary = breakdown.targetSalary.display(),
@@ -136,7 +169,7 @@ internal fun buildPricing(
         billableDaysPerYear = breakdown.billableDaysPerYear,
         packages =
             templates.map { template ->
-                val days = template.estimatedDaysConsumed()
+                val days = template.estimatedDaysConsumed(measuredFactor ?: ASSUMED_POST_PRODUCTION_FACTOR)
                 val price = template.basePrice
 
                 if (price == null) {
@@ -205,12 +238,12 @@ internal fun buildExpenseSummary(
  * Deliberately visible in the UI rather than buried: a floor computed from a hidden
  * assumption is a floor nobody should trust.
  */
-internal fun ServiceTemplate.estimatedDaysConsumed(): Double {
+internal fun ServiceTemplate.estimatedDaysConsumed(postProductionFactor: Double): Double {
     val shootDays =
         (defaultSessionCount * defaultSessionDurationMinutes / 60.0 / HOURS_IN_WORKING_DAY)
             .coerceAtLeast(0.5)
 
-    return shootDays * (1 + POST_PRODUCTION_FACTOR)
+    return shootDays * (1 + postProductionFactor)
 }
 
 private fun Double.dayLabel(): String {

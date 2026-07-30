@@ -69,6 +69,15 @@ internal data class MoneyOwedSummary(
  * figures the calculation cannot infer.
  */
 internal data class PricingSummary(
+    /**
+     * How much post-production a shoot hour drags behind it.
+     *
+     * Shown rather than buried, because the whole floor rests on it: a studio that does not
+     * know this number is guessing has no reason to distrust a price built from it.
+     */
+    val postProductionFactor: Double,
+    /** True once it comes from the studio's own finished work rather than an assumption. */
+    val isFactorMeasured: Boolean,
     val costPerBillableDay: String,
     val annualOverhead: String,
     val targetSalary: String,

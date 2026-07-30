@@ -5,15 +5,31 @@ import androidx.lifecycle.viewModelScope
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.CrewRepository
+import com.yellowtrack.platform.core.data.GearRepository
+import com.yellowtrack.platform.core.data.MediaCopyRepository
+import com.yellowtrack.platform.core.data.PackingRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.ShotRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.TalentReleaseRepository
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentFormat
+import com.yellowtrack.platform.core.export.DocumentSink
+import com.yellowtrack.platform.core.export.buildCallSheet
+import com.yellowtrack.platform.core.export.slugify
+import com.yellowtrack.platform.core.export.toHtml
+import com.yellowtrack.platform.core.export.toPlainText
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.PackingEntry
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
@@ -27,6 +43,7 @@ import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewMediaCopy
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
@@ -58,8 +75,12 @@ internal class SessionDetailsViewModel(
     private val shotRepository: ShotRepository,
     private val crewRepository: CrewRepository,
     private val releaseRepository: TalentReleaseRepository,
-    projectRepository: ProjectRepository,
-    clientRepository: ClientRepository,
+    private val mediaCopyRepository: MediaCopyRepository,
+    private val packingRepository: PackingRepository,
+    gearRepository: GearRepository,
+    private val projectRepository: ProjectRepository,
+    private val clientRepository: ClientRepository,
+    private val documentSink: DocumentSink,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val deviceZone: TimeZone = TimeZone.currentSystemDefault(),
@@ -78,11 +99,18 @@ internal class SessionDetailsViewModel(
         val shots: List<Shot>,
         val crew: List<CrewMember>,
         val releases: List<TalentRelease>,
+        val mediaCopies: List<MediaCopy>,
     )
 
     private data class Booking(
         val projects: List<Project>,
         val clients: List<Client>,
+    )
+
+    /** What went out with the day, joined against what the studio owns. */
+    private data class Kit(
+        val gear: List<GearItem>,
+        val packing: List<PackingEntry>,
     )
 
     val uiState: StateFlow<SessionDetailsUiState> =
@@ -92,6 +120,7 @@ internal class SessionDetailsViewModel(
                 shotRepository.observeShotsForSession(sessionId),
                 crewRepository.observeCrewForSession(sessionId),
                 releaseRepository.observeReleasesForSession(sessionId),
+                mediaCopyRepository.observeCopiesForSession(sessionId),
                 ::Day,
             ),
             combine(
@@ -99,8 +128,13 @@ internal class SessionDetailsViewModel(
                 clientRepository.observeClients(),
                 ::Booking,
             ),
+            combine(
+                gearRepository.observeGear(),
+                packingRepository.observePackingForSession(sessionId),
+                ::Kit,
+            ),
             retryTrigger,
-        ) { day, booking, _ ->
+        ) { day, booking, kit, _ ->
             val session = day.session
 
             if (session == null) {
@@ -113,7 +147,17 @@ internal class SessionDetailsViewModel(
                 SessionDetailsUiState(
                     session =
                         UiState.Success(
-                            session.toDetailsModel(project, client, day.shots, day.crew, day.releases, deviceZone),
+                            session.toDetailsModel(
+                                project,
+                                client,
+                                day.shots,
+                                day.crew,
+                                day.releases,
+                                day.mediaCopies,
+                                kit.gear,
+                                kit.packing,
+                                deviceZone,
+                            ),
                         ),
                     bookings =
                         booking.projects.map { project ->
@@ -379,6 +423,171 @@ internal class SessionDetailsViewModel(
 
     fun deleteRelease(releaseId: TalentReleaseId) {
         viewModelScope.launch { releaseRepository.deleteRelease(releaseId) }
+    }
+
+    /**
+     * Records that the files exist somewhere.
+     *
+     * Copied now, unverified: the copy has just been made, and whether it can still be
+     * read is a separate question asked later. Marking it verified on creation would make
+     * every backup look checked when none had been.
+     */
+    fun addMediaCopy(copy: NewMediaCopy) {
+        viewModelScope.launch {
+            if (copy.volumeName.isBlank()) return@launch
+            val now = clock.now()
+
+            mediaCopyRepository.saveCopy(
+                MediaCopy(
+                    id = MediaCopyId.new(),
+                    studioId = studioContext.studioId,
+                    sessionId = sessionId,
+                    volumeName = copy.volumeName.trim(),
+                    kind = copy.kind,
+                    isOffsite = copy.isOffsite,
+                    copiedAt = now,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Records that a copy was opened and found readable.
+     *
+     * A drive can fail silently, so this is the only thing that distinguishes a backup a
+     * studio has from one it believes it has.
+     */
+    fun verifyMediaCopy(copyId: MediaCopyId) {
+        viewModelScope.launch {
+            val copy = mediaCopyRepository.getCopy(copyId) ?: return@launch
+            val now = clock.now()
+
+            mediaCopyRepository.saveCopy(copy.copy(verifiedAt = now, audit = copy.audit.touched(now)))
+        }
+    }
+
+    fun deleteMediaCopy(copyId: MediaCopyId) {
+        viewModelScope.launch { mediaCopyRepository.deleteCopy(copyId) }
+    }
+
+    fun addToPackingList(gearItemId: GearItemId) {
+        viewModelScope.launch {
+            val now = clock.now()
+
+            packingRepository.savePackingEntry(
+                PackingEntry(
+                    id = PackingEntryId.new(),
+                    studioId = studioContext.studioId,
+                    sessionId = sessionId,
+                    gearItemId = gearItemId,
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Ticks something off as packed.
+     *
+     * Unticking also clears the return, because gear that was never taken cannot have come
+     * back, and leaving the two out of step would leave the missing count wrong.
+     */
+    fun setPacked(
+        entryId: PackingEntryId,
+        packed: Boolean,
+    ) {
+        viewModelScope.launch {
+            val entry = packingRepository.getPackingEntry(entryId) ?: return@launch
+
+            packingRepository.savePackingEntry(
+                entry.copy(
+                    isPacked = packed,
+                    isReturned = entry.isReturned && packed,
+                    audit = entry.audit.touched(clock.now()),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Ticks something off as back in the studio.
+     *
+     * Marking a return also marks it packed: at the end of the night, the only thing being
+     * checked is what came off the van, and refusing the tick because nobody ticked the
+     * first box in the morning would teach a studio to stop using the list.
+     */
+    fun setReturned(
+        entryId: PackingEntryId,
+        returned: Boolean,
+    ) {
+        viewModelScope.launch {
+            val entry = packingRepository.getPackingEntry(entryId) ?: return@launch
+
+            packingRepository.savePackingEntry(
+                entry.copy(
+                    isPacked = entry.isPacked || returned,
+                    isReturned = returned,
+                    audit = entry.audit.touched(clock.now()),
+                ),
+            )
+        }
+    }
+
+    fun removeFromPackingList(entryId: PackingEntryId) {
+        viewModelScope.launch { packingRepository.deletePackingEntry(entryId) }
+    }
+
+    /**
+     * Builds the call sheet for this day.
+     *
+     * Read from the repositories rather than from the screen's state, because a document
+     * is not a rendering of a screen: the sheet carries the light and the shot list and
+     * deliberately carries none of the money, and deriving it from what happens to be on
+     * screen would tie one to the other.
+     */
+    private suspend fun callSheet() =
+        sessionRepository.getSession(sessionId)?.let { session ->
+            val project = projectRepository.observeProjects().first().firstOrNull { it.id == session.projectId }
+            val client =
+                project?.let { found ->
+                    clientRepository.observeClients().first().firstOrNull { it.id == found.clientId }
+                }
+
+            buildCallSheet(
+                session = session,
+                project = project,
+                client = client,
+                crew = crewRepository.observeCrewForSession(sessionId).first(),
+                shots = shotRepository.observeShotsForSession(sessionId).first(),
+            )
+        }
+
+    /** The plain-text sheet, for pasting into a message. Null if the session has gone. */
+    suspend fun callSheetText(): String? = callSheet()?.toPlainText()
+
+    /**
+     * Writes the sheet out as a web page.
+     *
+     * HTML rather than PDF: it opens on any phone, prints to PDF from the browser, and
+     * needs no rendering library on four platforms. Where it landed is reported back,
+     * because a file someone cannot find was not saved.
+     */
+    fun exportCallSheet(onSaved: (String) -> Unit) {
+        viewModelScope.launch {
+            val sheet = callSheet() ?: return@launch
+
+            val saved =
+                documentSink.save(
+                    Document(
+                        baseName = slugify(sheet.title),
+                        format = DocumentFormat.Html,
+                        content = sheet.toHtml(),
+                    ),
+                )
+
+            onSaved(saved.location)
+        }
     }
 
     fun retry() {

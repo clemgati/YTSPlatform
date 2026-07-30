@@ -1,0 +1,71 @@
+-- Migration 9 → 10: the studio itself.
+--
+-- Adds what the studio owns, what went out to a shoot, and the lighting set-ups worth
+-- repeating. The Studio tab has been an empty placeholder since 0.1.0 naming exactly these.
+--
+-- Gear carries a serial and a purchase price because those two fields are what an
+-- insurance schedule is built from: the price is what a claim is worth, and the serial is
+-- what decides whether a stolen body ever comes back.
+--
+-- A packing entry records returning separately from packing, because they fail at opposite
+-- ends of the day — packing is checked in a calm studio, returning in the dark at the end
+-- of a fourteen-hour wedding.
+--
+-- Lighting recipes hold their lights as JSON, the same way a contract holds its usage
+-- licence: the list is read and written whole and never queried into.
+--
+-- Purely additive. Three new tables, so every row a studio already has is untouched.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+CREATE TABLE gear_item (
+    id                   TEXT    NOT NULL PRIMARY KEY,
+    studio_id            TEXT    NOT NULL,
+    name                 TEXT    NOT NULL,
+    category             TEXT    NOT NULL,
+    status               TEXT    NOT NULL,
+    serial_number        TEXT,
+    purchase_price_minor INTEGER,
+    purchase_currency    TEXT,
+    purchased_on         TEXT,
+    last_serviced_at     INTEGER,
+    notes                TEXT,
+    created_at           INTEGER NOT NULL,
+    updated_at           INTEGER NOT NULL,
+    deleted_at           INTEGER,
+    version              INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX gear_studio_idx ON gear_item(studio_id, deleted_at, status);
+
+CREATE TABLE packing_entry (
+    id           TEXT    NOT NULL PRIMARY KEY,
+    studio_id    TEXT    NOT NULL,
+    session_id   TEXT    NOT NULL,
+    gear_item_id TEXT    NOT NULL,
+    is_packed    INTEGER NOT NULL DEFAULT 0,
+    is_returned  INTEGER NOT NULL DEFAULT 0,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL,
+    deleted_at   INTEGER,
+    version      INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (session_id) REFERENCES session(id),
+    FOREIGN KEY (gear_item_id) REFERENCES gear_item(id)
+);
+
+CREATE INDEX packing_session_idx ON packing_entry(session_id, deleted_at);
+
+CREATE TABLE lighting_recipe (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    studio_id  TEXT    NOT NULL,
+    name       TEXT    NOT NULL,
+    lights     TEXT    NOT NULL DEFAULT '[]',
+    notes      TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    version    INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX lighting_studio_idx ON lighting_recipe(studio_id, deleted_at);

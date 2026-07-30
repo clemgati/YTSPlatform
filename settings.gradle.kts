@@ -43,6 +43,7 @@ include(":shared:core:common")
 include(":shared:core:data")
 include(":shared:core:database")
 include(":shared:core:designsystem")
+include(":shared:core:export")
 include(":shared:core:model")
 include(":shared:core:navigation")
 

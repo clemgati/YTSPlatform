@@ -23,14 +23,21 @@ import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
+import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.BackupSection
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.CallSheetSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CrewSection
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.MediaCopyFormDialog
+import com.yellowtrack.platform.feature.sessions.presentation.details.component.PackingSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ReleaseFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ReleaseSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.ShotFormDialog
@@ -38,6 +45,7 @@ import com.yellowtrack.platform.feature.sessions.presentation.details.component.
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.SessionLight
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
+import com.yellowtrack.platform.feature.sessions.presentation.model.NewMediaCopy
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
@@ -56,14 +64,25 @@ internal fun SessionDetailsScreen(
     onAddRelease: (NewRelease) -> Unit,
     onSetReleaseStatus: (TalentReleaseId, ReleaseStatus) -> Unit,
     onRemoveRelease: (TalentReleaseId) -> Unit,
+    onAddMediaCopy: (NewMediaCopy) -> Unit,
+    onVerifyMediaCopy: (MediaCopyId) -> Unit,
+    onRemoveMediaCopy: (MediaCopyId) -> Unit,
     onToggleShot: (ShotId, Boolean) -> Unit,
     onDeleteShot: (ShotId) -> Unit,
+    onAddPackingGear: (GearItemId) -> Unit,
+    onSetPacked: (PackingEntryId, Boolean) -> Unit,
+    onSetReturned: (PackingEntryId, Boolean) -> Unit,
+    onRemovePacking: (PackingEntryId) -> Unit,
+    onCopyCallSheet: () -> Unit,
+    onSaveCallSheet: () -> Unit,
+    callSheetMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf(false) }
     var addingShot by remember { mutableStateOf(false) }
     var addingCrew by remember { mutableStateOf(false) }
     var addingRelease by remember { mutableStateOf(false) }
+    var addingCopy by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.session,
@@ -123,6 +142,16 @@ internal fun SessionDetailsScreen(
             )
         }
 
+        if (addingCopy) {
+            MediaCopyFormDialog(
+                onSave = {
+                    onAddMediaCopy(it)
+                    addingCopy = false
+                },
+                onDismiss = { addingCopy = false },
+            )
+        }
+
         Column(
             modifier =
                 contentModifier
@@ -162,11 +191,32 @@ internal fun SessionDetailsScreen(
 
             LightPanel(session.light)
 
+            CallSheetSection(
+                message = callSheetMessage,
+                onCopy = onCopyCallSheet,
+                onSave = onSaveCallSheet,
+            )
+
             CrewSection(
                 crew = session.crew,
                 sessionCallTime = session.callTimeLabel,
                 onAddCrew = { addingCrew = true },
                 onRemoveCrew = onRemoveCrew,
+            )
+
+            BackupSection(
+                summary = session.backup,
+                onAddCopy = { addingCopy = true },
+                onVerifyCopy = onVerifyMediaCopy,
+                onRemoveCopy = onRemoveMediaCopy,
+            )
+
+            PackingSection(
+                packing = session.packing,
+                onAddGear = onAddPackingGear,
+                onSetPacked = onSetPacked,
+                onSetReturned = onSetReturned,
+                onRemove = onRemovePacking,
             )
 
             ReleaseSection(

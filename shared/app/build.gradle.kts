@@ -65,6 +65,7 @@ kotlin {
             implementation(project(":shared:core:common"))
             implementation(project(":shared:core:data"))
             implementation(project(":shared:core:database"))
+            implementation(project(":shared:core:export"))
             implementation(project(":shared:core:navigation"))
 
             implementation(project(":shared:feature:dashboard"))

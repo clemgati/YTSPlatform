@@ -11,6 +11,20 @@ val sessionsModule =
         viewModel { SessionsViewModel(get(), get(), get(), get(), get()) }
 
         viewModel { (sessionId: SessionId) ->
-            SessionDetailsViewModel(sessionId, get(), get(), get(), get(), get(), get(), get(), get())
+            SessionDetailsViewModel(
+                sessionId = sessionId,
+                sessionRepository = get(),
+                shotRepository = get(),
+                crewRepository = get(),
+                releaseRepository = get(),
+                mediaCopyRepository = get(),
+                packingRepository = get(),
+                gearRepository = get(),
+                projectRepository = get(),
+                clientRepository = get(),
+                documentSink = get(),
+                studioContext = get(),
+                clock = get(),
+            )
         }
     }

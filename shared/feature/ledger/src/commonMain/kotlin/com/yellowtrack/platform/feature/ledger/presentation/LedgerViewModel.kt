@@ -12,9 +12,11 @@ import com.yellowtrack.platform.core.data.CodbRepository
 import com.yellowtrack.platform.core.data.ContractRepository
 import com.yellowtrack.platform.core.data.ExpenseRepository
 import com.yellowtrack.platform.core.data.InvoiceRepository
+import com.yellowtrack.platform.core.data.PostProductionRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.QuoteRepository
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
+import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.codb.CodbBreakdown
@@ -34,6 +36,7 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.quote.QuoteId
@@ -42,12 +45,15 @@ import com.yellowtrack.platform.core.model.quote.accepted
 import com.yellowtrack.platform.core.model.quote.declined
 import com.yellowtrack.platform.core.model.quote.toInvoice
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
+import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.INVOICE_PREFIX
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildMoneyOwed
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildPricing
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildProposals
+import com.yellowtrack.platform.feature.ledger.presentation.mapper.measuredPostProductionFactor
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.nextNumber
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
@@ -82,6 +88,8 @@ internal class LedgerViewModel(
     private val codbRepository: CodbRepository,
     private val serviceTemplateRepository: ServiceTemplateRepository,
     private val projectRepository: ProjectRepository,
+    private val sessionRepository: SessionRepository,
+    private val postProductionRepository: PostProductionRepository,
     private val clientRepository: ClientRepository,
     private val studioContext: StudioContext,
     private val clock: AppClock,
@@ -114,6 +122,17 @@ internal class LedgerViewModel(
         val contracts: List<Contract>,
     )
 
+    /**
+     * What the studio has actually done, as opposed to what it has billed.
+     *
+     * Kept apart from the money so the pricing floor can be told how long work really
+     * takes rather than assuming it.
+     */
+    private data class Work(
+        val sessions: List<Session>,
+        val completedTasks: List<PostProductionTask>,
+    )
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<LedgerUiState> =
         retryTrigger
@@ -141,7 +160,12 @@ internal class LedgerViewModel(
                         contractRepository.observeContracts(),
                         ::Proposals,
                     ),
-                ) { books, costs, proposals ->
+                    combine(
+                        sessionRepository.observeSessions(),
+                        postProductionRepository.observeCompletedTasks(),
+                        ::Work,
+                    ),
+                ) { books, costs, proposals, work ->
                     LedgerUiState(
                         content =
                             UiState.Success(
@@ -164,7 +188,17 @@ internal class LedgerViewModel(
                                             now,
                                             currency,
                                         ),
-                                    pricing = books.breakdown?.let { buildPricing(it, books.templates) },
+                                    pricing =
+                                        books.breakdown?.let {
+                                            buildPricing(
+                                                it,
+                                                books.templates,
+                                                measuredPostProductionFactor(
+                                                    completedTasks = work.completedTasks,
+                                                    shootHours = work.sessions.shootHours(),
+                                                ),
+                                            )
+                                        },
                                     expenses =
                                         buildExpenseSummary(costs.expenses, costs.mileage, year, currency),
                                     projects =
@@ -612,3 +646,13 @@ internal class LedgerViewModel(
         val DEFAULT_PAYMENT_TERMS = 14.days
     }
 }
+
+/**
+ * Hours actually spent with a camera, across work that has happened.
+ *
+ * Only completed sessions count. A day still in the diary has consumed nothing yet, and
+ * including it would make the studio look faster at post-production than it is.
+ */
+private fun List<Session>.shootHours(): Double =
+    filter { it.status == SessionStatus.Completed }
+        .sumOf { it.duration.inWholeMinutes / 60.0 }

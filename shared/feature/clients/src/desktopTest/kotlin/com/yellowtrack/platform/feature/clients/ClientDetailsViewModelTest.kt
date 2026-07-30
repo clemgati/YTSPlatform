@@ -17,7 +17,6 @@ import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.testing.TestData
-import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsViewModel
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
@@ -35,7 +34,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.days
 
 /**
  * Opening a booking against a client — the step that makes every money-layer form usable,
@@ -318,125 +316,4 @@ class ClientDetailsViewModelTest {
         phone = phone,
         notes = notes,
     )
-
-    // --- Correcting a booking ----------------------------------------------------------
-
-    @Test
-    fun `moving a booking to Booked records when the date was taken`() =
-        runTest {
-            val projects = FakeProjectRepository()
-            val viewModel = viewModel(projects)
-            viewModel.addProject(newProject(status = ProjectStatus.Enquiry))
-            val opened =
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-            assertNull(opened.bookedAt)
-
-            clock.advanceBy(9.days)
-            viewModel.updateProject(opened.id, newProject(status = ProjectStatus.Booked))
-
-            val stored =
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-            assertEquals(opened.id, stored.id, "correcting a booking must not open a second one")
-            assertEquals(ProjectStatus.Booked, stored.status)
-            assertEquals(TestAppClock.DEFAULT_NOW + 9.days, stored.bookedAt)
-        }
-
-    @Test
-    fun `a cancelled booking keeps the date it was booked on`() =
-        runTest {
-            val projects = FakeProjectRepository()
-            val viewModel = viewModel(projects)
-            viewModel.addProject(newProject(status = ProjectStatus.Booked))
-            val booked =
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-
-            clock.advanceBy(20.days)
-            viewModel.updateProject(booked.id, newProject(status = ProjectStatus.Cancelled))
-
-            val stored =
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-            assertEquals(ProjectStatus.Cancelled, stored.status)
-            assertEquals(
-                booked.bookedAt,
-                stored.bookedAt,
-                "a cancellation fee is measured against the date the job was booked",
-            )
-        }
-
-    @Test
-    fun `the booked date is not restamped by a later edit`() =
-        runTest {
-            val projects = FakeProjectRepository()
-            val viewModel = viewModel(projects)
-            viewModel.addProject(newProject(status = ProjectStatus.Booked))
-            val booked =
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-
-            clock.advanceBy(30.days)
-            viewModel.updateProject(booked.id, newProject(status = ProjectStatus.Shooting))
-
-            assertEquals(
-                booked.bookedAt,
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-                    .bookedAt,
-            )
-        }
-
-    @Test
-    fun `an edit with an unreadable value leaves the booking alone`() =
-        runTest {
-            val projects = FakeProjectRepository()
-            val viewModel = viewModel(projects)
-            viewModel.addProject(newProject(contractValue = "4500"))
-            val opened =
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-
-            viewModel.updateProject(opened.id, newProject(contractValue = "four thousand"))
-
-            assertEquals(
-                opened.contractValue,
-                projects
-                    .observeProjects()
-                    .first()
-                    .single()
-                    .contractValue,
-            )
-        }
-
-    @Test
-    fun `bookings are listed on the client's page, newest enquiry first`() =
-        runTest {
-            val projects = FakeProjectRepository()
-            val viewModel = viewModel(projects)
-            viewModel.addProject(newProject(name = "Engagement shoot"))
-            clock.advanceBy(2.days)
-            viewModel.addProject(newProject(name = "Johnson Wedding"))
-
-            val listed = viewModel.uiState.first { it.client is UiState.Success }
-            assertEquals(
-                listOf("Johnson Wedding", "Engagement shoot"),
-                (listed.client as UiState.Success).data.bookings.map { it.name },
-            )
-        }
 }

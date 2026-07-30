@@ -192,6 +192,33 @@ Two consequences worth knowing:
 
 ---
 
+### core:export
+
+Documents that leave the application.
+
+Contains:
+
+- `Sheet` — a printed document described once, so the same content can be rendered more
+  than one way without the versions drifting
+- `buildCallSheet` — the shoot day as the people working it receive it
+- Renderers to HTML and to plain text
+- `DocumentSink` — where a rendered document ends up, implemented per platform in the same
+  way as `DatabaseDriverFactory`
+
+Depends on `core:model` and nothing else — no Compose, no SQLDelight — so the same
+renderer can run on the Ktor server when documents are mailed rather than saved.
+
+Two decisions worth knowing:
+
+- **HTML, not PDF.** A PDF library would need a per-platform implementation on four
+  targets and would decide the format for everything that follows. An HTML page opens on
+  any phone and prints to PDF from the browser, which is where a PDF was going to be made
+  anyway.
+- **The page is self-contained.** Styles are inline and nothing is fetched. It is opened
+  at a venue with no signal, on a phone that has only the attachment.
+
+---
+
 ### core:network
 
 Networking.
