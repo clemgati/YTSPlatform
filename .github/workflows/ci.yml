@@ -11,10 +11,38 @@ on:
 permissions:
   contents: read
 
+# Two runners, in parallel, split by what each can actually build.
+#
+# Everything except Apple takes about ten minutes; the Apple half is dominated by
+# Kotlin/Native linking, which barely parallelises and runs on a three-core macOS runner.
+# Running them in sequence on one macOS runner meant the cheap two thirds of the work
+# waited behind the expensive third and was billed at the macOS rate while it did.
 jobs:
   build:
-    name: Build
-    runs-on: macos-latest
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Both halves report. Cancelling the Apple job because a desktop test failed would
+      # hide a second failure and cost another full round trip to find it.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux targets
+            os: ubuntu-latest
+            # `build` here means desktop, Android and web, plus ktlint over every source
+            # set including the Apple ones — formatting is a text check and needs no SDK.
+            # Apple targets are not declared on this host, so there are no tasks to skip.
+            tasks: build -Pyellowtrack.appleTargets=false
+
+          - name: Apple targets
+            os: macos-latest
+            # The simulator tests, and a device-architecture framework link that pulls
+            # every module through compileKotlinIosArm64 — so an architecture-specific
+            # compile error is still caught. Release frameworks stay out: linking one runs
+            # whole-program LLVM optimisation for an artefact nothing here consumes, and
+            # Xcode links its own when the app is archived.
+            tasks: iosSimulatorArm64Test linkDebugFrameworkIosArm64 -Pyellowtrack.iosReleaseFrameworks=false
 
     steps:
       - name: Checkout repository
@@ -32,16 +60,5 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x gradlew
 
-      # Runs first for fast feedback on formatting, and shares its daemon and
-      # configuration cache with the build below — `--no-daemon` here meant paying two
-      # cold JVM starts for one pipeline.
-      - name: Check Kotlin formatting
-        run: ./gradlew ktlintCheck --stacktrace
-
-      # Release iOS frameworks are excluded. Linking one runs whole-program LLVM
-      # optimisation and took 45 minutes of an 85-minute build on a three-core runner —
-      # more than half the pipeline for an artefact nothing here consumes: no job tests
-      # against it, none is published, and Xcode links its own when the app is archived.
-      # Compilation and every test on all four targets still run.
-      - name: Build project
-        run: ./gradlew build -Pyellowtrack.iosReleaseFrameworks=false --stacktrace
+      - name: ${{ matrix.name }}
+        run: ./gradlew ${{ matrix.tasks }} --stacktrace
