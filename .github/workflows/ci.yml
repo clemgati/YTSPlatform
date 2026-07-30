@@ -37,12 +37,16 @@ jobs:
 
           - name: Apple targets
             os: macos-latest
-            # The simulator tests, and a device-architecture framework link that pulls
-            # every module through compileKotlinIosArm64 — so an architecture-specific
-            # compile error is still caught. Release frameworks stay out: linking one runs
-            # whole-program LLVM optimisation for an artefact nothing here consumes, and
-            # Xcode links its own when the app is archived.
-            tasks: iosSimulatorArm64Test linkDebugFrameworkIosArm64 -Pyellowtrack.iosReleaseFrameworks=false
+            # The simulator tests, plus a device-architecture compile of every module.
+            #
+            # Compiling rather than linking for the device is a deliberate trade. Linking
+            # the debug framework took 16.7 of this job's 25 minutes on a three-core
+            # runner, and what it was there to prove — that the device architecture still
+            # compiles — is proved by the compile itself, across sixteen modules rather
+            # than the fifteen reachable from the app. Linking is still exercised: the
+            # simulator test binary links every module, and Xcode links the device
+            # framework the moment anyone builds the app.
+            tasks: iosSimulatorArm64Test compileKotlinIosArm64 -Pyellowtrack.iosReleaseFrameworks=false
 
     steps:
       - name: Checkout repository
