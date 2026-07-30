@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.studio.presentation.model.InventorySummary
 import com.yellowtrack.platform.feature.studio.presentation.model.LightingRecipeItem
+import com.yellowtrack.platform.feature.studio.presentation.model.VolumeRegister
 import kotlinx.datetime.LocalDate
 
 internal data class StudioUiState(
@@ -13,6 +14,7 @@ internal data class StudioUiState(
 internal data class StudioContent(
     val inventory: InventorySummary,
     val recipes: List<LightingRecipeItem>,
+    val register: VolumeRegister,
     val today: LocalDate,
     val currency: CurrencyCode,
 )

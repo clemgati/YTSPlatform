@@ -21,6 +21,7 @@ import com.yellowtrack.platform.core.testing.FakePackingRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
+import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
 import com.yellowtrack.platform.core.testing.FakeTalentReleaseRepository
 import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
@@ -123,6 +124,7 @@ class SessionDetailsViewModelTest {
                 mediaCopyRepository = mediaCopies,
                 packingRepository = packing,
                 gearRepository = gear,
+                volumeRepository = FakeStorageVolumeRepository(),
                 projectRepository = FakeProjectRepository(),
                 clientRepository = FakeClientRepository(),
                 studioContext = LocalStudioContext(),
@@ -759,7 +761,9 @@ class SessionDetailsViewModelTest {
         runTest {
             val (_, viewModel) = harness()
 
-            viewModel.addMediaCopy(NewMediaCopy("Red Samsung T7", StorageKind.ExternalDrive, isOffsite = false))
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Red Samsung T7", kind = StorageKind.ExternalDrive, isOffsite = false),
+            )
 
             val copy =
                 viewModel
@@ -775,7 +779,9 @@ class SessionDetailsViewModelTest {
         runTest {
             val (_, viewModel) = harness()
 
-            viewModel.addMediaCopy(NewMediaCopy("Studio iMac", StorageKind.Computer, isOffsite = false))
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Studio iMac", kind = StorageKind.Computer, isOffsite = false),
+            )
 
             val backup = viewModel.model().backup
             assertFalse(backup.isSatisfied)
@@ -787,9 +793,13 @@ class SessionDetailsViewModelTest {
         runTest {
             val (_, viewModel) = harness()
 
-            viewModel.addMediaCopy(NewMediaCopy("Studio iMac", StorageKind.Computer, isOffsite = false))
-            viewModel.addMediaCopy(NewMediaCopy("Red Samsung T7", StorageKind.ExternalDrive, isOffsite = false))
-            viewModel.addMediaCopy(NewMediaCopy("Backblaze", StorageKind.Cloud, isOffsite = false))
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Studio iMac", kind = StorageKind.Computer, isOffsite = false),
+            )
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Red Samsung T7", kind = StorageKind.ExternalDrive, isOffsite = false),
+            )
+            viewModel.addMediaCopy(NewMediaCopy(volumeName = "Backblaze", kind = StorageKind.Cloud, isOffsite = false))
 
             val backup = viewModel.model().backup
             assertTrue(backup.isSatisfied, "cloud is away from the studio without being marked so")
@@ -801,9 +811,15 @@ class SessionDetailsViewModelTest {
         runTest {
             val (_, viewModel) = harness()
 
-            viewModel.addMediaCopy(NewMediaCopy("Card 1", StorageKind.CameraCard, isOffsite = false))
-            viewModel.addMediaCopy(NewMediaCopy("Card 2", StorageKind.CameraCard, isOffsite = false))
-            viewModel.addMediaCopy(NewMediaCopy("Studio iMac", StorageKind.Computer, isOffsite = false))
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Card 1", kind = StorageKind.CameraCard, isOffsite = false),
+            )
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Card 2", kind = StorageKind.CameraCard, isOffsite = false),
+            )
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Studio iMac", kind = StorageKind.Computer, isOffsite = false),
+            )
 
             val backup = viewModel.model().backup
             assertEquals(3, backup.copies.size, "all three are listed")
@@ -818,7 +834,9 @@ class SessionDetailsViewModelTest {
     fun `checking a copy records that it was opened and read`() =
         runTest {
             val (_, viewModel) = harness()
-            viewModel.addMediaCopy(NewMediaCopy("Red Samsung T7", StorageKind.ExternalDrive, isOffsite = false))
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Red Samsung T7", kind = StorageKind.ExternalDrive, isOffsite = false),
+            )
             val id =
                 viewModel
                     .model()
@@ -843,7 +861,7 @@ class SessionDetailsViewModelTest {
         runTest {
             val (_, viewModel) = harness()
 
-            viewModel.addMediaCopy(NewMediaCopy("  ", StorageKind.ExternalDrive, isOffsite = false))
+            viewModel.addMediaCopy(NewMediaCopy(volumeName = "  ", kind = StorageKind.ExternalDrive, isOffsite = false))
 
             assertTrue(
                 viewModel

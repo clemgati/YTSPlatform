@@ -25,6 +25,7 @@ import com.yellowtrack.platform.core.testing.FakePackingRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
+import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
 import com.yellowtrack.platform.core.testing.FakeTalentReleaseRepository
 import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
@@ -119,6 +120,7 @@ class CallSheetExportTest {
                     mediaCopyRepository = FakeMediaCopyRepository(),
                     packingRepository = FakePackingRepository(),
                     gearRepository = FakeGearRepository(),
+                    volumeRepository = FakeStorageVolumeRepository(),
                     projectRepository =
                         FakeProjectRepository(
                             listOf(

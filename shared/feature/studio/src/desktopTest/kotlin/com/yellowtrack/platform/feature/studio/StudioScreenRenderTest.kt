@@ -20,12 +20,17 @@ import com.yellowtrack.platform.core.model.gear.LightRole
 import com.yellowtrack.platform.core.model.gear.LightSetup
 import com.yellowtrack.platform.core.model.gear.LightingRecipe
 import com.yellowtrack.platform.core.model.gear.LightingRecipeId
+import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.studio.presentation.StudioContent
 import com.yellowtrack.platform.feature.studio.presentation.StudioScreen
 import com.yellowtrack.platform.feature.studio.presentation.StudioUiState
 import com.yellowtrack.platform.feature.studio.presentation.mapper.buildInventory
+import com.yellowtrack.platform.feature.studio.presentation.mapper.buildRegister
 import com.yellowtrack.platform.feature.studio.presentation.mapper.toItem
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -44,6 +49,7 @@ import kotlin.time.Duration.Companion.days
 class StudioScreenRenderTest {
     private val usd = CurrencyCode.USD
     private val now = TestAppClock.DEFAULT_NOW
+    private var volumeSample: List<StorageVolume> = emptyList()
 
     @OptIn(ExperimentalComposeUiApi::class)
     @Test
@@ -53,7 +59,7 @@ class StudioScreenRenderTest {
         val target = File(outputDir, "studio.png")
 
         val scene =
-            ImageComposeScene(width = 1_280, height = 2_600, density = Density(2f)) {
+            ImageComposeScene(width = 1_280, height = 3_400, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -67,6 +73,10 @@ class StudioScreenRenderTest {
                             onDeleteGear = {},
                             onAddRecipe = {},
                             onDeleteRecipe = {},
+                            onAddVolume = {},
+                            onMarkVolumeChecked = {},
+                            onSetVolumeStatus = { _, _ -> },
+                            onDeleteVolume = {},
                         )
                     }
                 }
@@ -147,6 +157,26 @@ class StudioScreenRenderTest {
                         notes = null,
                     ),
                 ),
+            register =
+                buildRegister(
+                    volumes =
+                        listOf(
+                            storageVolume("Studio iMac", StorageKind.Computer),
+                            // The row the register exists for.
+                            storageVolume("Red Samsung T7", StorageKind.ExternalDrive, VolumeStatus.Failed),
+                            storageVolume("Backblaze", StorageKind.Cloud, checkedDaysAgo = 12),
+                            storageVolume("Drive at Mum's", StorageKind.OffsiteDrive, checkedDaysAgo = 200),
+                        ).also { volumeSample = it },
+                    copyCounts =
+                        mapOf(
+                            volumeSample[0].id to 14,
+                            volumeSample[1].id to 6,
+                            volumeSample[2].id to 14,
+                            volumeSample[3].id to 9,
+                        ),
+                    now = now,
+                    zone = TimeZone.UTC,
+                ),
             today = LocalDate(2026, 6, 12),
             currency = usd,
         )
@@ -183,4 +213,19 @@ class StudioScreenRenderTest {
         notes = notes,
         audit = AuditMetadata.createdAt(now),
     ).toItem()
+
+    private fun storageVolume(
+        label: String,
+        kind: StorageKind,
+        status: VolumeStatus = VolumeStatus.InUse,
+        checkedDaysAgo: Long? = null,
+    ) = StorageVolume(
+        id = StorageVolumeId.new(),
+        studioId = LocalStudioContext.LOCAL_STUDIO_ID,
+        label = label,
+        kind = kind,
+        status = status,
+        lastCheckedAt = checkedDaysAgo?.let { now - it.days },
+        audit = AuditMetadata.createdAt(now),
+    )
 }

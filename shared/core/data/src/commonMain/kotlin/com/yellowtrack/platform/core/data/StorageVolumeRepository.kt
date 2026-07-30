@@ -22,4 +22,12 @@ interface StorageVolumeRepository {
      * to know which shoots were on it before it can decide what to do about any of them.
      */
     fun observeCopiesOnVolume(volumeId: StorageVolumeId): Flow<List<MediaCopy>>
+
+    /**
+     * How many copies sit on each drive.
+     *
+     * One flow for the whole register rather than one per drive, so a studio with thirty
+     * volumes does not open thirty queries to draw a list.
+     */
+    fun observeCopyCounts(): Flow<Map<StorageVolumeId, Int>>
 }

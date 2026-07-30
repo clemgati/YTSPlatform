@@ -96,6 +96,8 @@ internal data class MediaCopyItem(
     val kind: String,
     val isOffsite: Boolean,
     val isVerified: Boolean,
+    /** On a drive the studio has marked failed or lost. */
+    val isUnreachable: Boolean = false,
 )
 
 /**

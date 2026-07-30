@@ -78,6 +78,18 @@ internal class SqlDelightStorageVolumeRepository(
         database().storageVolumeQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = volumeId.value)
     }
 
+    override fun observeCopyCounts(): Flow<Map<StorageVolumeId, Int>> =
+        observing { db ->
+            db.mediaCopyQueries
+                .countByVolume()
+                .asListFlow(dispatcher)
+                .map { rows ->
+                    rows
+                        .mapNotNull { row -> row.volumeId?.let { StorageVolumeId(it) to row.copyCount.toInt() } }
+                        .toMap()
+                }
+        }
+
     override fun observeCopiesOnVolume(volumeId: StorageVolumeId): Flow<List<MediaCopy>> =
         observing { db ->
             db.mediaCopyQueries

@@ -144,6 +144,7 @@ internal fun SessionDetailsScreen(
 
         if (addingCopy) {
             MediaCopyFormDialog(
+                volumes = uiState.volumes,
                 onSave = {
                     onAddMediaCopy(it)
                     addingCopy = false

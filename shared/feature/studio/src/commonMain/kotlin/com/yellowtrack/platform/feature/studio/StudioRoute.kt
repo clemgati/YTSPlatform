@@ -21,6 +21,10 @@ fun StudioRoute(modifier: Modifier = Modifier) {
         onDeleteGear = viewModel::deleteGearItem,
         onAddRecipe = viewModel::addRecipe,
         onDeleteRecipe = viewModel::deleteRecipe,
+        onAddVolume = viewModel::addVolume,
+        onMarkVolumeChecked = viewModel::markVolumeChecked,
+        onSetVolumeStatus = viewModel::setVolumeStatus,
+        onDeleteVolume = viewModel::deleteVolume,
         modifier = modifier,
     )
 }

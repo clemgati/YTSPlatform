@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.data.PackingRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.ShotRepository
+import com.yellowtrack.platform.core.data.StorageVolumeRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.TalentReleaseRepository
 import com.yellowtrack.platform.core.export.Document
@@ -47,6 +48,7 @@ import com.yellowtrack.platform.feature.sessions.presentation.model.NewMediaCopy
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewRelease
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewShot
+import com.yellowtrack.platform.feature.sessions.presentation.model.VolumeOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.coordinates
 import com.yellowtrack.platform.feature.sessions.presentation.model.timing
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +80,7 @@ internal class SessionDetailsViewModel(
     private val mediaCopyRepository: MediaCopyRepository,
     private val packingRepository: PackingRepository,
     gearRepository: GearRepository,
+    private val volumeRepository: StorageVolumeRepository,
     private val projectRepository: ProjectRepository,
     private val clientRepository: ClientRepository,
     private val documentSink: DocumentSink,
@@ -133,8 +136,9 @@ internal class SessionDetailsViewModel(
                 packingRepository.observePackingForSession(sessionId),
                 ::Kit,
             ),
+            volumeRepository.observeVolumes(),
             retryTrigger,
-        ) { day, booking, kit, _ ->
+        ) { day, booking, kit, volumes, _ ->
             val session = day.session
 
             if (session == null) {
@@ -156,6 +160,7 @@ internal class SessionDetailsViewModel(
                                 day.mediaCopies,
                                 kit.gear,
                                 kit.packing,
+                                volumes,
                                 deviceZone,
                             ),
                         ),
@@ -171,6 +176,17 @@ internal class SessionDetailsViewModel(
                             )
                         },
                     today = clock.now().toLocalDateTime(deviceZone).date,
+                    volumes =
+                        volumes
+                            .filter { it.isDependable }
+                            .map { volume ->
+                                VolumeOption(
+                                    id = volume.id,
+                                    label = volume.label,
+                                    kind = volume.kind,
+                                    isOffsite = volume.isAwayFromStudio,
+                                )
+                            },
                 )
             }
         }.catch { throwable ->
@@ -442,6 +458,7 @@ internal class SessionDetailsViewModel(
                     id = MediaCopyId.new(),
                     studioId = studioContext.studioId,
                     sessionId = sessionId,
+                    volumeId = copy.volumeId,
                     volumeName = copy.volumeName.trim(),
                     kind = copy.kind,
                     isOffsite = copy.isOffsite,

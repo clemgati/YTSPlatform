@@ -19,6 +19,7 @@ import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewMediaCopy
+import com.yellowtrack.platform.feature.sessions.presentation.model.VolumeOption
 
 /**
  * Records that a copy of the files exists somewhere.
@@ -29,47 +30,87 @@ import com.yellowtrack.platform.feature.sessions.presentation.model.NewMediaCopy
  */
 @Composable
 internal fun MediaCopyFormDialog(
+    volumes: List<VolumeOption>,
     onSave: (NewMediaCopy) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // "Somewhere else" last, so a studio with a register picks from it by default and one
+    // without is not blocked from recording a copy at all.
+    val elsewhere =
+        VolumeOption(id = null, label = "Somewhere else", kind = StorageKind.ExternalDrive, isOffsite = false)
+    val options = remember(volumes) { volumes + elsewhere }
+    var selected by remember(volumes) { mutableStateOf(options.first()) }
+
     var volumeName by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf(StorageKind.ExternalDrive) }
     var isOffsite by remember { mutableStateOf(false) }
 
+    val registered = selected.id != null
+
     YTFormDialog(
         title = "Record a copy",
         confirmLabel = "Add",
-        confirmEnabled = volumeName.isNotBlank(),
+        confirmEnabled = registered || volumeName.isNotBlank(),
         onConfirm = {
             onSave(
-                NewMediaCopy(
-                    volumeName = volumeName.trim(),
-                    kind = kind,
-                    isOffsite = isOffsite,
-                ),
+                if (registered) {
+                    // Name, kind and location come from the register rather than being
+                    // retyped: a drive described differently on two shoots is two drives
+                    // as far as any later question is concerned.
+                    NewMediaCopy(
+                        volumeId = selected.id,
+                        volumeName = selected.label,
+                        kind = selected.kind,
+                        isOffsite = selected.isOffsite,
+                    )
+                } else {
+                    NewMediaCopy(
+                        volumeName = volumeName.trim(),
+                        kind = kind,
+                        isOffsite = isOffsite,
+                    )
+                },
             )
         },
         onDismiss = onDismiss,
     ) {
-        YTTextField(
-            value = volumeName,
-            onValueChange = { volumeName = it },
-            label = "What is it on?",
-            placeholder = "Red Samsung T7",
-            imeAction = ImeAction.Done,
-            help = "Whatever you call it when you go looking for it.",
-        )
+        if (volumes.isNotEmpty()) {
+            YTDropdownField(
+                label = "What is it on?",
+                selected = selected,
+                options = options,
+                optionLabel = VolumeOption::label,
+                onSelect = { selected = it },
+                help =
+                    if (registered) {
+                        "From your register, so this shoot appears the day that drive fails."
+                    } else {
+                        "Not in your register — this copy will not be found by a drive going down."
+                    },
+            )
+        }
 
-        YTDropdownField(
-            label = "Kind",
-            selected = kind,
-            options = StorageKind.entries,
-            optionLabel = { it.label },
-            onSelect = { kind = it },
-            optionDescription = { it.explanation },
-        )
+        if (!registered) {
+            YTTextField(
+                value = volumeName,
+                onValueChange = { volumeName = it },
+                label = "What is it on?",
+                placeholder = "Red Samsung T7",
+                imeAction = ImeAction.Done,
+                help = "Whatever you call it when you go looking for it.",
+            )
 
-        if (!kind.isInherentlyOffsite) {
+            YTDropdownField(
+                label = "Kind",
+                selected = kind,
+                options = StorageKind.entries,
+                optionLabel = { it.label },
+                onSelect = { kind = it },
+                optionDescription = { it.explanation },
+            )
+        }
+
+        if (!registered && !kind.isInherentlyOffsite) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -84,7 +125,7 @@ internal fun MediaCopyFormDialog(
             }
         }
 
-        if (kind == StorageKind.CameraCard) {
+        if (!registered && kind == StorageKind.CameraCard) {
             Text(
                 text = "A card is the original, not a copy of it. It does not count towards the three.",
                 style = YTTheme.typography.bodySmall,

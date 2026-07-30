@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.media.BackupHealth
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.release.ReleaseKind
 import com.yellowtrack.platform.core.model.release.ReleaseStatus
@@ -47,6 +48,7 @@ internal fun Session.toDetailsModel(
     mediaCopies: List<MediaCopy>,
     gear: List<GearItem>,
     packing: List<PackingEntry>,
+    volumes: List<StorageVolume>,
     deviceZone: TimeZone,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
@@ -71,7 +73,7 @@ internal fun Session.toDetailsModel(
         shotGroups = shots.toGroups(),
         shotsRemaining = shots.count { !it.isCaptured },
         releases = releases.toSummary(),
-        backup = mediaCopies.toBackupSummary(),
+        backup = mediaCopies.toBackupSummary(volumes),
         packing = toPackingSummary(packing, gear),
         crew =
             crew.map { member ->
@@ -282,18 +284,26 @@ private val ReleaseKind.label: String
  * The rule itself lives in `core:model` — it is a fact about the studio's data, not a way
  * of drawing it — and this only renders the answer.
  */
-private fun List<MediaCopy>.toBackupSummary(): BackupSummary {
-    val health = BackupHealth.of(this)
+private fun List<MediaCopy>.toBackupSummary(volumes: List<StorageVolume>): BackupSummary {
+    val byId = volumes.associateBy { it.id }
+    val health = BackupHealth.of(this, byId)
 
     return BackupSummary(
         copies =
             map { copy ->
+                val volume = copy.volumeId?.let { byId[it] }
+
                 MediaCopyItem(
                     id = copy.id,
-                    volumeName = copy.volumeName,
+                    // The register's name wins where there is one: a drive renamed there
+                    // should read the same on every shoot it holds.
+                    volumeName = volume?.label ?: copy.volumeName,
                     kind = copy.kind.label,
-                    isOffsite = copy.isAwayFromStudio,
+                    isOffsite = volume?.isAwayFromStudio ?: copy.isAwayFromStudio,
                     isVerified = copy.verifiedAt != null,
+                    // A copy on a dead drive is still listed — it is the row that explains
+                    // why the count above dropped.
+                    isUnreachable = volume?.isDependable == false,
                 )
             },
         isSatisfied = health.isSatisfied,

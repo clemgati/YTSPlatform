@@ -34,4 +34,12 @@ class FakeStorageVolumeRepository(
 
     override fun observeCopiesOnVolume(volumeId: StorageVolumeId): Flow<List<MediaCopy>> =
         copies.observeAll().map { all -> all.filter { it.volumeId == volumeId } }
+
+    override fun observeCopyCounts(): Flow<Map<StorageVolumeId, Int>> =
+        copies.observeAll().map { all ->
+            all
+                .mapNotNull { it.volumeId }
+                .groupingBy { it }
+                .eachCount()
+        }
 }

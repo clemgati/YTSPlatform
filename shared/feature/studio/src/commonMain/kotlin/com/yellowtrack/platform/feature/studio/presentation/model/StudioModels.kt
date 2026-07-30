@@ -6,6 +6,9 @@ import com.yellowtrack.platform.core.model.gear.GearItemId
 import com.yellowtrack.platform.core.model.gear.GearStatus
 import com.yellowtrack.platform.core.model.gear.LightRole
 import com.yellowtrack.platform.core.model.gear.LightingRecipeId
+import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.media.VolumeStatus
 
 /** One piece of gear, rendered. */
 internal data class GearItemUi(
@@ -90,5 +93,41 @@ internal data class NewLightSetup(
 internal data class NewLightingRecipe(
     val name: String,
     val lights: List<NewLightSetup>,
+    val notes: String?,
+)
+
+/** One drive in the register. */
+internal data class VolumeItem(
+    val id: StorageVolumeId,
+    val label: String,
+    val kindLabel: String,
+    val status: VolumeStatus,
+    val statusLabel: String,
+    val whereLabel: String,
+    val checkedLabel: String?,
+    /** How many shoots have a copy here — what is at stake if it dies. */
+    val copyCount: Int,
+    val isDependable: Boolean,
+    val notes: String?,
+)
+
+/**
+ * The studio's drives, and what is wrong with them.
+ *
+ * [copiesAtRisk] is the figure worth acting on: shoots whose only recorded copies sit on
+ * a drive the studio has said has failed.
+ */
+internal data class VolumeRegister(
+    val volumes: List<VolumeItem>,
+    val failedCount: Int,
+    val copiesAtRisk: Int,
+    val neverCheckedCount: Int,
+)
+
+internal data class NewVolume(
+    val label: String,
+    val kind: StorageKind,
+    val status: VolumeStatus,
+    val isOffsite: Boolean,
     val notes: String?,
 )
