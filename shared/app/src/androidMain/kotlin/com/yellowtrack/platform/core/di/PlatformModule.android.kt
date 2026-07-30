@@ -1,5 +1,7 @@
 package com.yellowtrack.platform.core.di
 
+import com.yellowtrack.platform.core.common.storage.JvmVolumeInspector
+import com.yellowtrack.platform.core.common.storage.VolumeInspector
 import com.yellowtrack.platform.core.database.AndroidDatabaseDriverFactory
 import com.yellowtrack.platform.core.database.DatabaseDriverFactory
 import com.yellowtrack.platform.core.export.AndroidDocumentSink
@@ -12,4 +14,5 @@ actual fun platformModule(): Module =
     module {
         single<DatabaseDriverFactory> { AndroidDatabaseDriverFactory(androidContext()) }
         single<DocumentSink> { AndroidDocumentSink(androidContext()) }
+        single<VolumeInspector> { JvmVolumeInspector() }
     }

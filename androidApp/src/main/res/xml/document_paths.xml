@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    What the FileProvider is allowed to hand to another application.
+
+    Scoped to the Documents folder inside the app's own external files directory — the one
+    AndroidDocumentSink writes to — rather than to the whole of external storage. A
+    provider that shares more than the thing being shared is a way to leak the database.
+-->
+<paths>
+    <external-files-path
+        name="documents"
+        path="Documents/" />
+</paths>

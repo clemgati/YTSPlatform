@@ -27,7 +27,9 @@ internal fun BackupSection(
     summary: BackupSummary,
     onAddCopy: () -> Unit,
     onVerifyCopy: (MediaCopyId) -> Unit,
+    onCheckCopy: (MediaCopyId) -> Unit,
     onRemoveCopy: (MediaCopyId) -> Unit,
+    checkResult: String?,
     modifier: Modifier = Modifier,
 ) {
     YTDetailSection(
@@ -60,7 +62,18 @@ internal fun BackupSection(
             }
 
             summary.copies.forEach { copy ->
-                CopyRow(copy, onVerifyCopy, onRemoveCopy)
+                CopyRow(copy, onVerifyCopy, onCheckCopy, onRemoveCopy)
+            }
+
+            // What the last read found, including when it found nothing — a drive that
+            // was not plugged in has to say so rather than silently leaving the row as it
+            // was.
+            checkResult?.let { result ->
+                Text(
+                    text = result,
+                    style = YTTheme.typography.bodyMedium,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
             }
 
             TextButton(onClick = onAddCopy) {
@@ -78,6 +91,7 @@ internal fun BackupSection(
 private fun CopyRow(
     copy: MediaCopyItem,
     onVerify: (MediaCopyId) -> Unit,
+    onCheck: (MediaCopyId) -> Unit,
     onRemove: (MediaCopyId) -> Unit,
 ) {
     Row(
@@ -98,6 +112,9 @@ private fun CopyRow(
                         "away from the studio".takeIf { copy.isOffsite },
                         // First, because it is why this row no longer counts.
                         "on a drive that has failed".takeIf { copy.isUnreachable },
+                        // What was found, when the application found it — this is the
+                        // difference between a checked backup and a claimed one.
+                        copy.readLabel.takeUnless { copy.isUnreachable },
                         "not checked".takeUnless { copy.isVerified || copy.isUnreachable },
                     ).joinToString(" • "),
                 style = YTTheme.typography.bodySmall,
@@ -119,12 +136,28 @@ private fun CopyRow(
                 )
             }
 
+            // Offered whether or not it has been checked before: a drive read last month
+            // says nothing about today, and re-reading is the whole point.
+            if (copy.isCheckable && !copy.isUnreachable) {
+                TextButton(onClick = { onCheck(copy.id) }) {
+                    Text(
+                        text = "Check now",
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+            }
+
             // Nothing to verify on a drive that has failed; offering it would invite a
             // studio to tick a box that cannot be true.
             if (!copy.isVerified && !copy.isUnreachable) {
+                // "Mark checked", not "Checked": beside a button that reads the drive, a
+                // one-word label reads as a status the row already has rather than as an
+                // action, and a row that looks like it already asserts something is not a
+                // row anyone presses.
                 TextButton(onClick = { onVerify(copy.id) }) {
                     Text(
-                        text = "Checked",
+                        text = "Mark checked",
                         style = YTTheme.typography.labelLarge,
                         color = YTTheme.colors.primary,
                     )

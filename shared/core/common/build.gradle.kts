@@ -11,6 +11,11 @@ kotlin {
             api(libs.kotlinx.serialization.json)
         }
 
+        // The volume inspector touches a real disk, so its test does too.
+        getByName("desktopTest").dependencies {
+            implementation(libs.kotlinx.coroutines.test)
+        }
+
         wasmJsMain.dependencies {
             // The browser has no IANA timezone database that kotlinx-datetime can read, so
             // `TimeZone.of("Europe/London")` throws without this. Every session carries a

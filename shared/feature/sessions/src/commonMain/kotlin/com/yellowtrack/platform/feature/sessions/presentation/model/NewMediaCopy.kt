@@ -16,6 +16,13 @@ internal data class NewMediaCopy(
     val volumeName: String,
     val kind: StorageKind,
     val isOffsite: Boolean,
+    /**
+     * Where on the drive the shoot sits, so the application can open it and count.
+     *
+     * Optional: a cloud bucket has no path this machine can walk, and a copy is still
+     * worth recording without one.
+     */
+    val path: String? = null,
 )
 
 /** A drive the copy could be on, as the form offers it. */

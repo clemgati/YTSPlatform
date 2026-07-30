@@ -16,6 +16,10 @@ CREATE TABLE media_copy (
     -- Declared last because ALTER TABLE appends: migration 12 added this column, and a
     -- migrated database has it in this position.
     volume_id   TEXT REFERENCES storage_volume(id),
+    -- Appended by migration 13; ALTER TABLE appends, so the order here has to match.
+    path                TEXT,
+    verified_file_count INTEGER,
+    verified_bytes      INTEGER,
     FOREIGN KEY (session_id) REFERENCES session(id)
 );
 
@@ -38,9 +42,10 @@ WHERE id = :id AND deleted_at IS NULL;
 insertOrIgnore:
 INSERT OR IGNORE INTO media_copy(
     id, studio_id, session_id, volume_name, kind, is_offsite, copied_at, verified_at,
-    notes, created_at, updated_at, deleted_at, version, volume_id
+    notes, created_at, updated_at, deleted_at, version, volume_id,
+    path, verified_file_count, verified_bytes
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE media_copy
@@ -51,6 +56,9 @@ SET session_id  = :sessionId,
     is_offsite  = :isOffsite,
     copied_at   = :copiedAt,
     verified_at = :verifiedAt,
+    path                = :path,
+    verified_file_count = :verifiedFileCount,
+    verified_bytes      = :verifiedBytes,
     notes       = :notes,
     updated_at  = :updatedAt,
     deleted_at  = :deletedAt,

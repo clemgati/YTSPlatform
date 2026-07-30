@@ -49,6 +49,8 @@ class MigrationTest {
 
     private fun v12Database(): SqlDriver = snapshotDatabase(version = 12)
 
+    private fun v13Database(): SqlDriver = snapshotDatabase(version = 13)
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -1164,12 +1166,121 @@ class MigrationTest {
             driver.close()
         }
 
+    // --- Version thirteen to fourteen: what was actually found on the drive --------------
+
+    @Test
+    fun `copies ticked by hand keep their tick and gain no invented file count`() =
+        runTest {
+            val driver = v13Database()
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO session(id, studio_id, project_id, title, kind, status,
+                                    starts_at, ends_at, time_zone_id, created_at, updated_at, version)
+                VALUES ('session-1', 'studio-1', 'project-1', 'Shoot day', 'Shoot', 'Completed',
+                        2000, 3000, 'Europe/London', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO media_copy(id, studio_id, session_id, volume_name, kind, is_offsite,
+                                       copied_at, verified_at, created_at, updated_at, version)
+                VALUES ('copy-1', 'studio-1', 'session-1', 'Red Samsung T7', 'ExternalDrive', 0,
+                        2500, 2600, 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 13, newVersion = 14)
+
+            assertEquals(
+                "2600",
+                driver.scalar("SELECT CAST(verified_at AS TEXT) FROM media_copy"),
+                "a studio that checked a drive by hand did check it; the tick stands",
+            )
+            assertNull(
+                driver.scalar("SELECT verified_file_count FROM media_copy"),
+                "but nothing read it, so there is no count — and a count must never be invented",
+            )
+            assertNull(
+                driver.scalar("SELECT path FROM media_copy"),
+                "and nowhere on disk has been named yet",
+            )
+
+            driver.close()
+        }
+
+    @Test
+    fun `a copy can record where it is and what was read there`() =
+        runTest {
+            val driver = v13Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 13, newVersion = 14)
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO session(id, studio_id, project_id, title, kind, status,
+                                    starts_at, ends_at, time_zone_id, created_at, updated_at, version)
+                VALUES ('session-1', 'studio-1', 'project-1', 'Shoot day', 'Shoot', 'Completed',
+                        2000, 3000, 'Europe/London', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO media_copy(id, studio_id, session_id, volume_name, kind, is_offsite,
+                                       copied_at, verified_at, path, verified_file_count,
+                                       verified_bytes, created_at, updated_at, version)
+                VALUES ('copy-1', 'studio-1', 'session-1', 'Red Samsung T7', 'ExternalDrive', 0,
+                        2500, 2600, '/Volumes/Red T7/2026/Johnson', 2481, 101203344179,
+                        1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals("2481", driver.scalar("SELECT CAST(verified_file_count AS TEXT) FROM media_copy"))
+            assertEquals(
+                "101203344179",
+                driver.scalar("SELECT CAST(verified_bytes AS TEXT) FROM media_copy"),
+                "a wedding runs past what a 32-bit count would hold",
+            )
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(13L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(14L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

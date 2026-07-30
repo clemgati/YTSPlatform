@@ -139,11 +139,13 @@ The biggest gap in the original roadmap.
 
 ## 0.6.0 — Pipeline
 
-- ◐ Ingest and 3-2-1 backup tracking across storage volumes — the rule is checked per
-  shoot and says what is missing, and the studio's drives are a register rather than free
-  text, so marking one failed immediately drops the copy count on every shoot it held.
-  Reading drives to confirm the files are really there needs per-platform filesystem access
-  and is still to come
+- ✓ Ingest and 3-2-1 backup tracking across storage volumes — the rule is checked per
+  shoot and says what is missing, the studio's drives are a register rather than free text,
+  so marking one failed immediately drops the copy count on every shoot it held, and a copy
+  with a path is **read** rather than taken on trust: the application opens the drive,
+  counts the files, and refuses to record a verification when it finds nothing. Copying
+  files in — as opposed to checking what is already there — remains a card-reader job and
+  is not planned
 - ✓ Post-production tasks with **estimated versus actual hours**, entered on a booking's
   own page and feeding the pricing floor, which now measures rather than assumes
 - ✓ Deliverables with revision rounds and turnaround SLA, both checked against what the
@@ -156,9 +158,12 @@ The biggest gap in the original roadmap.
   three-light headshot is a starting point rather than a rebuild from memory
 - ◐ Documents out of the app. The shoot day leaves as a self-contained web page or as
   text pasted into a message; invoices and quotes leave as pages a client can read and
-  print, carrying the studio's details, its tax number and how to pay it. Handing a
-  document straight to a share sheet on Android and iOS is still to come, as is emailing
-  one without leaving the application
+  print, carrying the studio's details, its tax number and how to pay it. Android and iOS
+  hand the file to the system share sheet, saving it first so a sheet that fails to appear
+  costs nothing — though **neither has been run**, only compiled, so treat the sheet itself
+  as unproven until someone opens the app on a phone. Emailing a document without leaving
+  the application is still to come and needs a mail transport, which belongs with the
+  server in 0.7.0
 - ✓ Studio details, which every document carries — the Settings screen has claimed since
   0.1.0 that there was nothing to configure, and an invoice with no name on it is not an
   invoice

@@ -49,7 +49,8 @@ fun SessionDetailsRoute(
         onSetReleaseStatus = viewModel::setReleaseStatus,
         onRemoveRelease = viewModel::deleteRelease,
         onAddMediaCopy = viewModel::addMediaCopy,
-        onVerifyMediaCopy = viewModel::verifyMediaCopy,
+        onVerifyMediaCopy = viewModel::markMediaCopyCheckedByHand,
+        onCheckMediaCopy = viewModel::checkMediaCopy,
         onRemoveMediaCopy = viewModel::deleteMediaCopy,
         onToggleShot = viewModel::setShotCaptured,
         onDeleteShot = viewModel::deleteShot,
@@ -70,7 +71,9 @@ fun SessionDetailsRoute(
                     }
             }
         },
-        onSaveCallSheet = { viewModel.exportCallSheet { location -> callSheetMessage = "Saved to $location" } },
+        // The message is built where the outcome is known — whether the platform offered
+        // a share sheet, and where the file landed regardless.
+        onSaveCallSheet = { viewModel.exportCallSheet { message -> callSheetMessage = message } },
         callSheetMessage = callSheetMessage,
         modifier = modifier,
     )

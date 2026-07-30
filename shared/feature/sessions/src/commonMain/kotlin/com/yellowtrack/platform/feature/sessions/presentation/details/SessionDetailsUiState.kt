@@ -13,4 +13,10 @@ internal data class SessionDetailsUiState(
     val today: LocalDate? = null,
     /** Drives from the studio's register, for the copy form. */
     val volumes: List<VolumeOption> = emptyList(),
+    /** What the last drive read found. */
+    val checkResult: String? = null,
+    /** False on the web, which has no filesystem to read. */
+    val canReadDrives: Boolean = false,
+    /** True where the platform has a share sheet to hand a document to. */
+    val canSendDocuments: Boolean = false,
 )

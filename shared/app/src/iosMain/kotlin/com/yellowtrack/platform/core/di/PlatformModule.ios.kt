@@ -1,5 +1,7 @@
 package com.yellowtrack.platform.core.di
 
+import com.yellowtrack.platform.core.common.storage.IosVolumeInspector
+import com.yellowtrack.platform.core.common.storage.VolumeInspector
 import com.yellowtrack.platform.core.database.DatabaseDriverFactory
 import com.yellowtrack.platform.core.database.NativeDatabaseDriverFactory
 import com.yellowtrack.platform.core.export.DocumentSink
@@ -11,4 +13,5 @@ actual fun platformModule(): Module =
     module {
         single<DatabaseDriverFactory> { NativeDatabaseDriverFactory() }
         single<DocumentSink> { IosDocumentSink() }
+        single<VolumeInspector> { IosVolumeInspector() }
     }

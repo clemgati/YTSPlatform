@@ -98,6 +98,10 @@ internal data class MediaCopyItem(
     val isVerified: Boolean,
     /** On a drive the studio has marked failed or lost. */
     val isUnreachable: Boolean = false,
+    /** Whether the application can open this copy itself. */
+    val isCheckable: Boolean = false,
+    /** "2,481 files" — present only when the application read it, not when ticked by hand. */
+    val readLabel: String? = null,
 )
 
 /**

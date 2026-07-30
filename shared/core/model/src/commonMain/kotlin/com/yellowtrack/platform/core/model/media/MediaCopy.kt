@@ -82,8 +82,18 @@ data class MediaCopy(
     val volumeName: String,
     val kind: StorageKind,
     val isOffsite: Boolean = false,
+    /**
+     * Where on that volume the shoot's files sit.
+     *
+     * Null where the studio has not said, and for copies that cannot be read from here at
+     * all — a cloud bucket, or a drive belonging to a machine this one is not. Without it
+     * "verified" can only ever mean somebody pressed a button.
+     */
+    val path: String? = null,
     val copiedAt: Instant? = null,
     val verifiedAt: Instant? = null,
+    val verifiedFileCount: Int? = null,
+    val verifiedBytes: Long? = null,
     val notes: String? = null,
     override val audit: AuditMetadata,
 ) : StudioScoped {
@@ -97,4 +107,10 @@ data class MediaCopy(
      * it would let a studio believe it had a backup when it had one card.
      */
     val isRealCopy: Boolean get() = kind != StorageKind.CameraCard
+
+    /** Whether the application read this copy itself, rather than being told it was fine. */
+    val wasReadByTheApplication: Boolean get() = verifiedAt != null && verifiedFileCount != null
+
+    /** Whether this copy can be checked from here at all. */
+    val isCheckable: Boolean get() = !path.isNullOrBlank()
 }

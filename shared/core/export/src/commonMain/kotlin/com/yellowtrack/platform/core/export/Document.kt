@@ -43,6 +43,26 @@ data class Document(
  */
 interface DocumentSink {
     suspend fun save(document: Document): SavedDocument
+
+    /**
+     * Whether this platform can hand the file to something else.
+     *
+     * A share sheet on a phone; nothing on a desktop, where saving to Downloads already
+     * puts the file where every mail client's picker opens, and nothing in a browser,
+     * where the download is the handover.
+     */
+    val canShare: Boolean get() = false
+
+    /**
+     * Saves the document, then offers it to whatever the platform shares with.
+     *
+     * Saving happens first and unconditionally, and the saved location is returned even
+     * when the share sheet fails to appear. That ordering is the point: presenting a sheet
+     * touches window hierarchies and content providers, which fail in ways that compile
+     * perfectly, and a studio that pressed *Send* must end up with the document either way
+     * rather than with an error and nothing on disk.
+     */
+    suspend fun share(document: Document): SavedDocument = save(document)
 }
 
 /**

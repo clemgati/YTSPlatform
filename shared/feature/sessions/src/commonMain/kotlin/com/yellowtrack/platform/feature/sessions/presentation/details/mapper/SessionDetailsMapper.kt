@@ -304,6 +304,13 @@ private fun List<MediaCopy>.toBackupSummary(volumes: List<StorageVolume>): Backu
                     // A copy on a dead drive is still listed — it is the row that explains
                     // why the count above dropped.
                     isUnreachable = volume?.isDependable == false,
+                    isCheckable = copy.isCheckable,
+                    // Shown only for a copy the application read. A tick by hand carries a
+                    // date and no count, and should not borrow the authority of a count.
+                    readLabel =
+                        copy.verifiedFileCount?.let { count ->
+                            "${count.grouped()} ${if (count == 1) "file" else "files"} read"
+                        },
                 )
             },
         isSatisfied = health.isSatisfied,
@@ -370,3 +377,16 @@ private fun toPackingSummary(
         missing = items.count { it.isPacked && !it.isReturned },
     )
 }
+
+/**
+ * Groups a count for reading — "2,481" rather than "2481".
+ *
+ * A file count is a figure a person scans, and four unbroken digits are read a beat slower
+ * than three and a comma. Money is grouped for the same reason.
+ */
+private fun Int.grouped(): String =
+    toString()
+        .reversed()
+        .chunked(3)
+        .joinToString(",")
+        .reversed()

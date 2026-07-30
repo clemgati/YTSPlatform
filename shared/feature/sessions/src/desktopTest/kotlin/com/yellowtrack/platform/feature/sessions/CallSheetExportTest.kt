@@ -27,6 +27,7 @@ import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
 import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
 import com.yellowtrack.platform.core.testing.FakeTalentReleaseRepository
+import com.yellowtrack.platform.core.testing.FakeVolumeInspector
 import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsViewModel
@@ -93,10 +94,11 @@ class CallSheetExportTest {
         val sink: RecordingDocumentSink,
     )
 
-    private fun harness(sessions: List<Session> = listOf(session())): Harness {
-        val sink = RecordingDocumentSink()
-
-        return Harness(
+    private fun harness(
+        sessions: List<Session> = listOf(session()),
+        sink: RecordingDocumentSink = RecordingDocumentSink(),
+    ): Harness =
+        Harness(
             viewModel =
                 SessionDetailsViewModel(
                     sessionId = sessionId,
@@ -121,6 +123,7 @@ class CallSheetExportTest {
                     packingRepository = FakePackingRepository(),
                     gearRepository = FakeGearRepository(),
                     volumeRepository = FakeStorageVolumeRepository(),
+                    volumeInspector = FakeVolumeInspector(),
                     projectRepository =
                         FakeProjectRepository(
                             listOf(
@@ -154,7 +157,6 @@ class CallSheetExportTest {
                 ),
             sink = sink,
         )
-    }
 
     @Test
     fun `the saved document is a web page named after the day`() =
@@ -177,9 +179,25 @@ class CallSheetExportTest {
             harness.viewModel.exportCallSheet { reported = it }
 
             assertEquals(
-                "recorded/call-sheet-wedding-day.html",
+                "Saved to recorded/call-sheet-wedding-day.html",
                 reported,
                 "a document nobody can find was not saved",
+            )
+        }
+
+    @Test
+    fun `a platform with a share sheet says it sent it and still says where it landed`() =
+        runTest {
+            val harness = harness(sink = RecordingDocumentSink(canShare = true))
+            var reported: String? = null
+
+            harness.viewModel.exportCallSheet { reported = it }
+
+            val message = assertNotNull(reported)
+            assertTrue(message.startsWith("Sent."), "was: $message")
+            assertTrue(
+                message.contains("recorded/call-sheet-wedding-day.html"),
+                "a share sheet that never appeared still leaves a file, and the studio needs to find it",
             )
         }
 

@@ -31,6 +31,7 @@ import com.yellowtrack.platform.feature.sessions.presentation.model.VolumeOption
 @Composable
 internal fun MediaCopyFormDialog(
     volumes: List<VolumeOption>,
+    canReadDrives: Boolean,
     onSave: (NewMediaCopy) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -44,6 +45,7 @@ internal fun MediaCopyFormDialog(
     var volumeName by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf(StorageKind.ExternalDrive) }
     var isOffsite by remember { mutableStateOf(false) }
+    var path by remember { mutableStateOf("") }
 
     val registered = selected.id != null
 
@@ -62,12 +64,14 @@ internal fun MediaCopyFormDialog(
                         volumeName = selected.label,
                         kind = selected.kind,
                         isOffsite = selected.isOffsite,
+                        path = path.trim().ifBlank { null },
                     )
                 } else {
                     NewMediaCopy(
                         volumeName = volumeName.trim(),
                         kind = kind,
                         isOffsite = isOffsite,
+                        path = path.trim().ifBlank { null },
                     )
                 },
             )
@@ -123,6 +127,20 @@ internal fun MediaCopyFormDialog(
                     color = YTTheme.colors.onSurface,
                 )
             }
+        }
+
+        // Only offered where this device can act on it. On the web the field would
+        // collect a path nothing could ever read.
+        if (canReadDrives) {
+            YTTextField(
+                value = path,
+                onValueChange = { path = it },
+                label = "Where on it?",
+                placeholder = "/Volumes/Red T7/2026/Johnson Wedding",
+                help =
+                    "Given a folder, this can open the drive and count the files rather than " +
+                        "taking your word for it. Leave blank for a cloud copy.",
+            )
         }
 
         if (!registered && kind == StorageKind.CameraCard) {

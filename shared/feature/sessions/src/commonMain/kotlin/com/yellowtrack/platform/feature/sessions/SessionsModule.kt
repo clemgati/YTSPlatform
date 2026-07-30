@@ -21,6 +21,7 @@ val sessionsModule =
                 packingRepository = get(),
                 gearRepository = get(),
                 volumeRepository = get(),
+                volumeInspector = get(),
                 projectRepository = get(),
                 clientRepository = get(),
                 documentSink = get(),
