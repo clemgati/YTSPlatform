@@ -2,6 +2,7 @@ package com.yellowtrack.platform.feature.sessions.presentation.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.yellowtrack.platform.core.common.storage.VolumeInspector
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.CrewRepository
@@ -81,6 +82,7 @@ internal class SessionDetailsViewModel(
     private val packingRepository: PackingRepository,
     gearRepository: GearRepository,
     private val volumeRepository: StorageVolumeRepository,
+    private val volumeInspector: VolumeInspector,
     private val projectRepository: ProjectRepository,
     private val clientRepository: ClientRepository,
     private val documentSink: DocumentSink,
@@ -89,6 +91,9 @@ internal class SessionDetailsViewModel(
     private val deviceZone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
+
+    /** What the last drive read found, shown once and dismissed. */
+    private val checkResult = MutableStateFlow<String?>(null)
 
     /**
      * The day itself, grouped so the join stays within `combine`'s typed arity.
@@ -137,8 +142,8 @@ internal class SessionDetailsViewModel(
                 ::Kit,
             ),
             volumeRepository.observeVolumes(),
-            retryTrigger,
-        ) { day, booking, kit, volumes, _ ->
+            checkResult,
+        ) { day, booking, kit, volumes, lastCheck ->
             val session = day.session
 
             if (session == null) {
@@ -176,6 +181,8 @@ internal class SessionDetailsViewModel(
                             )
                         },
                     today = clock.now().toLocalDateTime(deviceZone).date,
+                    checkResult = lastCheck,
+                    canReadDrives = volumeInspector.isSupported,
                     volumes =
                         volumes
                             .filter { it.isDependable }
@@ -460,6 +467,7 @@ internal class SessionDetailsViewModel(
                     sessionId = sessionId,
                     volumeId = copy.volumeId,
                     volumeName = copy.volumeName.trim(),
+                    path = copy.path?.trim()?.ifBlank { null },
                     kind = copy.kind,
                     isOffsite = copy.isOffsite,
                     copiedAt = now,
@@ -470,18 +478,69 @@ internal class SessionDetailsViewModel(
     }
 
     /**
-     * Records that a copy was opened and found readable.
+     * Opens the drive and counts what is on it.
      *
-     * A drive can fail silently, so this is the only thing that distinguishes a backup a
-     * studio has from one it believes it has.
+     * The copy is only marked verified if something was actually read. A path that is not
+     * there — an external drive nobody plugged in — leaves the previous result standing
+     * rather than overwriting it with today's date, because "checked today and found
+     * nothing" is not a verification and must not read as one.
      */
-    fun verifyMediaCopy(copyId: MediaCopyId) {
+    fun checkMediaCopy(copyId: MediaCopyId) {
+        viewModelScope.launch {
+            val copy = mediaCopyRepository.getCopy(copyId) ?: return@launch
+            val path = copy.path?.takeIf { it.isNotBlank() } ?: return@launch
+            val now = clock.now()
+
+            val found = volumeInspector.inspect(path)
+
+            if (!found.holdsFiles) {
+                checkResult.value =
+                    if (found.exists) {
+                        "${copy.volumeName}: that folder is there but empty."
+                    } else {
+                        "${copy.volumeName}: could not find that folder. Is the drive plugged in?"
+                    }
+                return@launch
+            }
+
+            mediaCopyRepository.saveCopy(
+                copy.copy(
+                    verifiedAt = now,
+                    verifiedFileCount = found.fileCount,
+                    verifiedBytes = found.totalBytes,
+                    audit = copy.audit.touched(now),
+                ),
+            )
+
+            checkResult.value = "${copy.volumeName}: ${found.fileCount} files read."
+        }
+    }
+
+    /**
+     * Records that a studio checked a copy itself.
+     *
+     * Kept for the copies the application cannot read — a cloud bucket, a drive belonging
+     * to another machine — and stored without a file count, so a tick by hand stays
+     * distinguishable from a read the application did.
+     */
+    fun markMediaCopyCheckedByHand(copyId: MediaCopyId) {
         viewModelScope.launch {
             val copy = mediaCopyRepository.getCopy(copyId) ?: return@launch
             val now = clock.now()
 
-            mediaCopyRepository.saveCopy(copy.copy(verifiedAt = now, audit = copy.audit.touched(now)))
+            mediaCopyRepository.saveCopy(
+                copy.copy(
+                    verifiedAt = now,
+                    verifiedFileCount = null,
+                    verifiedBytes = null,
+                    audit = copy.audit.touched(now),
+                ),
+            )
         }
+    }
+
+    fun dismissCheckResult() {
+        checkResult.value = null
     }
 
     fun deleteMediaCopy(copyId: MediaCopyId) {

@@ -15,12 +15,15 @@ internal fun MediaCopyRow.toDomain(): MediaCopy =
         sessionId = SessionId(session_id),
         volumeId = volume_id?.let(::StorageVolumeId),
         volumeName = volume_name,
+        path = path,
         // An unreadable kind reads as a camera card, which is excluded from the count: a
         // corrupted row must never make a studio believe it has a backup it does not.
         kind = enumOrDefault(kind, StorageKind.CameraCard),
         isOffsite = is_offsite != 0L,
         copiedAt = copied_at.toInstantOrNull(),
         verifiedAt = verified_at.toInstantOrNull(),
+        verifiedFileCount = verified_file_count?.toInt(),
+        verifiedBytes = verified_bytes,
         notes = notes,
         audit = auditOf(created_at, updated_at, deleted_at, version),
     )

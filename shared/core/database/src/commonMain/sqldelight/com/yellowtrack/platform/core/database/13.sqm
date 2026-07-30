@@ -1,0 +1,11 @@
+-- Version 13 to 14: where a copy actually is, and what was found there.
+--
+-- "Verified" has meant "somebody pressed a button" since migration 8. A path lets the
+-- application open the drive and count what is on it, and the count is stored beside the
+-- date so a tick made by hand stays distinguishable from a read the application did.
+--
+-- Purely additive, and all three are nullable: existing copies have no path, were never
+-- read, and must keep reading as ticked-by-hand rather than as failed checks.
+ALTER TABLE media_copy ADD COLUMN path TEXT;
+ALTER TABLE media_copy ADD COLUMN verified_file_count INTEGER;
+ALTER TABLE media_copy ADD COLUMN verified_bytes INTEGER;

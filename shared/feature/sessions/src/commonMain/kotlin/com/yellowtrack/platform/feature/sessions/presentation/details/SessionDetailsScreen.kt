@@ -66,6 +66,7 @@ internal fun SessionDetailsScreen(
     onRemoveRelease: (TalentReleaseId) -> Unit,
     onAddMediaCopy: (NewMediaCopy) -> Unit,
     onVerifyMediaCopy: (MediaCopyId) -> Unit,
+    onCheckMediaCopy: (MediaCopyId) -> Unit,
     onRemoveMediaCopy: (MediaCopyId) -> Unit,
     onToggleShot: (ShotId, Boolean) -> Unit,
     onDeleteShot: (ShotId) -> Unit,
@@ -145,6 +146,7 @@ internal fun SessionDetailsScreen(
         if (addingCopy) {
             MediaCopyFormDialog(
                 volumes = uiState.volumes,
+                canReadDrives = uiState.canReadDrives,
                 onSave = {
                     onAddMediaCopy(it)
                     addingCopy = false
@@ -209,6 +211,8 @@ internal fun SessionDetailsScreen(
                 summary = session.backup,
                 onAddCopy = { addingCopy = true },
                 onVerifyCopy = onVerifyMediaCopy,
+                onCheckCopy = onCheckMediaCopy,
+                checkResult = uiState.checkResult,
                 onRemoveCopy = onRemoveMediaCopy,
             )
 

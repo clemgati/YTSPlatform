@@ -21,6 +21,7 @@ import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeShotRepository
 import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
 import com.yellowtrack.platform.core.testing.FakeTalentReleaseRepository
+import com.yellowtrack.platform.core.testing.FakeVolumeInspector
 import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
@@ -115,6 +116,7 @@ class PackingListTest {
                     packingRepository = packing,
                     gearRepository = gear,
                     volumeRepository = FakeStorageVolumeRepository(),
+                    volumeInspector = FakeVolumeInspector(),
                     projectRepository = FakeProjectRepository(),
                     clientRepository = FakeClientRepository(),
                     documentSink = RecordingDocumentSink(),

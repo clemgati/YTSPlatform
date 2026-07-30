@@ -8,6 +8,26 @@ The project follows semantic versioning.
 
 ### Added
 
+- **"Verified" now means the application read the drive.** Since the backup work landed it
+  has meant somebody pressed a button. A drive can fail silently and a folder can be moved,
+  so a tick recorded without reading anything is a backup nobody has checked wearing the
+  label of one that has been. A copy can now carry a path; *Check now* opens it, walks it,
+  and records how many files were found
+- **A failed read is not a verification.** A drive nobody plugged in leaves the previous
+  result standing rather than stamping today's date on it — "checked today and found
+  nothing" must never read as a check that passed. An empty folder is reported as an empty
+  folder, which is the failure a studio most needs told and the one it is least likely to
+  suspect
+- A count and a tick stay distinguishable. Where the application read the drive the row
+  says so — "2,481 files read" — and where a studio ticked a cloud copy by hand there is a
+  date and no count, so a tick never borrows the authority of a count
+- The browser has no filesystem, and says so rather than reporting every backup missing.
+  `VolumeInspector` is implemented per platform in the same shape as `DatabaseDriverFactory`
+  and `DocumentSink`, and declares whether the device can read at all
+- **Migration 13 → 14**, purely additive and all three columns nullable: existing copies
+  have no path, were never read, and keep reading as ticked-by-hand rather than as failed
+  checks
+
 - **A register of the studio's drives.** Copies have carried a free-text volume name since
   earlier in this milestone, so one drive named on twelve shoots was twelve unrelated
   strings. A studio could ask whether one wedding was safe; it could not ask the question

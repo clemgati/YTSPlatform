@@ -139,11 +139,13 @@ The biggest gap in the original roadmap.
 
 ## 0.6.0 — Pipeline
 
-- ◐ Ingest and 3-2-1 backup tracking across storage volumes — the rule is checked per
-  shoot and says what is missing, and the studio's drives are a register rather than free
-  text, so marking one failed immediately drops the copy count on every shoot it held.
-  Reading drives to confirm the files are really there needs per-platform filesystem access
-  and is still to come
+- ✓ Ingest and 3-2-1 backup tracking across storage volumes — the rule is checked per
+  shoot and says what is missing, the studio's drives are a register rather than free text,
+  so marking one failed immediately drops the copy count on every shoot it held, and a copy
+  with a path is **read** rather than taken on trust: the application opens the drive,
+  counts the files, and refuses to record a verification when it finds nothing. Copying
+  files in — as opposed to checking what is already there — remains a card-reader job and
+  is not planned
 - ✓ Post-production tasks with **estimated versus actual hours**, entered on a booking's
   own page and feeding the pricing floor, which now measures rather than assumes
 - ✓ Deliverables with revision rounds and turnaround SLA, both checked against what the

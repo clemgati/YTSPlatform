@@ -22,6 +22,9 @@ import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.gear.PackingEntryId
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.MediaCopyId
+import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -125,6 +128,13 @@ class SessionDetailsRenderTest {
                 release("Chloe Marsh", ReleaseKind.Adult, ReleaseStatus.Refused),
             )
 
+        val mediaCopies =
+            listOf(
+                mediaCopy("Studio iMac", StorageKind.Computer, files = 2_481),
+                mediaCopy("Red Samsung T7", StorageKind.ExternalDrive, files = 2_481, path = "/Volumes/Red T7/Johnson"),
+                mediaCopy("Backblaze", StorageKind.Cloud, files = null),
+            )
+
         val gear =
             listOf(
                 gearItem("Canon R5 body", GearCategory.Camera),
@@ -162,7 +172,7 @@ class SessionDetailsRenderTest {
                                                 shots,
                                                 crew,
                                                 releases,
-                                                emptyList(),
+                                                mediaCopies,
                                                 gear,
                                                 packing,
                                                 emptyList(),
@@ -183,6 +193,7 @@ class SessionDetailsRenderTest {
                             onRemoveRelease = {},
                             onAddMediaCopy = {},
                             onVerifyMediaCopy = {},
+                            onCheckMediaCopy = {},
                             onRemoveMediaCopy = {},
                             onToggleShot = { _, _ -> },
                             onDeleteShot = {},
@@ -283,5 +294,24 @@ private fun packingEntry(
     gearItemId = gearItemId,
     isPacked = packed,
     isReturned = returned,
+    audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+)
+
+private fun mediaCopy(
+    volumeName: String,
+    kind: StorageKind,
+    files: Int?,
+    path: String? = null,
+) = MediaCopy(
+    id = MediaCopyId.new(),
+    studioId = LocalStudioContext.LOCAL_STUDIO_ID,
+    sessionId = SessionId.new(),
+    volumeName = volumeName,
+    kind = kind,
+    path = path,
+    copiedAt = TestAppClock.DEFAULT_NOW,
+    verifiedAt = TestAppClock.DEFAULT_NOW.takeIf { files != null },
+    verifiedFileCount = files,
+    verifiedBytes = files?.let { it * 40_000_000L },
     audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
 )
