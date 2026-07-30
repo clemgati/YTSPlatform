@@ -2,7 +2,6 @@ package com.yellowtrack.platform.feature.ledger.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.basisPointsAsPercentage
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.money.parsePercentageToBasisPoints
@@ -18,6 +17,18 @@ import com.yellowtrack.platform.core.data.QuoteRepository
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.data.observeCurrency
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentFormat
+import com.yellowtrack.platform.core.export.DocumentSink
+import com.yellowtrack.platform.core.export.Sheet
+import com.yellowtrack.platform.core.export.buildInvoice
+import com.yellowtrack.platform.core.export.buildQuote
+import com.yellowtrack.platform.core.export.slugify
+import com.yellowtrack.platform.core.export.toHtml
+import com.yellowtrack.platform.core.export.toPlainText
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.codb.CodbBreakdown
 import com.yellowtrack.platform.core.model.codb.CodbProfile
@@ -91,10 +102,11 @@ internal class LedgerViewModel(
     private val sessionRepository: SessionRepository,
     private val postProductionRepository: PostProductionRepository,
     private val clientRepository: ClientRepository,
+    private val studioProfileRepository: StudioProfileRepository,
+    private val documentSink: DocumentSink,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
-    private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
@@ -165,7 +177,8 @@ internal class LedgerViewModel(
                         postProductionRepository.observeCompletedTasks(),
                         ::Work,
                     ),
-                ) { books, costs, proposals, work ->
+                    studioProfileRepository.observeCurrency(),
+                ) { books, costs, proposals, work, currency ->
                     LedgerUiState(
                         content =
                             UiState.Success(
@@ -249,6 +262,101 @@ internal class LedgerViewModel(
                 initialValue = LedgerUiState(content = UiState.Loading),
             )
 
+    /**
+     * Why nothing can be sent out, or null when it can.
+     *
+     * Checked once for both copying and saving. A studio with no name on file can still
+     * see its invoices; it simply cannot send one, and being told why beats a button that
+     * does nothing.
+     */
+    suspend fun documentBlocker(): String? =
+        if (studioProfileRepository.getProfile()?.canIssueDocuments == true) {
+            null
+        } else {
+            "Add your studio's name in Settings before sending anything out."
+        }
+
+    /** The invoice as the client would receive it, or null if it or the studio has gone. */
+    suspend fun invoiceSheet(invoiceId: InvoiceId): Sheet? {
+        val invoice = invoiceRepository.getInvoice(invoiceId) ?: return null
+        val studio = studioProfileRepository.getProfile()?.takeIf { it.canIssueDocuments } ?: return null
+        val project = projectRepository.observeProjects().first().firstOrNull { it.id == invoice.projectId }
+
+        return buildInvoice(
+            invoice = invoice,
+            project = project,
+            client =
+                project?.let { found ->
+                    clientRepository.observeClients().first().firstOrNull {
+                        it.id ==
+                            found.clientId
+                    }
+                },
+            studio = studio,
+            now = clock.now(),
+            zone = timeZone,
+        )
+    }
+
+    suspend fun quoteSheet(quoteId: QuoteId): Sheet? {
+        val quote = quoteRepository.getQuote(quoteId) ?: return null
+        val studio = studioProfileRepository.getProfile()?.takeIf { it.canIssueDocuments } ?: return null
+        val project = projectRepository.observeProjects().first().firstOrNull { it.id == quote.projectId }
+
+        return buildQuote(
+            quote = quote,
+            project = project,
+            client =
+                project?.let { found ->
+                    clientRepository.observeClients().first().firstOrNull {
+                        it.id ==
+                            found.clientId
+                    }
+                },
+            studio = studio,
+            now = clock.now(),
+            zone = timeZone,
+        )
+    }
+
+    /**
+     * Writes a document out as a web page.
+     *
+     * HTML rather than PDF for the same reason the call sheet is: it opens anywhere, and
+     * prints to PDF from the browser without a rendering library on four platforms.
+     */
+    fun saveDocument(
+        sheet: suspend () -> Sheet?,
+        onResult: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            documentBlocker()?.let {
+                onResult(it)
+                return@launch
+            }
+
+            val document =
+                sheet() ?: run {
+                    onResult("That document could not be read.")
+                    return@launch
+                }
+
+            val saved =
+                documentSink.save(
+                    Document(
+                        baseName = slugify(document.title),
+                        format = DocumentFormat.Html,
+                        content = document.toHtml(),
+                    ),
+                )
+
+            onResult("Saved to ${saved.location}")
+        }
+    }
+
+    /** The plain-text rendering, for pasting into an email. */
+    suspend fun documentText(sheet: suspend () -> Sheet?): String? = sheet()?.toPlainText()
+
     fun retry() {
         retryTrigger.value += 1
     }
@@ -265,6 +373,7 @@ internal class LedgerViewModel(
         taxRateText: String,
     ) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val salary = parseMoney(salaryText, currency) ?: return@launch
             val billableDays = billableDaysText.toIntOrNull()?.takeIf { it in 1..366 } ?: return@launch
             val taxBasisPoints =
@@ -298,6 +407,7 @@ internal class LedgerViewModel(
 
     fun addExpense(expense: NewExpense) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val amount = parseMoney(expense.amount, currency)?.takeIf { it.isPositive } ?: return@launch
             val incurredOn = runCatching { LocalDate.parse(expense.incurredOn) }.getOrNull() ?: return@launch
             val now = clock.now()
@@ -327,6 +437,7 @@ internal class LedgerViewModel(
      */
     fun addQuote(quote: NewQuote) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val lines = quote.lines.toLineItems(currency) ?: return@launch
             val now = clock.now()
             val validUntil =
@@ -397,6 +508,7 @@ internal class LedgerViewModel(
      */
     fun addContract(contract: NewContract) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val retainer =
                 when {
                     contract.retainerAmount.isBlank() -> null
@@ -526,6 +638,7 @@ internal class LedgerViewModel(
 
     fun addInvoice(invoice: NewInvoice) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val lines = invoice.lines.toLineItems(currency) ?: return@launch
             val dueOn = runCatching { LocalDate.parse(invoice.dueOn) }.getOrNull() ?: return@launch
             val now = clock.now()
@@ -615,6 +728,7 @@ internal class LedgerViewModel(
 
     fun recordPayment(payment: NewPayment) {
         viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
             val amount = parseMoney(payment.amount, currency)?.takeIf { it.isPositive } ?: return@launch
             val paidOn = runCatching { LocalDate.parse(payment.paidOn) }.getOrNull() ?: return@launch
             val now = clock.now()

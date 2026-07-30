@@ -13,6 +13,7 @@ import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeLeadRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
+import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.feature.dashboard.presentation.DashboardViewModel
 import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
@@ -53,6 +54,7 @@ class EnquiryActionsTest {
             projectRepository = FakeProjectRepository(),
             sessionRepository = FakeSessionRepository(),
             leadRepository = leads,
+            studioProfileRepository = FakeStudioProfileRepository(),
             studioContext = LocalStudioContext(),
             clock = clock,
         )

@@ -8,6 +8,63 @@ The project follows semantic versioning.
 
 ### Added
 
+- **The starting templates no longer carry invented prices.** A studio found four packages
+  waiting for it on first run, priced in dollars — figures the application made up, in a
+  currency the studio had not chosen, which the Ledger then measured against that studio's
+  real pricing floor and reported as under- or over-priced. The comment above them already
+  said every figure was "a placeholder the studio is expected to replace"; they are now
+  absent rather than hoped-about. What is seeded is the shape of the work — duration,
+  sessions, deliverables, turnaround — which is the same in every country
+- The pricing screen already handled a template with no price: it shows the minimum the
+  floor requires for those days and leaves what the studio charges blank, which is the
+  honest order to fill the two in
+
+- **The application was silently dollars-only.** `CurrencyCode` has carried a comment since
+  it was written saying a studio's currency "is a per-studio setting rather than a global
+  constant" — and it was a global constant: a hardcoded default argument on six ViewModels,
+  settable nowhere. Every price, total, and figure on screen said dollars whatever the
+  studio actually charged, and once invoices started leaving the building in the same
+  milestone, so did they
+- The currency now lives on the studio profile, beside the name and the tax number, with
+  one fallback in one place rather than a default repeated per ViewModel — which is exactly
+  how it became a global constant the first time. **Migration 11 → 12** adds the column,
+  defaulted to `USD` so every existing row keeps working
+- **Money in two currencies cannot be added, and now the Ledger says so.** `Money` refuses
+  to add pounds to dollars, which is right; `buildMoneyOwed` was summing across every
+  outstanding invoice without checking, so the first studio to change currency would have
+  taken the whole screen down. The totals now cover what matches and report what they leave
+  out — a total quietly missing an invoice is worse than one that says it is short. The
+  expense and proposal summaries had filtered this way from the start; this one had not,
+  which went unnoticed while every figure in the application was hardcoded to dollars
+- Found by a test that hung rather than failed: the exception was caught into an error
+  state, so waiting for a success that never came looked like a slow test
+
+- **Studio details, at last.** The Settings screen has said since 0.1.0 that there was
+  nothing to configure and that studio details "arrive with the account model". They are
+  needed sooner: documents started leaving the building in this same milestone, and accounts
+  are not until 0.7.0. `StudioProfile` holds one row per studio — name, address, contact,
+  tax registration number, how to pay, and a footer
+- **Only the name stops a document.** A client who cannot tell who an invoice is from does
+  not pay it, and the studio finds out when the money does not arrive. Everything else is
+  reported as a gap the client will merely notice — an invoice with no way to pay it is a
+  common and expensive omission, and in most jurisdictions one with no tax number cannot be
+  claimed against
+- **Invoices and quotes as documents a client can read.** Every figure is taken from the
+  `Invoice` itself, which computes it from its own lines and payments — nothing is
+  recomputed for the page, because a document arriving at a different total from the screen
+  it was sent from would be the worst bug this application could have
+- An overpayment reads as "Overpaid $1,000.00" rather than a negative balance due, because a
+  client reading *minus one thousand due* starts an argument. Bank details are printed only
+  while something is still owed: on a settled invoice they buy a refund, an apology and an
+  afternoon. A quantity of one is not printed at all — "1 × $4,000.00" beside a total of
+  $4,000.00 is a line the reader has to check before discarding
+- The document model now separates lines that belong together from prose. An address
+  rendered as paragraphs took a third of the page and read as seven unrelated facts; caught
+  by looking at the rendered invoice rather than the code
+- **Migration 10 → 11**, purely additive, with a unique index on `studio_id` enforced in the
+  schema rather than in code: two profiles for one studio would put two different names on
+  two invoices, and a sync conflict is exactly how that would happen
+
 - **Documents can leave the application.** Everything built so far has been readable only
   by the person holding the laptop. A new `core:export` module renders a document from the
   domain and a `DocumentSink` decides where it goes, per platform, in the same shape

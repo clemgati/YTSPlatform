@@ -43,6 +43,10 @@ class MigrationTest {
 
     private fun v9Database(): SqlDriver = snapshotDatabase(version = 9)
 
+    private fun v10Database(): SqlDriver = snapshotDatabase(version = 10)
+
+    private fun v11Database(): SqlDriver = snapshotDatabase(version = 11)
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -946,12 +950,140 @@ class MigrationTest {
             driver.close()
         }
 
+    // --- Version ten to eleven: who the studio is on paper ------------------------------
+
+    @Test
+    fun `a version ten database keeps its gear when the studio profile arrives`() =
+        runTest {
+            val driver = v10Database()
+
+            driver.exec(
+                """
+                INSERT INTO gear_item(id, studio_id, name, category, status,
+                                      created_at, updated_at, version)
+                VALUES ('gear-1', 'studio-1', 'Canon R5 body', 'Camera', 'InService', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 10, newVersion = 11)
+
+            assertEquals(1L, driver.countOf("gear_item"), "the gear from 9 → 10 must survive 10 → 11")
+            assertEquals(0L, driver.countOf("studio_profile"), "and the new table is there and empty")
+
+            driver.close()
+        }
+
+    @Test
+    fun `a studio cannot end up with two profiles and two names on two documents`() =
+        runTest {
+            val driver = v10Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 10, newVersion = 11)
+
+            driver.exec(
+                """
+                INSERT INTO studio_profile(id, studio_id, name, created_at, updated_at, version)
+                VALUES ('profile-1', 'studio-1', 'Yellow Track Studios', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            val second =
+                runCatching {
+                    driver.exec(
+                        """
+                        INSERT INTO studio_profile(id, studio_id, name, created_at, updated_at, version)
+                        VALUES ('profile-2', 'studio-1', 'Something Else', 1000, 1000, 1);
+                        """.trimIndent(),
+                    )
+                }
+
+            assertTrue(
+                second.isFailure,
+                "two profiles for one studio would put two different names on two invoices",
+            )
+            assertEquals(1L, driver.countOf("studio_profile"))
+
+            driver.close()
+        }
+
+    @Test
+    fun `everything but the name is optional, because most of it is filled in later`() =
+        runTest {
+            val driver = v10Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 10, newVersion = 11)
+
+            driver.exec(
+                """
+                INSERT INTO studio_profile(id, studio_id, name, created_at, updated_at, version)
+                VALUES ('profile-1', 'studio-1', 'Yellow Track Studios', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertNull(driver.scalar("SELECT tax_number FROM studio_profile"))
+            assertNull(
+                driver.scalar("SELECT payment_instructions FROM studio_profile"),
+                "an empty string and a missing value would be two states meaning one thing",
+            )
+
+            driver.close()
+        }
+
+    // --- Version eleven to twelve: what the studio charges in ---------------------------
+
+    @Test
+    fun `a studio that never chose a currency is charging in dollars, not in nothing`() =
+        runTest {
+            val driver = v11Database()
+
+            driver.exec(
+                """
+                INSERT INTO studio_profile(id, studio_id, name, created_at, updated_at, version)
+                VALUES ('profile-1', 'studio-1', 'Yellow Track Studios', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 11, newVersion = 12)
+
+            assertEquals(
+                "USD",
+                driver.scalar("SELECT currency FROM studio_profile"),
+                "a null currency would have to be handled at every place money is rendered",
+            )
+            assertEquals(
+                "Yellow Track Studios",
+                driver.scalar("SELECT name FROM studio_profile"),
+                "the details from 10 → 11 must survive 11 → 12",
+            )
+
+            driver.close()
+        }
+
+    @Test
+    fun `a studio can charge in something other than dollars`() =
+        runTest {
+            val driver = v11Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 11, newVersion = 12)
+
+            driver.exec(
+                """
+                INSERT INTO studio_profile(id, studio_id, name, currency, created_at, updated_at, version)
+                VALUES ('profile-1', 'studio-1', 'Yellow Track Studios', 'GBP', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals("GBP", driver.scalar("SELECT currency FROM studio_profile"))
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(10L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(12L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

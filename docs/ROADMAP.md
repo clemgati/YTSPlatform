@@ -152,11 +152,14 @@ The biggest gap in the original roadmap.
   the morning and back at midnight
 - ✓ Lighting recipes — set-ups written down in the terms they are dialled in, so the
   three-light headshot is a starting point rather than a rebuild from memory
-- ◐ Documents out of the app: call sheets first. The shoot day now leaves as a
-  self-contained web page or as text pasted into a message, carrying the light, the crew
-  and the shot list and none of the money. Handing it straight to a share sheet on Android
-  and iOS, and the other documents worth exporting — an invoice, a quote — are still to
-  come
+- ◐ Documents out of the app. The shoot day leaves as a self-contained web page or as
+  text pasted into a message; invoices and quotes leave as pages a client can read and
+  print, carrying the studio's details, its tax number and how to pay it. Handing a
+  document straight to a share sheet on Android and iOS is still to come, as is emailing
+  one without leaving the application
+- ✓ Studio details, which every document carries — the Settings screen has claimed since
+  0.1.0 that there was nothing to configure, and an invoice with no name on it is not an
+  invoice
 
 ## 0.7.0 — Cloud
 

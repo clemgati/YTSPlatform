@@ -31,6 +31,8 @@ fun Sheet.toHtml(): String =
             appendLine("</section>")
         }
 
+        footer?.let { appendLine("<footer>${it.escapeHtml()}</footer>") }
+
         appendLine("</body>")
         appendLine("</html>")
     }
@@ -69,7 +71,10 @@ private fun StringBuilder.appendBlock(block: SheetBlock) {
             }
         }
 
-        is SheetBlock.Lines -> block.lines.forEach { appendLine("<p>${it.escapeHtml()}</p>") }
+        is SheetBlock.Lines ->
+            appendLine("<p class=\"block\">${block.lines.joinToString("<br>") { it.escapeHtml() }}</p>")
+
+        is SheetBlock.Paragraphs -> block.paragraphs.forEach { appendLine("<p>${it.escapeHtml()}</p>") }
 
         is SheetBlock.Absent -> appendLine("<p class=\"absent\">${block.message.escapeHtml()}</p>")
     }
@@ -116,7 +121,13 @@ private val STYLES =
     ul.entries .detail { grid-column: 1 / -1; color: #5c5647; font-size: 0.9rem; }
     ul.entries .trailing { text-align: right; font-weight: 600; }
     ul.checklist li { padding: 0.2rem 0; }
+    p { margin: 0.5rem 0; }
+    p.block { margin: 0.35rem 0; line-height: 1.45; }
     .absent { color: #5c5647; }
+    footer {
+      margin-top: 2.5rem; padding-top: 0.75rem; border-top: 1px solid #d8d2c4;
+      color: #5c5647; font-size: 0.85rem; white-space: pre-line;
+    }
     @media print {
       body { max-width: none; padding: 0; font-size: 11pt; }
       h2 { margin-top: 1.2rem; }

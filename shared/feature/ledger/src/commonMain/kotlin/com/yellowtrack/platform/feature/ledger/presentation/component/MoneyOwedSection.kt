@@ -25,6 +25,7 @@ internal fun MoneyOwedSection(
     onVoidInvoice: (OutstandingInvoiceItem) -> Unit,
     onSendDraft: (DraftInvoiceItem) -> Unit,
     onDeleteDraft: (DraftInvoiceItem) -> Unit,
+    onSaveInvoice: (OutstandingInvoiceItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -52,6 +53,19 @@ internal fun MoneyOwedSection(
                 )
             }
 
+            // Said plainly rather than left as a quietly short total. A studio that has
+            // changed what it charges in still has invoices in the old currency, and they
+            // cannot be added to the figure above.
+            if (summary.otherCurrencyCount > 0) {
+                Text(
+                    text =
+                        "The total leaves out ${summary.otherCurrencyCount.invoiceLabel} " +
+                            "in another currency, listed below.",
+                    style = YTTheme.typography.bodyMedium,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
+
             if (summary.invoices.isEmpty()) {
                 Text(
                     text = "No unpaid invoices.",
@@ -60,7 +74,7 @@ internal fun MoneyOwedSection(
                 )
             } else {
                 HorizontalDivider(color = YTTheme.colors.outlineVariant)
-                summary.invoices.forEach { InvoiceRow(it, onRecordPayment, onVoidInvoice) }
+                summary.invoices.forEach { InvoiceRow(it, onRecordPayment, onVoidInvoice, onSaveInvoice) }
             }
 
             if (summary.drafts.isNotEmpty()) {
@@ -154,6 +168,7 @@ private fun InvoiceRow(
     invoice: OutstandingInvoiceItem,
     onRecordPayment: (OutstandingInvoiceItem) -> Unit,
     onVoid: (OutstandingInvoiceItem) -> Unit,
+    onSave: (OutstandingInvoiceItem) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -194,6 +209,17 @@ private fun InvoiceRow(
             )
 
             Row {
+                // The document the client actually receives. Saved as a file rather than
+                // copied as text: an invoice is emailed as an attachment, where a call
+                // sheet is pasted into a message.
+                TextButton(onClick = { onSave(invoice) }) {
+                    Text(
+                        text = "Save",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.onSurfaceVariant,
+                    )
+                }
+
                 // Offered only while nothing has been received: see
                 // [OutstandingInvoiceItem.canVoid].
                 if (invoice.canVoid) {

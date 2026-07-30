@@ -1,6 +1,9 @@
 package com.yellowtrack.platform.core.export
 
+import com.yellowtrack.platform.core.common.money.CurrencyCode
+import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
+import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientId
@@ -9,6 +12,13 @@ import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.invoice.PaymentMethod
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -19,16 +29,19 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
+import com.yellowtrack.platform.core.model.studio.StudioProfile
+import com.yellowtrack.platform.core.model.studio.StudioProfileId
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /**
- * Writes a real call sheet to disk so a person can open it.
+ * Writes real documents to disk so a person can open them.
  *
  * This document is read by someone who has never seen the application, on a phone, the
  * night before a wedding. The only way to know it reads well is to look at it, and the
@@ -36,7 +49,7 @@ import kotlin.time.Instant
  *
  * Set `-Dyellowtrack.render.dir` to choose where they land.
  */
-class CallSheetSampleTest {
+class DocumentSampleTest {
     private val zone = TimeZone.of("Europe/London")
     private val studioId = StudioId("studio-1")
     private val sessionId = SessionId.new()
@@ -58,6 +71,7 @@ class CallSheetSampleTest {
                 client = client(),
                 crew = crew(),
                 shots = shots(),
+                studio = studioProfile(),
             )
 
         val html = File(outputDir, "call-sheet.html")
@@ -70,6 +84,86 @@ class CallSheetSampleTest {
         println("Wrote ${html.absolutePath}")
         println("Wrote ${text.absolutePath}")
     }
+
+    @Test
+    fun `writes an invoice`() {
+        val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
+        outputDir.mkdirs()
+
+        val sheet =
+            buildInvoice(
+                invoice = invoice(),
+                project = project(),
+                client = client(),
+                studio = studioProfile(),
+                now = createdAt,
+                zone = zone,
+            )
+
+        val html = File(outputDir, "invoice.html")
+        val text = File(outputDir, "invoice.txt")
+        html.writeText(sheet.toHtml())
+        text.writeText(sheet.toPlainText())
+
+        assertTrue(html.length() > 0)
+        println("Wrote ${html.absolutePath}")
+        println("Wrote ${text.absolutePath}")
+    }
+
+    private fun studioProfile() =
+        StudioProfile(
+            id = StudioProfileId.new(),
+            studioId = studioId,
+            name = "Yellow Track Studios",
+            address = "12 Harbour Road\nFalmouth\nTR11 3AA",
+            email = "hello@yellowtrack.example",
+            phone = "07700 900000",
+            website = "yellowtrack.example",
+            taxNumber = "GB123456789",
+            paymentInstructions =
+                "Bank transfer to Yellow Track Studios\nSort code 00-00-00 · Account 12345678\n" +
+                    "Please quote the invoice number.",
+            documentFooter = "Payment due within 14 days. Late payments accrue interest at 8% above base rate.",
+            audit = AuditMetadata.createdAt(createdAt),
+        )
+
+    private fun invoice() =
+        Invoice(
+            id = InvoiceId.new(),
+            studioId = studioId,
+            projectId = projectId,
+            number = "INV-004",
+            kind = InvoiceKind.Balance,
+            status = InvoiceStatus.Sent,
+            currency = CurrencyCode.USD,
+            lines =
+                listOf(
+                    LineItem("Wedding coverage, ten hours", Money(400_000L, CurrencyCode.USD)),
+                    LineItem("Second shooter", Money(75_000L, CurrencyCode.USD)),
+                    LineItem(
+                        "Fine art album, 30 spreads",
+                        Money(120_000L, CurrencyCode.USD),
+                        taxRateBasisPoints = 2_000,
+                    ),
+                    LineItem("Retouched images beyond the package", Money(5_000L, CurrencyCode.USD), quantity = 24),
+                ),
+            payments =
+                listOf(
+                    Payment(
+                        id = PaymentId.new(),
+                        studioId = studioId,
+                        invoiceId = InvoiceId.new(),
+                        amount = Money(250_000L, CurrencyCode.USD),
+                        paidAt = createdAt - 60.days,
+                        method = PaymentMethod.BankTransfer,
+                        audit = AuditMetadata.createdAt(createdAt),
+                    ),
+                ),
+            issuedAt = createdAt,
+            dueAt = createdAt + 14.days,
+            notes = "Thank you — it was a wonderful day to photograph.",
+            audit = AuditMetadata.createdAt(createdAt),
+        )
 
     private fun session() =
         Session(

@@ -12,6 +12,7 @@ val studioModule =
                 recipeRepository = get(),
                 studioContext = get(),
                 clock = get(),
+                studioProfileRepository = get(),
             )
         }
     }

@@ -1,7 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
 import app.cash.sqldelight.async.coroutines.awaitAsOne
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.StudioContext
@@ -18,7 +17,6 @@ internal class SqlDelightServiceTemplateRepository(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
-    private val defaultCurrency: CurrencyCode = CurrencyCode.USD,
 ) : DatabaseBackedRepository(provider),
     ServiceTemplateRepository {
     private val studioId get() = studioContext.studioId.value
@@ -92,7 +90,6 @@ internal class SqlDelightServiceTemplateRepository(
 
         defaultServiceTemplates(
             studioId = studioContext.studioId,
-            currency = defaultCurrency,
             now = clock.now(),
         ).forEach { saveTemplate(it) }
     }

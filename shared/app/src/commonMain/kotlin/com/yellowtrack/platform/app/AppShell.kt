@@ -19,7 +19,7 @@ import com.yellowtrack.platform.feature.dashboard.DashboardRoute
 import com.yellowtrack.platform.feature.ledger.LedgerRoute
 import com.yellowtrack.platform.feature.sessions.SessionDetailsRoute
 import com.yellowtrack.platform.feature.sessions.SessionsRoute
-import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
+import com.yellowtrack.platform.feature.settings.SettingsRoute
 import com.yellowtrack.platform.feature.studio.StudioRoute
 
 @Composable
@@ -135,7 +135,7 @@ private fun CurrentRoute(
 
         AppRoute.Studio -> StudioRoute(modifier = modifier)
 
-        AppRoute.Settings -> SettingsScreen(modifier = modifier)
+        AppRoute.Settings -> SettingsRoute(modifier = modifier)
     }
 }
 

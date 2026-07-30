@@ -2,7 +2,6 @@ package com.yellowtrack.platform.feature.dashboard.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
@@ -10,6 +9,8 @@ import com.yellowtrack.platform.core.data.LeadRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.currency
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.lead.LeadId
@@ -45,9 +46,9 @@ internal class DashboardViewModel(
     private val sessionRepository: SessionRepository,
     private val leadRepository: LeadRepository,
     private val studioContext: StudioContext,
+    private val studioProfileRepository: StudioProfileRepository,
     private val clock: AppClock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
-    private val currency: CurrencyCode = CurrencyCode.USD,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
@@ -126,6 +127,7 @@ internal class DashboardViewModel(
     fun addEnquiry(enquiry: NewEnquiry) {
         viewModelScope.launch {
             val now = clock.now()
+            val studioCurrency = studioProfileRepository.currency()
 
             leadRepository.saveLead(
                 Lead(
@@ -138,8 +140,8 @@ internal class DashboardViewModel(
                     email = enquiry.email,
                     phone = enquiry.phone,
                     serviceLine = enquiry.serviceLine,
-                    budgetLow = enquiry.budgetLow?.let { parseMoney(it, currency) },
-                    budgetHigh = enquiry.budgetHigh?.let { parseMoney(it, currency) },
+                    budgetLow = enquiry.budgetLow?.let { parseMoney(it, studioCurrency) },
+                    budgetHigh = enquiry.budgetHigh?.let { parseMoney(it, studioCurrency) },
                     referredBy = enquiry.referredBy,
                     audit = AuditMetadata.createdAt(now),
                 ),

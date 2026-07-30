@@ -107,6 +107,15 @@ internal fun buildMoneyOwed(
 
     val overdueInvoices = outstanding.filter { it.paymentState(now) == PaymentState.Overdue }
 
+    // Money in two currencies cannot be added, and `Money` refuses to try. A studio that
+    // has changed what it charges in still has invoices in the old one, so the totals
+    // cover what matches and the count of what does not is reported rather than dropped —
+    // a total quietly missing an invoice is worse than one that says it is short.
+    // `buildExpenseSummary` and `buildProposals` have filtered this way from the start;
+    // this one did not, which went unnoticed while every figure in the application was
+    // hardcoded to dollars.
+    fun List<Invoice>.inStudioCurrency(): List<Invoice> = filter { it.currency == currency }
+
     // Oldest first: a draft that has sat longest is work agreed longest ago and still not
     // billed. Without this list a draft is invisible — it contributes nothing to money
     // owed, which is the whole point of a draft, and accepting a quote raises one.
@@ -128,8 +137,19 @@ internal fun buildMoneyOwed(
             }
 
     return MoneyOwedSummary(
-        totalOutstanding = outstanding.map { it.outstanding(now) }.sum(currency).display(),
-        overdueAmount = overdueInvoices.map { it.outstanding(now) }.sum(currency).display(),
+        totalOutstanding =
+            outstanding
+                .inStudioCurrency()
+                .map { it.outstanding(now) }
+                .sum(currency)
+                .display(),
+        overdueAmount =
+            overdueInvoices
+                .inStudioCurrency()
+                .map { it.outstanding(now) }
+                .sum(currency)
+                .display(),
+        otherCurrencyCount = outstanding.count { it.currency != currency },
         overdueCount = overdueInvoices.size,
         invoices = items,
         drafts = drafts,

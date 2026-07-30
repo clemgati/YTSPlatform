@@ -15,6 +15,7 @@ import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
+import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.testing.TestData
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsViewModel
@@ -63,6 +64,7 @@ class ClientDetailsViewModelTest {
         clientRepository = clients,
         projectRepository = projects,
         sessionRepository = FakeSessionRepository(),
+        studioProfileRepository = FakeStudioProfileRepository(),
         studioContext = LocalStudioContext(),
         clock = clock,
     )

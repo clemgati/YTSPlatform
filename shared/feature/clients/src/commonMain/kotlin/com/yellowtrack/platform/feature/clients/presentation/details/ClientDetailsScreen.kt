@@ -16,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.project.ProjectId
@@ -45,7 +44,6 @@ internal fun ClientDetailsScreen(
     onAddProject: (NewProject) -> Unit,
     onOpenBooking: (ProjectId) -> Unit,
     onUpdateClient: (NewClient) -> Unit,
-    currency: CurrencyCode = CurrencyCode.USD,
     modifier: Modifier = Modifier,
 ) {
     var showProjectForm by remember { mutableStateOf(false) }
@@ -66,7 +64,7 @@ internal fun ClientDetailsScreen(
         if (showProjectForm) {
             ProjectFormDialog(
                 clientName = client.displayName,
-                currency = currency,
+                currency = uiState.currency,
                 onSave = {
                     onAddProject(it)
                     showProjectForm = false

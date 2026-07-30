@@ -282,7 +282,7 @@ class CallSheetTest {
         val light = sheet(session = midnightSun).section("Light")
 
         assertNotNull(light)
-        val lines = light.blocks.filterIsInstance<SheetBlock.Lines>().flatMap { it.lines }
+        val lines = light.blocks.filterIsInstance<SheetBlock.Paragraphs>().flatMap { it.paragraphs }
         assertEquals(listOf("The sun does not set here on this date."), lines)
     }
 
