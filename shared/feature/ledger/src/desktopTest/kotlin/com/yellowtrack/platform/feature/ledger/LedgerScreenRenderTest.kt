@@ -75,6 +75,9 @@ class LedgerScreenRenderTest {
                             onSendInvoice = {},
                             onVoidInvoice = {},
                             onDeleteInvoice = {},
+                            onSaveInvoice = {},
+                            onSaveQuote = {},
+                            documentMessage = null,
                         )
                     }
                 }

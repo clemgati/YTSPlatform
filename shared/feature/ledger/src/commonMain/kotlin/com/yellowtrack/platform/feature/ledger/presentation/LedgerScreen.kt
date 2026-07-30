@@ -55,6 +55,9 @@ internal fun LedgerScreen(
     onSendInvoice: (InvoiceId) -> Unit,
     onVoidInvoice: (InvoiceId) -> Unit,
     onDeleteInvoice: (InvoiceId) -> Unit,
+    onSaveInvoice: (InvoiceId) -> Unit,
+    onSaveQuote: (QuoteId) -> Unit,
+    documentMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     var showExpenseForm by remember { mutableStateOf(false) }
@@ -169,6 +172,7 @@ internal fun LedgerScreen(
                 onVoidInvoice = { onVoidInvoice(it.id) },
                 onSendDraft = { onSendInvoice(it.id) },
                 onDeleteDraft = { onDeleteInvoice(it.id) },
+                onSaveInvoice = { onSaveInvoice(it.id) },
             )
 
             ProposalsSection(
@@ -180,7 +184,18 @@ internal fun LedgerScreen(
                 onDeclineQuote = { onDeclineQuote(it.id) },
                 onSendContract = { onSendContract(it.id) },
                 onSignContract = { signingContract = it },
+                onSaveQuote = { onSaveQuote(it.id) },
             )
+
+            // Where the document went, or why it could not go. A file nobody can find
+            // was not saved, and silence is how that happens.
+            documentMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = YTTheme.typography.bodyMedium,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
 
             PricingSection(
                 pricing = content.pricing,

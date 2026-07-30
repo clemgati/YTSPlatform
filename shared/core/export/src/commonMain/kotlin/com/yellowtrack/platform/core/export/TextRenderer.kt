@@ -20,6 +20,11 @@ fun Sheet.toPlainText(): String =
             appendLine(section.heading.uppercase())
             section.blocks.forEach { appendBlock(it) }
         }
+
+        footer?.let {
+            appendLine()
+            appendLine(it)
+        }
     }.trimEnd() + "\n"
 
 private fun StringBuilder.appendBlock(block: SheetBlock) {
@@ -40,6 +45,8 @@ private fun StringBuilder.appendBlock(block: SheetBlock) {
             }
 
         is SheetBlock.Lines -> block.lines.forEach { appendLine(it) }
+
+        is SheetBlock.Paragraphs -> block.paragraphs.forEach { appendLine(it) }
 
         is SheetBlock.Absent -> appendLine(block.message)
     }

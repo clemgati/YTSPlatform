@@ -33,6 +33,7 @@ internal fun ProposalsSection(
     onDeclineQuote: (QuoteItem) -> Unit,
     onSendContract: (ContractItem) -> Unit,
     onSignContract: (ContractItem) -> Unit,
+    onSaveQuote: (QuoteItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -64,7 +65,7 @@ internal fun ProposalsSection(
             if (summary.awaitingDecision.isNotEmpty()) {
                 HorizontalDivider(color = YTTheme.colors.outlineVariant)
                 summary.awaitingDecision.forEach { quote ->
-                    QuoteRow(quote, onAcceptQuote, onDeclineQuote)
+                    QuoteRow(quote, onAcceptQuote, onDeclineQuote, onSaveQuote)
                 }
             }
 
@@ -122,6 +123,7 @@ private fun QuoteRow(
     quote: QuoteItem,
     onAccept: (QuoteItem) -> Unit,
     onDecline: (QuoteItem) -> Unit,
+    onSave: (QuoteItem) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -157,6 +159,16 @@ private fun QuoteRow(
             )
 
             Row {
+                // The document the client is sent, beside the two answers it can come
+                // back with.
+                TextButton(onClick = { onSave(quote) }) {
+                    Text(
+                        text = "Save",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.onSurfaceVariant,
+                    )
+                }
+
                 TextButton(onClick = { onDecline(quote) }) {
                     Text(
                         text = "Declined",

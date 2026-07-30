@@ -9,6 +9,7 @@ import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.studio.StudioProfile
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -30,19 +31,25 @@ fun buildCallSheet(
     client: Client?,
     crew: List<CrewMember>,
     shots: List<Shot>,
+    studio: StudioProfile? = null,
 ): Sheet {
     val zone = TimeZone.of(session.timeZoneId)
 
     return Sheet(
         title = "Call sheet — ${session.title}",
-        // No studio name: there is no `Studio` entity yet — it arrives with accounts in
-        // 0.7.0 — and printing a placeholder on a document that leaves the building would
-        // be worse than printing nothing.
         subtitle =
-            listOfNotNull(client?.displayName, project?.name)
+            listOfNotNull(client?.displayName, project?.name, studio?.name?.takeIf { it.isNotBlank() })
                 .distinct()
                 .joinToString(" · ")
                 .ifBlank { null },
+        // A number to ring when someone cannot find the gate. Unlike an invoice, a call
+        // sheet with no studio details still works — it goes to people who know who booked
+        // them — so this is added when it exists rather than required.
+        footer =
+            studio
+                ?.let { listOfNotNull(it.name.takeIf(String::isNotBlank), it.phone, it.email) }
+                ?.takeIf { it.size > 1 }
+                ?.joinToString(" · "),
         sections =
             listOfNotNull(
                 daySection(session, zone),
@@ -139,7 +146,7 @@ private fun lightSection(
                 else -> return null
             }
 
-        return SheetSection("Light", listOf(SheetBlock.Lines(listOf(note))))
+        return SheetSection("Light", listOf(SheetBlock.Paragraphs(listOf(note))))
     }
 
     return SheetSection("Light", listOf(SheetBlock.Facts(facts)))
@@ -213,7 +220,7 @@ private fun notesSection(session: Session): SheetSection? {
             .orEmpty()
             .filter(String::isNotBlank)
 
-    return if (lines.isEmpty()) null else SheetSection("Notes", listOf(SheetBlock.Lines(lines)))
+    return if (lines.isEmpty()) null else SheetSection("Notes", listOf(SheetBlock.Paragraphs(lines)))
 }
 
 /** Sorts people with no call time to the end rather than to the front. */

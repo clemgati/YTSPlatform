@@ -33,6 +33,8 @@ import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeQuoteRepository
 import com.yellowtrack.platform.core.testing.FakeServiceTemplateRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
+import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
+import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerContent
@@ -114,6 +116,8 @@ class ContractActionsTest {
                     sessionRepository = FakeSessionRepository(),
                     postProductionRepository = FakePostProductionRepository(),
                     clientRepository = FakeClientRepository(listOf(client())),
+                    studioProfileRepository = FakeStudioProfileRepository(),
+                    documentSink = RecordingDocumentSink(),
                     studioContext = LocalStudioContext(),
                     clock = clock,
                     timeZone = TimeZone.UTC,

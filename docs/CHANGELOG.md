@@ -8,6 +8,32 @@ The project follows semantic versioning.
 
 ### Added
 
+- **Studio details, at last.** The Settings screen has said since 0.1.0 that there was
+  nothing to configure and that studio details "arrive with the account model". They are
+  needed sooner: documents started leaving the building in this same milestone, and accounts
+  are not until 0.7.0. `StudioProfile` holds one row per studio — name, address, contact,
+  tax registration number, how to pay, and a footer
+- **Only the name stops a document.** A client who cannot tell who an invoice is from does
+  not pay it, and the studio finds out when the money does not arrive. Everything else is
+  reported as a gap the client will merely notice — an invoice with no way to pay it is a
+  common and expensive omission, and in most jurisdictions one with no tax number cannot be
+  claimed against
+- **Invoices and quotes as documents a client can read.** Every figure is taken from the
+  `Invoice` itself, which computes it from its own lines and payments — nothing is
+  recomputed for the page, because a document arriving at a different total from the screen
+  it was sent from would be the worst bug this application could have
+- An overpayment reads as "Overpaid $1,000.00" rather than a negative balance due, because a
+  client reading *minus one thousand due* starts an argument. Bank details are printed only
+  while something is still owed: on a settled invoice they buy a refund, an apology and an
+  afternoon. A quantity of one is not printed at all — "1 × $4,000.00" beside a total of
+  $4,000.00 is a line the reader has to check before discarding
+- The document model now separates lines that belong together from prose. An address
+  rendered as paragraphs took a third of the page and read as seven unrelated facts; caught
+  by looking at the rendered invoice rather than the code
+- **Migration 10 → 11**, purely additive, with a unique index on `studio_id` enforced in the
+  schema rather than in code: two profiles for one studio would put two different names on
+  two invoices, and a sync conflict is exactly how that would happen
+
 - **Documents can leave the application.** Everything built so far has been readable only
   by the person holding the laptop. A new `core:export` module renders a document from the
   domain and a `DocumentSink` decides where it goes, per platform, in the same shape

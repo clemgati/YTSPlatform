@@ -18,6 +18,8 @@ val ledgerModule =
                 sessionRepository = get(),
                 postProductionRepository = get(),
                 clientRepository = get(),
+                studioProfileRepository = get(),
+                documentSink = get(),
                 studioContext = get(),
                 clock = get(),
             )

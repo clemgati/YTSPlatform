@@ -11,6 +11,13 @@ data class Sheet(
     val title: String,
     val subtitle: String?,
     val sections: List<SheetSection>,
+    /**
+     * The line at the bottom of everything — payment terms, a registration statement.
+     *
+     * Not a section, because rendering it as one would give it a heading and the weight
+     * that comes with a heading. It is the small print, and it should look like it.
+     */
+    val footer: String? = null,
 )
 
 data class SheetSection(
@@ -34,9 +41,19 @@ sealed interface SheetBlock {
         val groups: List<SheetGroup>,
     ) : SheetBlock
 
-    /** Prose, one line per paragraph. */
+    /**
+     * Lines that belong together — an address, bank details.
+     *
+     * Kept tight, because the line breaks in an address are part of the address. Rendered
+     * as paragraphs it takes a third of a page and reads as seven unrelated facts.
+     */
     data class Lines(
         val lines: List<String>,
+    ) : SheetBlock
+
+    /** Prose, each entry its own paragraph. */
+    data class Paragraphs(
+        val paragraphs: List<String>,
     ) : SheetBlock
 
     /**

@@ -18,6 +18,16 @@ import com.yellowtrack.platform.core.data.QuoteRepository
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentFormat
+import com.yellowtrack.platform.core.export.DocumentSink
+import com.yellowtrack.platform.core.export.Sheet
+import com.yellowtrack.platform.core.export.buildInvoice
+import com.yellowtrack.platform.core.export.buildQuote
+import com.yellowtrack.platform.core.export.slugify
+import com.yellowtrack.platform.core.export.toHtml
+import com.yellowtrack.platform.core.export.toPlainText
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.codb.CodbBreakdown
 import com.yellowtrack.platform.core.model.codb.CodbProfile
@@ -91,6 +101,8 @@ internal class LedgerViewModel(
     private val sessionRepository: SessionRepository,
     private val postProductionRepository: PostProductionRepository,
     private val clientRepository: ClientRepository,
+    private val studioProfileRepository: StudioProfileRepository,
+    private val documentSink: DocumentSink,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
@@ -248,6 +260,101 @@ internal class LedgerViewModel(
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
                 initialValue = LedgerUiState(content = UiState.Loading),
             )
+
+    /**
+     * Why nothing can be sent out, or null when it can.
+     *
+     * Checked once for both copying and saving. A studio with no name on file can still
+     * see its invoices; it simply cannot send one, and being told why beats a button that
+     * does nothing.
+     */
+    suspend fun documentBlocker(): String? =
+        if (studioProfileRepository.getProfile()?.canIssueDocuments == true) {
+            null
+        } else {
+            "Add your studio's name in Settings before sending anything out."
+        }
+
+    /** The invoice as the client would receive it, or null if it or the studio has gone. */
+    suspend fun invoiceSheet(invoiceId: InvoiceId): Sheet? {
+        val invoice = invoiceRepository.getInvoice(invoiceId) ?: return null
+        val studio = studioProfileRepository.getProfile()?.takeIf { it.canIssueDocuments } ?: return null
+        val project = projectRepository.observeProjects().first().firstOrNull { it.id == invoice.projectId }
+
+        return buildInvoice(
+            invoice = invoice,
+            project = project,
+            client =
+                project?.let { found ->
+                    clientRepository.observeClients().first().firstOrNull {
+                        it.id ==
+                            found.clientId
+                    }
+                },
+            studio = studio,
+            now = clock.now(),
+            zone = timeZone,
+        )
+    }
+
+    suspend fun quoteSheet(quoteId: QuoteId): Sheet? {
+        val quote = quoteRepository.getQuote(quoteId) ?: return null
+        val studio = studioProfileRepository.getProfile()?.takeIf { it.canIssueDocuments } ?: return null
+        val project = projectRepository.observeProjects().first().firstOrNull { it.id == quote.projectId }
+
+        return buildQuote(
+            quote = quote,
+            project = project,
+            client =
+                project?.let { found ->
+                    clientRepository.observeClients().first().firstOrNull {
+                        it.id ==
+                            found.clientId
+                    }
+                },
+            studio = studio,
+            now = clock.now(),
+            zone = timeZone,
+        )
+    }
+
+    /**
+     * Writes a document out as a web page.
+     *
+     * HTML rather than PDF for the same reason the call sheet is: it opens anywhere, and
+     * prints to PDF from the browser without a rendering library on four platforms.
+     */
+    fun saveDocument(
+        sheet: suspend () -> Sheet?,
+        onResult: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            documentBlocker()?.let {
+                onResult(it)
+                return@launch
+            }
+
+            val document =
+                sheet() ?: run {
+                    onResult("That document could not be read.")
+                    return@launch
+                }
+
+            val saved =
+                documentSink.save(
+                    Document(
+                        baseName = slugify(document.title),
+                        format = DocumentFormat.Html,
+                        content = document.toHtml(),
+                    ),
+                )
+
+            onResult("Saved to ${saved.location}")
+        }
+    }
+
+    /** The plain-text rendering, for pasting into an email. */
+    suspend fun documentText(sheet: suspend () -> Sheet?): String? = sheet()?.toPlainText()
 
     fun retry() {
         retryTrigger.value += 1
