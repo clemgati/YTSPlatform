@@ -13,10 +13,15 @@ CREATE TABLE media_copy (
     updated_at  INTEGER NOT NULL,
     deleted_at  INTEGER,
     version     INTEGER NOT NULL DEFAULT 1,
+    -- Declared last because ALTER TABLE appends: migration 12 added this column, and a
+    -- migrated database has it in this position.
+    volume_id   TEXT REFERENCES storage_volume(id),
     FOREIGN KEY (session_id) REFERENCES session(id)
 );
 
 CREATE INDEX media_copy_session_idx ON media_copy(session_id, deleted_at);
+
+CREATE INDEX media_copy_volume_idx ON media_copy(volume_id, deleted_at);
 
 selectBySession:
 SELECT *
@@ -33,13 +38,14 @@ WHERE id = :id AND deleted_at IS NULL;
 insertOrIgnore:
 INSERT OR IGNORE INTO media_copy(
     id, studio_id, session_id, volume_name, kind, is_offsite, copied_at, verified_at,
-    notes, created_at, updated_at, deleted_at, version
+    notes, created_at, updated_at, deleted_at, version, volume_id
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE media_copy
 SET session_id  = :sessionId,
+    volume_id   = :volumeId,
     volume_name = :volumeName,
     kind        = :kind,
     is_offsite  = :isOffsite,
@@ -55,3 +61,10 @@ softDelete:
 UPDATE media_copy
 SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
 WHERE id = :id;
+
+-- What is on this drive, so a studio can answer "it died — what have I lost?".
+selectByVolume:
+SELECT *
+FROM media_copy
+WHERE volume_id = :volumeId AND deleted_at IS NULL
+ORDER BY created_at;

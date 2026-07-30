@@ -1,0 +1,33 @@
+-- Version 12 to 13: the studio's drives, as a register rather than as free text.
+--
+-- Copies have carried a free-text volume_name since migration 8, which meant one drive
+-- named on twelve shoots was twelve unrelated strings. A studio could ask whether one
+-- wedding was safe and could not ask what actually gets asked: this drive has died, what
+-- was on it?
+--
+-- Purely additive. Existing copies keep their volume_name and get a null volume_id, which
+-- reads as "not in the register" rather than as a broken reference. Nothing is migrated
+-- into volumes automatically: matching drives by free text would join "Red Samsung T7"
+-- and "red samsung t7" or fail to, and guessing wrong here would attach a shoot to a
+-- drive it was never on.
+CREATE TABLE storage_volume (
+    id              TEXT    NOT NULL PRIMARY KEY,
+    studio_id       TEXT    NOT NULL,
+    label           TEXT    NOT NULL,
+    kind            TEXT    NOT NULL,
+    status          TEXT    NOT NULL DEFAULT 'InUse',
+    is_offsite      INTEGER NOT NULL DEFAULT 0,
+    last_checked_at INTEGER,
+    notes           TEXT,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    deleted_at      INTEGER,
+    version         INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX storage_volume_studio_idx ON storage_volume(studio_id, deleted_at);
+
+ALTER TABLE media_copy ADD COLUMN volume_id TEXT REFERENCES storage_volume(id);
+
+-- Answers "what is on this drive?" without scanning every copy in the studio.
+CREATE INDEX media_copy_volume_idx ON media_copy(volume_id, deleted_at);

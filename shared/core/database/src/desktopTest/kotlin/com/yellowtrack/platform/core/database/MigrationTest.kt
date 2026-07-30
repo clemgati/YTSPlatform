@@ -47,6 +47,8 @@ class MigrationTest {
 
     private fun v11Database(): SqlDriver = snapshotDatabase(version = 11)
 
+    private fun v12Database(): SqlDriver = snapshotDatabase(version = 12)
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -1078,12 +1080,96 @@ class MigrationTest {
             driver.close()
         }
 
+    // --- Version twelve to thirteen: the studio's drives ---------------------------------
+
+    @Test
+    fun `copies recorded before the register keep working and keep their names`() =
+        runTest {
+            val driver = v12Database()
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO project(id, studio_id, client_id, name, service_line, status,
+                                    created_at, updated_at, version)
+                VALUES ('project-1', 'studio-1', 'client-1', 'Autumn Brand Shoot', 'Branding',
+                        'Booked', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO session(id, studio_id, project_id, title, kind, status,
+                                    starts_at, ends_at, time_zone_id, created_at, updated_at, version)
+                VALUES ('session-1', 'studio-1', 'project-1', 'Shoot day', 'Shoot', 'Completed',
+                        2000, 3000, 'Europe/London', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO media_copy(id, studio_id, session_id, volume_name, kind, is_offsite,
+                                       copied_at, created_at, updated_at, version)
+                VALUES ('copy-1', 'studio-1', 'session-1', 'Red Samsung T7', 'ExternalDrive', 0,
+                        2500, 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 12, newVersion = 13)
+
+            assertEquals(1L, driver.countOf("media_copy"), "the copies from 8 → 9 must survive 12 → 13")
+            assertEquals(
+                "Red Samsung T7",
+                driver.scalar("SELECT volume_name FROM media_copy"),
+                "the free-text name is the label of last resort for copies not in the register",
+            )
+            assertNull(
+                driver.scalar("SELECT volume_id FROM media_copy"),
+                "not in the register reads as null, not as a broken reference",
+            )
+            assertEquals(0L, driver.countOf("storage_volume"), "nothing is guessed into the register")
+
+            driver.close()
+        }
+
+    @Test
+    fun `a drive arrives in use rather than in an unknown state`() =
+        runTest {
+            val driver = v12Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 12, newVersion = 13)
+
+            driver.exec(
+                """
+                INSERT INTO storage_volume(id, studio_id, label, kind, created_at, updated_at, version)
+                VALUES ('volume-1', 'studio-1', 'Red Samsung T7', 'ExternalDrive', 1000, 1000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals(
+                "InUse",
+                driver.scalar("SELECT status FROM storage_volume"),
+                "a drive just added has not failed, and defaulting otherwise would report lost copies",
+            )
+            assertEquals("0", driver.scalar("SELECT CAST(is_offsite AS TEXT) FROM storage_volume"))
+            assertNull(
+                driver.scalar("SELECT last_checked_at FROM storage_volume"),
+                "nobody has opened it yet, which is different from having opened it at time zero",
+            )
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(12L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(13L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

@@ -1,0 +1,53 @@
+-- The studio's drives; see migration 12.sqm.
+CREATE TABLE storage_volume (
+    id              TEXT    NOT NULL PRIMARY KEY,
+    studio_id       TEXT    NOT NULL,
+    label           TEXT    NOT NULL,
+    kind            TEXT    NOT NULL,
+    status          TEXT    NOT NULL DEFAULT 'InUse',
+    is_offsite      INTEGER NOT NULL DEFAULT 0,
+    last_checked_at INTEGER,
+    notes           TEXT,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    deleted_at      INTEGER,
+    version         INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX storage_volume_studio_idx ON storage_volume(studio_id, deleted_at);
+
+selectAll:
+SELECT *
+FROM storage_volume
+WHERE studio_id = :studioId AND deleted_at IS NULL
+ORDER BY label;
+
+selectById:
+SELECT *
+FROM storage_volume
+WHERE id = :id AND deleted_at IS NULL;
+
+insertOrIgnore:
+INSERT OR IGNORE INTO storage_volume(
+    id, studio_id, label, kind, status, is_offsite, last_checked_at, notes,
+    created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE storage_volume
+SET label           = :label,
+    kind            = :kind,
+    status          = :status,
+    is_offsite      = :isOffsite,
+    last_checked_at = :lastCheckedAt,
+    notes           = :notes,
+    updated_at      = :updatedAt,
+    deleted_at      = :deletedAt,
+    version         = :version
+WHERE id = :id;
+
+softDelete:
+UPDATE storage_volume
+SET deleted_at = :deletedAt
+WHERE id = :id;

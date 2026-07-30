@@ -18,6 +18,14 @@ data class BackupHealth(
     val offsiteCopies: Int,
     /** Copies nobody has checked can still be read. */
     val unverifiedCopies: Int,
+    /**
+     * Copies sitting on a drive that has failed or gone missing.
+     *
+     * Counted, not merely subtracted, because the difference between "you have two copies"
+     * and "you had three and one of them is on a dead drive" is the difference between a
+     * studio that acts today and one that does not.
+     */
+    val unreachableCopies: Int = 0,
 ) {
     val hasEnoughCopies: Boolean get() = copies >= REQUIRED_COPIES
 
@@ -52,6 +60,14 @@ data class BackupHealth(
                 // studio with a single copy that all its copies are alike is noise, and the
                 // advice it needs — get another copy — is already above.
                 if (!hasEnoughKinds && copies >= 2) add("Every copy is on the same kind of storage")
+
+                // Last, because it explains the figures above rather than adding a demand.
+                if (unreachableCopies > 0) {
+                    add(
+                        "$unreachableCopies ${if (unreachableCopies == 1) "copy is" else "copies are"} " +
+                            "on a drive that has failed",
+                    )
+                }
             }
 
     companion object {
@@ -65,14 +81,26 @@ data class BackupHealth(
          * Camera cards are excluded: the card is the original, and counting it would let a
          * studio believe it had a backup when what it had was one card.
          */
-        fun of(copies: List<MediaCopy>): BackupHealth {
+        fun of(
+            copies: List<MediaCopy>,
+            volumes: Map<StorageVolumeId, StorageVolume> = emptyMap(),
+        ): BackupHealth {
             val real = copies.filter { it.isRealCopy }
 
+            // A copy on a dead drive is not a copy. Where the register knows nothing about
+            // a volume the copy is trusted, because absence of a record is not evidence of
+            // failure — the alternative would report every studio without a register as
+            // having lost everything.
+            fun MediaCopy.isReachable(): Boolean = volumeId?.let { volumes[it]?.isDependable } ?: true
+
+            val reachable = real.filter { it.isReachable() }
+
             return BackupHealth(
-                copies = real.size,
-                distinctKinds = real.map { it.kind }.distinct().size,
-                offsiteCopies = real.count { it.isAwayFromStudio },
-                unverifiedCopies = real.count { it.verifiedAt == null },
+                copies = reachable.size,
+                distinctKinds = reachable.map { it.kind }.distinct().size,
+                offsiteCopies = reachable.count { it.isAwayFromStudio },
+                unverifiedCopies = reachable.count { it.verifiedAt == null },
+                unreachableCopies = real.size - reachable.size,
             )
         }
     }
