@@ -32,8 +32,16 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x gradlew
 
+      # Runs first for fast feedback on formatting, and shares its daemon and
+      # configuration cache with the build below — `--no-daemon` here meant paying two
+      # cold JVM starts for one pipeline.
       - name: Check Kotlin formatting
-        run: ./gradlew ktlintCheck --no-daemon --stacktrace
+        run: ./gradlew ktlintCheck --stacktrace
 
+      # Release iOS frameworks are excluded. Linking one runs whole-program LLVM
+      # optimisation and took 45 minutes of an 85-minute build on a three-core runner —
+      # more than half the pipeline for an artefact nothing here consumes: no job tests
+      # against it, none is published, and Xcode links its own when the app is archived.
+      # Compilation and every test on all four targets still run.
       - name: Build project
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build -Pyellowtrack.iosReleaseFrameworks=false --stacktrace

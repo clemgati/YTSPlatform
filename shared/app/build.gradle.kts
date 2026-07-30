@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -8,11 +9,24 @@ plugins {
 }
 
 kotlin {
+    // Release frameworks are linked with full LLVM optimisation, which on a three-core CI
+    // runner takes three quarters of an hour for one architecture and barely parallelises.
+    // Nothing on CI consumes them: Xcode links its own through
+    // `embedAndSignAppleFrameworkForXcode`, and no artefact is published. So CI opts out
+    // with -Pyellowtrack.iosReleaseFrameworks=false while every other build — including an
+    // archive from Xcode — keeps both build types and is unaffected.
+    val iosBuildTypes =
+        if (providers.gradleProperty("yellowtrack.iosReleaseFrameworks").orNull == "false") {
+            listOf(NativeBuildType.DEBUG)
+        } else {
+            listOf(NativeBuildType.DEBUG, NativeBuildType.RELEASE)
+        }
+
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
     ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
+        iosTarget.binaries.framework(iosBuildTypes) {
             baseName = "Shared"
             isStatic = true
         }
