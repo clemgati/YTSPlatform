@@ -6,6 +6,7 @@ import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.GearRepository
 import com.yellowtrack.platform.core.data.LightingRecipeRepository
+import com.yellowtrack.platform.core.data.StorageVolumeRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.currency
@@ -16,11 +17,16 @@ import com.yellowtrack.platform.core.model.gear.GearItemId
 import com.yellowtrack.platform.core.model.gear.LightSetup
 import com.yellowtrack.platform.core.model.gear.LightingRecipe
 import com.yellowtrack.platform.core.model.gear.LightingRecipeId
+import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.studio.presentation.mapper.buildInventory
+import com.yellowtrack.platform.feature.studio.presentation.mapper.buildRegister
 import com.yellowtrack.platform.feature.studio.presentation.mapper.toItem
 import com.yellowtrack.platform.feature.studio.presentation.model.NewGearItem
 import com.yellowtrack.platform.feature.studio.presentation.model.NewLightingRecipe
+import com.yellowtrack.platform.feature.studio.presentation.model.NewVolume
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -44,6 +50,7 @@ import kotlinx.datetime.toLocalDateTime
 internal class StudioViewModel(
     private val gearRepository: GearRepository,
     private val recipeRepository: LightingRecipeRepository,
+    private val volumeRepository: StorageVolumeRepository,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val studioProfileRepository: StudioProfileRepository,
@@ -61,13 +68,16 @@ internal class StudioViewModel(
                     gearRepository.observeGear(),
                     recipeRepository.observeRecipes(),
                     studioProfileRepository.observeCurrency(),
-                ) { gear, recipes, currency ->
+                    volumeRepository.observeVolumes(),
+                    volumeRepository.observeCopyCounts(),
+                ) { gear, recipes, currency, volumes, copyCounts ->
                     StudioUiState(
                         content =
                             UiState.Success(
                                 StudioContent(
                                     inventory = buildInventory(gear, now, timeZone, currency),
                                     recipes = recipes.map { it.toItem() },
+                                    register = buildRegister(volumes, copyCounts, now, timeZone),
                                     today = now.toLocalDateTime(timeZone).date,
                                     currency = currency,
                                 ),
@@ -152,6 +162,60 @@ internal class StudioViewModel(
                 ),
             )
         }
+    }
+
+    fun addVolume(form: NewVolume) {
+        viewModelScope.launch {
+            val now = clock.now()
+
+            volumeRepository.saveVolume(
+                StorageVolume(
+                    id = StorageVolumeId.new(),
+                    studioId = studioContext.studioId,
+                    label = form.label.trim(),
+                    kind = form.kind,
+                    status = form.status,
+                    isOffsite = form.isOffsite,
+                    notes = form.notes?.trim()?.ifBlank { null },
+                    audit = AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Records that someone opened the drive and found it readable.
+     *
+     * The only thing that distinguishes a backup a studio has from one it believes it has,
+     * and the same act the session page records per copy.
+     */
+    fun markVolumeChecked(volumeId: StorageVolumeId) {
+        viewModelScope.launch {
+            val existing = volumeRepository.getVolume(volumeId) ?: return@launch
+
+            volumeRepository.saveVolume(existing.copy(lastCheckedAt = clock.now()))
+        }
+    }
+
+    /**
+     * Marks a drive as failed.
+     *
+     * Every shoot with a copy on it immediately reports one fewer copy, which is the whole
+     * reason the register exists.
+     */
+    fun setVolumeStatus(
+        volumeId: StorageVolumeId,
+        status: VolumeStatus,
+    ) {
+        viewModelScope.launch {
+            val existing = volumeRepository.getVolume(volumeId) ?: return@launch
+
+            volumeRepository.saveVolume(existing.copy(status = status, audit = existing.audit.touched(clock.now())))
+        }
+    }
+
+    fun deleteVolume(volumeId: StorageVolumeId) {
+        viewModelScope.launch { volumeRepository.deleteVolume(volumeId) }
     }
 
     fun deleteRecipe(recipeId: LightingRecipeId) {

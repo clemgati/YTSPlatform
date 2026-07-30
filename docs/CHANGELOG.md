@@ -8,6 +8,31 @@ The project follows semantic versioning.
 
 ### Added
 
+- **A register of the studio's drives.** Copies have carried a free-text volume name since
+  earlier in this milestone, so one drive named on twelve shoots was twelve unrelated
+  strings. A studio could ask whether one wedding was safe; it could not ask the question
+  that actually gets asked the moment it matters — *this drive has died, what was on it?*
+- Where a drive lives belongs to the drive, not to each copy on it. A drive kept at a
+  relative's house is offsite for every shoot on it, and asking a studio to remember that
+  per copy is asking it to get it wrong
+- **The rule now knows about dead drives.** A copy on a failed or lost volume is not a copy,
+  so `BackupHealth` excludes it — and *counts* it rather than merely subtracting it, because
+  the difference between "you have two copies" and "you had three and one is on a dead
+  drive" is the difference between a studio that acts today and one that does not. A lost
+  drive also stops counting as the offsite copy, which is exactly the case where a studio
+  would otherwise believe 3-2-1 was still satisfied
+- Where the register knows nothing about a volume, the copy is trusted. Absence of a record
+  is not evidence of failure, and every studio that has not built a register would otherwise
+  be told it had lost everything
+- Recording a copy now picks a drive from the register, with "somewhere else" still
+  available — building a register is not made a precondition of recording a backup, because
+  the copy exists whether or not the drive has been catalogued
+- **Migration 12 → 13**, purely additive: existing copies keep their names and get a null
+  `volume_id`, which reads as "not in the register" rather than as a broken reference.
+  Nothing is migrated into volumes automatically — matching drives by free text would join
+  "Red Samsung T7" and "red samsung t7" or fail to, and guessing wrong would attach a shoot
+  to a drive it was never on
+
 - **The starting templates no longer carry invented prices.** A studio found four packages
   waiting for it on first run, priced in dollars — figures the application made up, in a
   currency the studio had not chosen, which the Ledger then measured against that studio's

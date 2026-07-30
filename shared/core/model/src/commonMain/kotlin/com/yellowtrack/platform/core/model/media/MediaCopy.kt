@@ -70,6 +70,14 @@ data class MediaCopy(
     val id: MediaCopyId,
     override val studioId: StudioId,
     val sessionId: SessionId,
+    /**
+     * The drive in the studio's register this copy sits on.
+     *
+     * Null for copies recorded before there was a register, and for a studio that has not
+     * built one. [volumeName] remains the label of last resort so those copies still read
+     * as something rather than as a blank row.
+     */
+    val volumeId: StorageVolumeId? = null,
     /** What the studio calls it — "Red Samsung T7", "Studio NAS", "Backblaze". */
     val volumeName: String,
     val kind: StorageKind,

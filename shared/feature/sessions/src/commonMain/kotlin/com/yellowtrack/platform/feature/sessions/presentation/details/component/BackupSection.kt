@@ -96,10 +96,17 @@ private fun CopyRow(
                     listOfNotNull(
                         copy.kind,
                         "away from the studio".takeIf { copy.isOffsite },
-                        "not checked".takeUnless { copy.isVerified },
+                        // First, because it is why this row no longer counts.
+                        "on a drive that has failed".takeIf { copy.isUnreachable },
+                        "not checked".takeUnless { copy.isVerified || copy.isUnreachable },
                     ).joinToString(" • "),
                 style = YTTheme.typography.bodySmall,
-                color = if (copy.isVerified) YTTheme.colors.onSurfaceVariant else YTTheme.colors.error,
+                color =
+                    if (copy.isVerified && !copy.isUnreachable) {
+                        YTTheme.colors.onSurfaceVariant
+                    } else {
+                        YTTheme.colors.error
+                    },
             )
         }
 
@@ -112,7 +119,9 @@ private fun CopyRow(
                 )
             }
 
-            if (!copy.isVerified) {
+            // Nothing to verify on a drive that has failed; offering it would invite a
+            // studio to tick a box that cannot be true.
+            if (!copy.isVerified && !copy.isUnreachable) {
                 TextButton(onClick = { onVerify(copy.id) }) {
                     Text(
                         text = "Checked",

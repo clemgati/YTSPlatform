@@ -165,6 +165,7 @@ class SessionDetailsRenderTest {
                                                 emptyList(),
                                                 gear,
                                                 packing,
+                                                emptyList(),
                                                 zone,
                                             ),
                                         ),

@@ -10,11 +10,17 @@ import com.yellowtrack.platform.core.model.gear.GearStatus
 import com.yellowtrack.platform.core.model.gear.LightRole
 import com.yellowtrack.platform.core.model.gear.LightSetup
 import com.yellowtrack.platform.core.model.gear.LightingRecipe
+import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.feature.studio.presentation.model.GearGroup
 import com.yellowtrack.platform.feature.studio.presentation.model.GearItemUi
 import com.yellowtrack.platform.feature.studio.presentation.model.InventorySummary
 import com.yellowtrack.platform.feature.studio.presentation.model.LightSetupUi
 import com.yellowtrack.platform.feature.studio.presentation.model.LightingRecipeItem
+import com.yellowtrack.platform.feature.studio.presentation.model.VolumeItem
+import com.yellowtrack.platform.feature.studio.presentation.model.VolumeRegister
 import kotlinx.datetime.TimeZone
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
@@ -160,4 +166,71 @@ internal val LightRole.label: String
             LightRole.Rim -> "Rim"
             LightRole.Background -> "Background"
             LightRole.Bounce -> "Bounce"
+        }
+
+/**
+ * The register, with what is at stake on each drive.
+ *
+ * A drive is worth listing whatever its state; a *failed* drive is worth acting on, and
+ * the count of shoots sitting on it is the reason to act rather than a statistic.
+ */
+internal fun buildRegister(
+    volumes: List<StorageVolume>,
+    copyCounts: Map<StorageVolumeId, Int>,
+    now: Instant,
+    zone: TimeZone,
+): VolumeRegister {
+    val items =
+        volumes.map { volume ->
+            VolumeItem(
+                id = volume.id,
+                label = volume.label,
+                kindLabel = volume.kind.label,
+                status = volume.status,
+                statusLabel = volume.status.label,
+                whereLabel = if (volume.isAwayFromStudio) "Away from the studio" else "In the studio",
+                // Not said of a dead drive: whether anyone opened it lately is not the
+                // advice, and it would read as one more thing to go and do.
+                checkedLabel =
+                    volume.lastCheckedAt.let { checked ->
+                        when {
+                            !volume.isDependable -> null
+                            checked != null -> "Last read ${DateFormats.fullDate(checked, zone)}"
+                            else -> "Never checked"
+                        }
+                    },
+                copyCount = copyCounts[volume.id] ?: 0,
+                isDependable = volume.isDependable,
+                notes = volume.notes,
+            )
+        }
+
+    return VolumeRegister(
+        volumes = items.sortedWith(compareBy({ it.isDependable }, { it.label.lowercase() })),
+        failedCount = items.count { !it.isDependable },
+        copiesAtRisk = items.filter { !it.isDependable }.sumOf { it.copyCount },
+        // A drive nobody has ever opened is the one that fails silently and is discovered
+        // on the day it is needed.
+        neverCheckedCount = items.count { it.isDependable && it.checkedLabel == "Never checked" },
+    )
+}
+
+internal val StorageKind.label: String
+    get() =
+        when (this) {
+            StorageKind.CameraCard -> "Camera card"
+            StorageKind.Computer -> "Computer"
+            StorageKind.ExternalDrive -> "External drive"
+            StorageKind.Nas -> "NAS"
+            StorageKind.Cloud -> "Cloud"
+            StorageKind.OffsiteDrive -> "Offsite drive"
+        }
+
+internal val VolumeStatus.label: String
+    get() =
+        when (this) {
+            VolumeStatus.InUse -> "In use"
+            VolumeStatus.Failed -> "Failed"
+            VolumeStatus.Retired -> "Retired"
+            VolumeStatus.Lost -> "Lost"
         }

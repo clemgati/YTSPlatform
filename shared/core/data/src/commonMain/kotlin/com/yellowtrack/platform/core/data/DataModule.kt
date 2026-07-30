@@ -20,6 +20,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightQuoteRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightServiceTemplateRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightShotRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
 import com.yellowtrack.platform.core.database.DatabaseProvider
@@ -50,6 +51,7 @@ val dataModule =
         single<MediaCopyRepository> { SqlDelightMediaCopyRepository(get(), get(), ioDispatcher) }
         single<GearRepository> { SqlDelightGearRepository(get(), get(), get(), ioDispatcher) }
         single<StudioProfileRepository> { SqlDelightStudioProfileRepository(get(), get(), get(), ioDispatcher) }
+        single<StorageVolumeRepository> { SqlDelightStorageVolumeRepository(get(), get(), get(), ioDispatcher) }
         single<PackingRepository> { SqlDelightPackingRepository(get(), get(), ioDispatcher) }
         single<LightingRecipeRepository> { SqlDelightLightingRecipeRepository(get(), get(), get(), ioDispatcher) }
         single<ServiceTemplateRepository> { SqlDelightServiceTemplateRepository(get(), get(), get(), ioDispatcher) }

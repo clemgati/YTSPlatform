@@ -13,6 +13,15 @@ class FakeMediaCopyRepository(
 ) : MediaCopyRepository {
     private val state = MutableStateFlow(initial)
 
+    /**
+     * Every copy, whatever session it belongs to.
+     *
+     * Test-only, and the seam `FakeStorageVolumeRepository` reads so that "what is on this
+     * drive?" answers from the same store the session page does — two independent stores
+     * would let a test pass while the two views of one copy disagreed.
+     */
+    fun observeAll(): Flow<List<MediaCopy>> = state
+
     override fun observeCopiesForSession(sessionId: SessionId): Flow<List<MediaCopy>> =
         state.map { copies ->
             copies.filter { it.sessionId == sessionId }.sortedBy { it.audit.createdAt }

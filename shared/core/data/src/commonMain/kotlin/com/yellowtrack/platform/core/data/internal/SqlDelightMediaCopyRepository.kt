@@ -47,6 +47,7 @@ internal class SqlDelightMediaCopyRepository(
                 id = copy.id.value,
                 studio_id = copy.studioId.value,
                 session_id = copy.sessionId.value,
+                volume_id = copy.volumeId?.value,
                 volume_name = copy.volumeName,
                 kind = copy.kind.name,
                 is_offsite = if (copy.isOffsite) 1L else 0L,
@@ -61,6 +62,7 @@ internal class SqlDelightMediaCopyRepository(
 
             db.mediaCopyQueries.update(
                 sessionId = copy.sessionId.value,
+                volumeId = copy.volumeId?.value,
                 volumeName = copy.volumeName,
                 kind = copy.kind.name,
                 isOffsite = if (copy.isOffsite) 1L else 0L,

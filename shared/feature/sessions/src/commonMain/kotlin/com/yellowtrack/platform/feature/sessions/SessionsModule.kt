@@ -20,6 +20,7 @@ val sessionsModule =
                 mediaCopyRepository = get(),
                 packingRepository = get(),
                 gearRepository = get(),
+                volumeRepository = get(),
                 projectRepository = get(),
                 clientRepository = get(),
                 documentSink = get(),

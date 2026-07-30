@@ -10,6 +10,7 @@ val studioModule =
             StudioViewModel(
                 gearRepository = get(),
                 recipeRepository = get(),
+                volumeRepository = get(),
                 studioContext = get(),
                 clock = get(),
                 studioProfileRepository = get(),

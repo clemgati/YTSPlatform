@@ -20,15 +20,29 @@ class BackupHealthTest {
     private val now = Instant.fromEpochMilliseconds(1_800_000_000_000)
     private val sessionId = SessionId("session-1")
 
+    private fun volume(
+        kind: StorageKind,
+        status: VolumeStatus,
+    ) = StorageVolume(
+        id = StorageVolumeId.new(),
+        studioId = StudioId("studio-1"),
+        label = kind.name,
+        kind = kind,
+        status = status,
+        audit = AuditMetadata.createdAt(now),
+    )
+
     private fun copy(
         kind: StorageKind,
         offsite: Boolean = false,
         verified: Boolean = true,
+        onVolume: StorageVolume? = null,
     ) = MediaCopy(
         id = MediaCopyId.new(),
         studioId = StudioId("studio-1"),
         sessionId = sessionId,
-        volumeName = kind.name,
+        volumeId = onVolume?.id,
+        volumeName = onVolume?.label ?: kind.name,
         kind = kind,
         isOffsite = offsite,
         copiedAt = now,
@@ -151,5 +165,83 @@ class BackupHealthTest {
             health.unverifiedCopies,
             "a backup nobody has opened is a backup nobody knows they have",
         )
+    }
+
+    // --- Drives that have died ------------------------------------------------------------
+
+    @Test
+    fun `a copy on a failed drive is not a copy`() {
+        val dead = volume(StorageKind.ExternalDrive, VolumeStatus.Failed)
+
+        val health =
+            BackupHealth.of(
+                copies =
+                    listOf(
+                        copy(StorageKind.Computer),
+                        copy(StorageKind.ExternalDrive, onVolume = dead),
+                        copy(StorageKind.Cloud),
+                    ),
+                volumes = mapOf(dead.id to dead),
+            )
+
+        assertEquals(2, health.copies, "three copies where one drive is dead is two copies")
+        assertEquals(1, health.unreachableCopies)
+        assertFalse(health.isSatisfied)
+    }
+
+    @Test
+    fun `the studio is told a drive failed rather than left to wonder why the count dropped`() {
+        val dead = volume(StorageKind.ExternalDrive, VolumeStatus.Failed)
+
+        val health =
+            BackupHealth.of(
+                copies = listOf(copy(StorageKind.Computer), copy(StorageKind.ExternalDrive, onVolume = dead)),
+                volumes = mapOf(dead.id to dead),
+            )
+
+        assertTrue(
+            health.shortfalls.any { it.contains("failed") },
+            "the difference between having two copies and having lost one is what makes a studio act",
+        )
+    }
+
+    @Test
+    fun `a lost drive counts against the studio just as a failed one does`() {
+        val gone = volume(StorageKind.OffsiteDrive, VolumeStatus.Lost)
+
+        val health =
+            BackupHealth.of(
+                copies = listOf(copy(StorageKind.Computer), copy(StorageKind.OffsiteDrive, onVolume = gone)),
+                volumes = mapOf(gone.id to gone),
+            )
+
+        assertEquals(1, health.copies)
+        assertEquals(0, health.offsiteCopies, "a drive nobody can find is not an offsite copy")
+    }
+
+    @Test
+    fun `a copy on a drive still in use is untouched`() {
+        val alive = volume(StorageKind.ExternalDrive, VolumeStatus.InUse)
+
+        val health =
+            BackupHealth.of(
+                copies = listOf(copy(StorageKind.ExternalDrive, onVolume = alive)),
+                volumes = mapOf(alive.id to alive),
+            )
+
+        assertEquals(1, health.copies)
+        assertEquals(0, health.unreachableCopies)
+    }
+
+    @Test
+    fun `a studio with no register is trusted rather than reported as having lost everything`() {
+        val health = BackupHealth.of(listOf(copy(StorageKind.Computer), copy(StorageKind.Cloud)))
+
+        assertEquals(
+            2,
+            health.copies,
+            "absence of a record is not evidence of failure, and most studios have no register",
+        )
+        assertEquals(0, health.unreachableCopies)
     }
 }
