@@ -71,7 +71,9 @@ fun SessionDetailsRoute(
                     }
             }
         },
-        onSaveCallSheet = { viewModel.exportCallSheet { location -> callSheetMessage = "Saved to $location" } },
+        // The message is built where the outcome is known — whether the platform offered
+        // a share sheet, and where the file landed regardless.
+        onSaveCallSheet = { viewModel.exportCallSheet { message -> callSheetMessage = message } },
         callSheetMessage = callSheetMessage,
         modifier = modifier,
     )

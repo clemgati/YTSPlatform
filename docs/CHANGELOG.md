@@ -8,6 +8,32 @@ The project follows semantic versioning.
 
 ### Added
 
+- **Android and iOS hand a document to the system share sheet.** A call sheet reaches a
+  second shooter, and an invoice reaches a client, without the file having to be found in a
+  folder first
+- **Saving happens first, and unconditionally.** Presenting a share sheet touches window
+  hierarchies and content providers, which fail in ways that compile perfectly — so the
+  document is written before anything that can fail, and the saved location is reported even
+  when no sheet appears. A studio that pressed *Send* ends up with the file either way. Two
+  tests pin that ordering
+- The button says what the platform will actually do: *Send it* where there is a sheet,
+  *Save as a web page* where there is not. Labelling both the same would promise a share
+  sheet that was never coming
+- Android shares through a `FileProvider` scoped to the folder the documents are written
+  to — handing another application a `file://` URI has thrown since Android 7, and a
+  provider that shares more than the thing being shared is a way to leak the database. The
+  authority is derived from `packageName` rather than repeated, so it cannot drift from the
+  manifest
+- `androidx.core` is held at 1.16.x: from 1.17 it requires compileSdk 37, and AGP 9.0.1
+  recommends 36 as its maximum. It is used for `FileProvider`, which has not changed
+
+### Known gap
+
+- **Neither share sheet has been run, only compiled.** The manifest merge, the provider
+  authority and the paths declaration were checked statically, which rules out the usual
+  failures — but no one has opened this application on a phone, so the sheet appearing is
+  unproven. The save-first ordering exists precisely because that is true
+
 - **"Verified" now means the application read the drive.** Since the backup work landed it
   has meant somebody pressed a button. A drive can fail silently and a folder can be moved,
   so a tick recorded without reading anything is a backup nobody has checked wearing the

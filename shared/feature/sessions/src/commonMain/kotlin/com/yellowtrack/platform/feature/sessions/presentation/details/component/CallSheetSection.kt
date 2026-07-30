@@ -23,6 +23,7 @@ import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 @Composable
 internal fun CallSheetSection(
     message: String?,
+    canSend: Boolean,
     onCopy: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -53,9 +54,12 @@ internal fun CallSheetSection(
                     )
                 }
 
+                // Says what the button will actually do here: a phone offers the sheet, a
+                // desktop puts the file in Downloads. Labelling both "Send" would promise
+                // a share sheet that is not coming.
                 TextButton(onClick = onSave) {
                     Text(
-                        text = "Save as a web page",
+                        text = if (canSend) "Send it" else "Save as a web page",
                         style = YTTheme.typography.labelLarge,
                         color = YTTheme.colors.primary,
                     )

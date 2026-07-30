@@ -182,6 +182,7 @@ internal class SessionDetailsViewModel(
                         },
                     today = clock.now().toLocalDateTime(deviceZone).date,
                     checkResult = lastCheck,
+                    canSendDocuments = documentSink.canShare,
                     canReadDrives = volumeInspector.isSupported,
                     volumes =
                         volumes
@@ -653,16 +654,21 @@ internal class SessionDetailsViewModel(
         viewModelScope.launch {
             val sheet = callSheet() ?: return@launch
 
-            val saved =
-                documentSink.save(
-                    Document(
-                        baseName = slugify(sheet.title),
-                        format = DocumentFormat.Html,
-                        content = sheet.toHtml(),
-                    ),
+            val document =
+                Document(
+                    baseName = slugify(sheet.title),
+                    format = DocumentFormat.Html,
+                    content = sheet.toHtml(),
                 )
 
-            onSaved(saved.location)
+            // share() saves first and returns where it landed whatever the sheet does, so
+            // the message below is true on a platform that has no share sheet, and on one
+            // where presenting it failed.
+            val saved = if (documentSink.canShare) documentSink.share(document) else documentSink.save(document)
+
+            onSaved(
+                if (documentSink.canShare) "Sent. Also saved to ${saved.location}" else "Saved to ${saved.location}",
+            )
         }
     }
 

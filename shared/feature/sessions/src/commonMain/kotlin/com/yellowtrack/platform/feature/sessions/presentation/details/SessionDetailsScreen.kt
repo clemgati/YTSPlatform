@@ -196,6 +196,7 @@ internal fun SessionDetailsScreen(
 
             CallSheetSection(
                 message = callSheetMessage,
+                canSend = uiState.canSendDocuments,
                 onCopy = onCopyCallSheet,
                 onSave = onSaveCallSheet,
             )

@@ -17,4 +17,6 @@ internal data class SessionDetailsUiState(
     val checkResult: String? = null,
     /** False on the web, which has no filesystem to read. */
     val canReadDrives: Boolean = false,
+    /** True where the platform has a share sheet to hand a document to. */
+    val canSendDocuments: Boolean = false,
 )

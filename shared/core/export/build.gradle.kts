@@ -11,6 +11,16 @@ kotlin {
             api(project(":shared:core:model"))
         }
 
+        commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
+        }
+
+        androidMain.dependencies {
+            // FileProvider: handing another application a file:// URI has thrown since
+            // Android 7.
+            implementation(libs.androidx.core.ktx)
+        }
+
         wasmJsMain.dependencies {
             implementation(libs.kotlinx.browser)
         }

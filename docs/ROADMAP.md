@@ -158,9 +158,12 @@ The biggest gap in the original roadmap.
   three-light headshot is a starting point rather than a rebuild from memory
 - ◐ Documents out of the app. The shoot day leaves as a self-contained web page or as
   text pasted into a message; invoices and quotes leave as pages a client can read and
-  print, carrying the studio's details, its tax number and how to pay it. Handing a
-  document straight to a share sheet on Android and iOS is still to come, as is emailing
-  one without leaving the application
+  print, carrying the studio's details, its tax number and how to pay it. Android and iOS
+  hand the file to the system share sheet, saving it first so a sheet that fails to appear
+  costs nothing — though **neither has been run**, only compiled, so treat the sheet itself
+  as unproven until someone opens the app on a phone. Emailing a document without leaving
+  the application is still to come and needs a mail transport, which belongs with the
+  server in 0.7.0
 - ✓ Studio details, which every document carries — the Settings screen has claimed since
   0.1.0 that there was nothing to configure, and an invoice with no name on it is not an
   invoice

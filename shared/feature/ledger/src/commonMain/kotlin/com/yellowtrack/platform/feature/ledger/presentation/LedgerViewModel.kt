@@ -341,16 +341,22 @@ internal class LedgerViewModel(
                     return@launch
                 }
 
-            val saved =
-                documentSink.save(
-                    Document(
-                        baseName = slugify(document.title),
-                        format = DocumentFormat.Html,
-                        content = document.toHtml(),
-                    ),
+            val file =
+                Document(
+                    baseName = slugify(document.title),
+                    format = DocumentFormat.Html,
+                    content = document.toHtml(),
                 )
 
-            onResult("Saved to ${saved.location}")
+            val saved = if (documentSink.canShare) documentSink.share(file) else documentSink.save(file)
+
+            onResult(
+                if (documentSink.canShare) {
+                    "Sent. Also saved to ${saved.location}"
+                } else {
+                    "Saved to ${saved.location}"
+                },
+            )
         }
     }
 
