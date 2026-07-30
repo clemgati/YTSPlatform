@@ -8,6 +8,17 @@ The project follows semantic versioning.
 
 ### Added
 
+- **The starting templates no longer carry invented prices.** A studio found four packages
+  waiting for it on first run, priced in dollars — figures the application made up, in a
+  currency the studio had not chosen, which the Ledger then measured against that studio's
+  real pricing floor and reported as under- or over-priced. The comment above them already
+  said every figure was "a placeholder the studio is expected to replace"; they are now
+  absent rather than hoped-about. What is seeded is the shape of the work — duration,
+  sessions, deliverables, turnaround — which is the same in every country
+- The pricing screen already handled a template with no price: it shows the minimum the
+  floor requires for those days and leaves what the studio charges blank, which is the
+  honest order to fill the two in
+
 - **The application was silently dollars-only.** `CurrencyCode` has carried a comment since
   it was written saying a studio's currency "is a per-studio setting rather than a global
   constant" — and it was a global constant: a hardcoded default argument on six ViewModels,

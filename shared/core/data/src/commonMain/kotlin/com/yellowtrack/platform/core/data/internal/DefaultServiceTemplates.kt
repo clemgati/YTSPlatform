@@ -1,7 +1,5 @@
 package com.yellowtrack.platform.core.data.internal
 
-import com.yellowtrack.platform.core.common.money.CurrencyCode
-import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.service.ServiceLine
@@ -12,13 +10,18 @@ import kotlin.time.Instant
 /**
  * The starting templates installed on first run — one per business line the studio runs.
  *
- * These exist to prove the design rather than to prescribe prices: the four lines differ
- * only in these values, not in schema or code. Every figure here is a placeholder the
- * studio is expected to replace once its cost of doing business is known.
+ * Deliberately priceless. Duration, session count, deliverables and turnaround are facts
+ * about the shape of the work and are the same in every country; a price is not. Seeding
+ * one would mean inventing a figure, denominating it in a currency the studio has not
+ * chosen yet, and then measuring it against the studio's real pricing floor — which would
+ * report a made-up package as under- or over-priced as though it meant something.
+ *
+ * The Ledger already handles a template with no price: it shows the minimum the floor
+ * requires for those days and leaves what the studio charges blank, which is the honest
+ * order to fill them in.
  */
 internal fun defaultServiceTemplates(
     studioId: StudioId,
-    currency: CurrencyCode,
     now: Instant,
 ): List<ServiceTemplate> {
     val audit = AuditMetadata.createdAt(now)
@@ -28,7 +31,6 @@ internal fun defaultServiceTemplates(
         line: ServiceLine,
         durationMinutes: Int,
         sessionCount: Int,
-        price: Long?,
         deliverables: Int?,
         turnaroundDays: Int?,
         revisions: Int?,
@@ -40,7 +42,7 @@ internal fun defaultServiceTemplates(
         serviceLine = line,
         defaultSessionDurationMinutes = durationMinutes,
         defaultSessionCount = sessionCount,
-        basePrice = price?.let { Money.ofMajor(it, currency) },
+        basePrice = null,
         defaultDeliverableCount = deliverables,
         defaultTurnaroundDays = turnaroundDays,
         defaultRevisionRounds = revisions,
@@ -56,7 +58,6 @@ internal fun defaultServiceTemplates(
             // Two sessions: the engagement shoot and the wedding day. A wedding is one
             // booking containing both, which is why Project and Session are separate.
             sessionCount = 2,
-            price = 4_500,
             deliverables = 600,
             turnaroundDays = 42,
             revisions = null,
@@ -68,7 +69,6 @@ internal fun defaultServiceTemplates(
             durationMinutes = 8 * 60,
             // Scout, shoot, pickup.
             sessionCount = 3,
-            price = 6_000,
             deliverables = 3,
             turnaroundDays = 21,
             // Bounded revision rounds are the main defence against scope creep on video.
@@ -80,7 +80,6 @@ internal fun defaultServiceTemplates(
             line = ServiceLine.RealEstate,
             durationMinutes = 90,
             sessionCount = 1,
-            price = 350,
             deliverables = 30,
             // Listings are time-critical; turnaround is the product.
             turnaroundDays = 1,
@@ -92,7 +91,6 @@ internal fun defaultServiceTemplates(
             line = ServiceLine.Headshot,
             durationMinutes = 90,
             sessionCount = 1,
-            price = 450,
             deliverables = 5,
             turnaroundDays = 7,
             revisions = 1,
@@ -100,3 +98,14 @@ internal fun defaultServiceTemplates(
         ),
     )
 }
+
+/**
+ * Test-visible alias.
+ *
+ * The builder is `internal` to `core:data` and lives in `internal`, which the module's own
+ * tests cannot import across packages. This is the seam rather than widening the builder.
+ */
+internal fun defaultServiceTemplatesForStudio(
+    studioId: StudioId,
+    now: Instant,
+): List<ServiceTemplate> = defaultServiceTemplates(studioId, now)
