@@ -15,6 +15,10 @@ kotlin {
     // `embedAndSignAppleFrameworkForXcode`, and no artefact is published. So CI opts out
     // with -Pyellowtrack.iosReleaseFrameworks=false while every other build — including an
     // archive from Xcode — keeps both build types and is unaffected.
+    val appleTargetsSupported =
+        providers.gradleProperty("yellowtrack.appleTargets").orNull?.toBooleanStrictOrNull()
+            ?: System.getProperty("os.name").orEmpty().startsWith("Mac")
+
     val iosBuildTypes =
         if (providers.gradleProperty("yellowtrack.iosReleaseFrameworks").orNull == "false") {
             listOf(NativeBuildType.DEBUG)
@@ -22,13 +26,16 @@ kotlin {
             listOf(NativeBuildType.DEBUG, NativeBuildType.RELEASE)
         }
 
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64(),
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework(iosBuildTypes) {
-            baseName = "Shared"
-            isStatic = true
+    // Declared only on a Mac; see the note in the `yellowtrack.kmp.library` convention.
+    if (appleTargetsSupported) {
+        listOf(
+            iosArm64(),
+            iosSimulatorArm64(),
+        ).forEach { iosTarget ->
+            iosTarget.binaries.framework(iosBuildTypes) {
+                baseName = "Shared"
+                isStatic = true
+            }
         }
     }
 

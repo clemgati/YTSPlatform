@@ -16,6 +16,16 @@ plugins {
 // this resolves the generated type explicitly.
 val libs = the<org.gradle.accessors.dm.LibrariesForLibs>()
 
+/**
+ * Whether this machine can build for Apple platforms.
+ *
+ * Overridable with -Pyellowtrack.appleTargets so a Mac can reproduce the Linux half of CI
+ * without anyone having to find a Linux machine to debug it on.
+ */
+val appleTargetsSupported: Boolean =
+    providers.gradleProperty("yellowtrack.appleTargets").orNull?.toBooleanStrictOrNull()
+        ?: System.getProperty("os.name").orEmpty().startsWith("Mac")
+
 kotlin {
     androidLibrary {
         // ":shared:core:model" -> "com.yellowtrack.platform.core.model"
@@ -33,8 +43,15 @@ kotlin {
 
     jvm("desktop")
 
-    iosArm64()
-    iosSimulatorArm64()
+    // Apple targets are declared only where they can actually be compiled. Kotlin/Native
+    // cannot build them without the Apple SDKs, so on Linux their tasks would exist only
+    // to fail — which is what stopped CI from splitting the cheap targets onto a cheaper,
+    // faster runner. Declaring them per host means `build` keeps meaning "everything this
+    // machine can build" rather than becoming a hand-maintained list of task names.
+    if (appleTargetsSupported) {
+        iosArm64()
+        iosSimulatorArm64()
+    }
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
