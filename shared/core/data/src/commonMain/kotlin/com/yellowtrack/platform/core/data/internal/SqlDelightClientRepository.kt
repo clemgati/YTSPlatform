@@ -92,6 +92,8 @@ internal class SqlDelightClientRepository(
             db.clientQueries.softDeleteContactsForClient(deletedAt = now, clientId = client.id.value)
 
             client.contacts.forEach { link -> db.saveClientContact(client.id, link, now) }
+
+            db.enqueueForSync(client.studioId.value, SyncTables.CLIENT, client.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -102,6 +104,8 @@ internal class SqlDelightClientRepository(
         db.transaction {
             db.clientQueries.softDeleteContactsForClient(deletedAt = now, clientId = clientId.value)
             db.clientQueries.softDelete(deletedAt = now, id = clientId.value)
+
+            db.enqueueForSync(studioId, SyncTables.CLIENT, clientId.value, OutboxOperation.Delete, now)
         }
     }
 

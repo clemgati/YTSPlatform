@@ -88,11 +88,20 @@ internal class SqlDelightProjectRepository(
                 version = project.audit.version.toLong(),
                 id = project.id.value,
             )
+
+            db.enqueueForSync(project.studioId.value, SyncTables.PROJECT, project.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteProject(projectId: ProjectId) {
-        database().projectQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = projectId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Wrapped, so the tombstone and the note to upload it cannot be written apart.
+        db.transaction {
+            db.projectQueries.softDelete(deletedAt = now, id = projectId.value)
+            db.enqueueForSync(studioId, SyncTables.PROJECT, projectId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<ProjectRow>>.mapRows(): Flow<List<Project>> = map { rows -> rows.map { it.toDomain() } }

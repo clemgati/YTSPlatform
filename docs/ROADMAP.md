@@ -174,8 +174,9 @@ Scoped as a **vertical slice**: the whole path working end to end for `Client`, 
 and `Session` only. Sync is the one feature here whose bugs are invisible — they discard
 work on a device nobody is looking at — so it is proved against real conflicts on three
 entities before the remaining eighteen follow mechanically. Infrastructure is provisioned
-by nobody yet, so development runs against Postgres in Docker and deployment waits until
-there is something worth deploying.
+by nobody yet, so development runs against a local Postgres — Homebrew rather than Docker,
+so there is a database to leave running and point `psql` at, see `docs/CONTRIBUTING.md` —
+and deployment waits until there is something worth deploying.
 
 - ✓ Sync semantics decided before any of it is built — see
   `docs/adr/0008-synchronisation-semantics.md`, accepted once the schema below was built on it
@@ -202,9 +203,15 @@ there is something worth deploying.
   version is kept in full** so a studio can read back what reconciliation discarded;
   tombstones beat concurrent edits, and the discarded edit is kept too. Checked by breaking
   it three ways, including the one that matters most — a cursor stepping past rows nobody
-  would ever be sent again. Still to come: the device half (draining the outbox, applying
-  what arrives, remembering the cursor) and the screen that shows a studio its conflicts,
-  which ADR 0008 decision 3 counts as part of the decision rather than a follow-up
+  would ever be sent again. The device half is in too: mutations queue to the `outbox` that
+  has been waiting unused since the first migration, the drain collapses three offline edits
+  into one upload and **re-reads** rather than sending what was queued, pulled rows are
+  applied without being queued straight back, and the cursor advances only after the page it
+  describes is written. Conflicts travel down, so the discarded version reaches the device.
+  Checked by breaking the ordering, the re-enqueue guard and the collapsing. Still to come:
+  the Ktor transport, so any of it reaches a real server, and the screen that shows a studio
+  its conflicts, which ADR 0008 decision 3 counts as part of the decision rather than a
+  follow-up
 - Object storage for media, via presigned URLs
 
 ## 0.8.0 — Collaboration

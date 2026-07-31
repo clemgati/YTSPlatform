@@ -3,6 +3,7 @@ package com.yellowtrack.platform.server.sync
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.ErrorResponse
 import com.yellowtrack.platform.server.auth.SessionPrincipal
@@ -36,6 +37,14 @@ data class PullResponse(
     val clients: List<Client> = emptyList(),
     val projects: List<Project> = emptyList(),
     val sessions: List<Session> = emptyList(),
+    /**
+     * Work reconciliation discarded, travelling down only.
+     *
+     * There is no matching list on [PushRequest]: the server is the only party that ever
+     * sees both versions, so a device asserting a conflict would be claiming something it
+     * cannot know.
+     */
+    val conflicts: List<SyncConflict> = emptyList(),
 )
 
 @Serializable
@@ -96,6 +105,8 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         clients = changes.rows[SyncedEntity.Clients.table].orEmpty().filterIsInstance<Client>(),
                         projects = changes.rows[SyncedEntity.Projects.table].orEmpty().filterIsInstance<Project>(),
                         sessions = changes.rows[SyncedEntity.Sessions.table].orEmpty().filterIsInstance<Session>(),
+                        conflicts =
+                            changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
                 )
             }
