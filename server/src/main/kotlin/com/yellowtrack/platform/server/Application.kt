@@ -5,6 +5,8 @@ import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.ErrorResponse
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
+import com.yellowtrack.platform.server.sync.Reconciler
+import com.yellowtrack.platform.server.sync.syncRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -82,6 +84,7 @@ fun Application.module(database: Database) {
         }
 
         authRoutes(accounts)
+        syncRoutes(Reconciler(database))
     }
 }
 

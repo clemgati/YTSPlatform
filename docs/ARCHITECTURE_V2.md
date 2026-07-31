@@ -300,6 +300,43 @@ The authentication tables sit outside the mechanism, because a policy keyed on
 `app.studio_id` cannot guard the lookup that decides what `app.studio_id` should be. That
 hole is argued for in ADR 0009 decision 7; `Accounts.kt` is the only code inside it.
 
+#### Reconciliation
+
+`sync/` implements ADR 0008 for `Client`, `Project` and `Session`. Two endpoints, both
+acting as the studio the token was issued for and never as one named in the request.
+
+`GET /sync/changes?since=` returns everything past the cursor in **one ordered pass across
+all three tables**, because they share a single sequence. That is not an optimisation: page
+the tables separately, report the highest sequence seen, and the cursor steps past rows in
+the tables that were not paged — rows that are then never sent again, silently and
+permanently.
+
+`POST /sync/changes` applies rows and reports what became of each: `Applied`, `Conflicted`,
+or `Rejected`. It answers rather than throws, because a drain running after a day offline
+cannot stop and ask a photographer to resolve fourteen conflicts, and a rejection the device
+cannot act on becomes a stuck outbox.
+
+The rules, and what each is protecting against:
+
+| Situation | Outcome | Why |
+| --- | --- | --- |
+| No row yet | Applied | Nothing to displace |
+| Incoming version ahead | Applied | Includes several offline edits arriving as one |
+| Incoming version behind or level | Conflicted | The later arrival wins; the displaced version is written to `sync_conflict` in full |
+| Server row is a tombstone | Conflicted | The delete stands, and the edit it beat is kept too |
+| Incoming is a tombstone | Applied | A delete over a live row is an ordinary write |
+
+Two details that look arbitrary and are not. A settled conflict stores `max(both) + 1`,
+because leaving two devices on the same version would make every push between them conflict
+forever after. And a `Client` arriving with `contacts` is **rejected**, not stripped:
+contacts are their own rows with their own ids and reconcile by union (ADR 0008 decision 5),
+and quietly dropping them would leave a device believing it had uploaded something it had
+not.
+
+`sync_state` is the only table in the schema that is device-only rather than mirrored — a
+cursor is a fact about one phone, and two devices of the same studio are at different points
+in the sequence by definition.
+
 ---
 
 ### core:network

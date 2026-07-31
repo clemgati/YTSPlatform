@@ -46,8 +46,12 @@ class SchemaDriftTest {
      *
      * `outbox` is the queue of local mutations waiting to be uploaded (ADR 0008 decision
      * 6). The server is what they are uploaded *to*; it has no outbox of its own.
+     *
+     * `sync_state` is how far this device has pulled. A cursor is a fact about one phone,
+     * not about the studio, and two devices belonging to the same studio are at different
+     * points in the sequence by definition.
      */
-    private val deviceOnlyTables = setOf("outbox")
+    private val deviceOnlyTables = setOf("outbox", "sync_state")
 
     /**
      * Tables that exist on the server and on no device.

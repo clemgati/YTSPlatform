@@ -195,8 +195,16 @@ there is something worth deploying.
   studio, rather than returning everything. Proved by breaking it three ways. Still to come:
   the client wiring, so the applications can actually sign in, and password reset, which
   needs the mail transport 0.6.0 also wanted
-- Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
-  ready for it since 0.3.0
+- ◐ Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
+  ready for it since 0.3.0. The server reconciles: a device pulls everything past its cursor
+  in one ordered pass across all three tables, pushes what it has, and gets back what became
+  of each row. Conflicts are detected on `version`, resolved by arrival, and **the losing
+  version is kept in full** so a studio can read back what reconciliation discarded;
+  tombstones beat concurrent edits, and the discarded edit is kept too. Checked by breaking
+  it three ways, including the one that matters most — a cursor stepping past rows nobody
+  would ever be sent again. Still to come: the device half (draining the outbox, applying
+  what arrives, remembering the cursor) and the screen that shows a studio its conflicts,
+  which ADR 0008 decision 3 counts as part of the decision rather than a follow-up
 - Object storage for media, via presigned URLs
 
 ## 0.8.0 — Collaboration
