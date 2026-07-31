@@ -128,8 +128,9 @@ internal class StudioViewModel(
     fun markServiced(gearItemId: GearItemId) {
         viewModelScope.launch {
             val existing = gearRepository.getGearItem(gearItemId) ?: return@launch
+            val now = clock.now()
 
-            gearRepository.saveGearItem(existing.copy(lastServicedAt = clock.now()))
+            gearRepository.saveGearItem(existing.copy(lastServicedAt = now, audit = existing.audit.touched(now)))
         }
     }
 
@@ -192,8 +193,9 @@ internal class StudioViewModel(
     fun markVolumeChecked(volumeId: StorageVolumeId) {
         viewModelScope.launch {
             val existing = volumeRepository.getVolume(volumeId) ?: return@launch
+            val now = clock.now()
 
-            volumeRepository.saveVolume(existing.copy(lastCheckedAt = clock.now()))
+            volumeRepository.saveVolume(existing.copy(lastCheckedAt = now, audit = existing.audit.touched(now)))
         }
     }
 

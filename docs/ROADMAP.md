@@ -170,10 +170,21 @@ The biggest gap in the original roadmap.
 
 ## 0.7.0 — Cloud
 
+Scoped as a **vertical slice**: the whole path working end to end for `Client`, `Project`
+and `Session` only. Sync is the one feature here whose bugs are invisible — they discard
+work on a device nobody is looking at — so it is proved against real conflicts on three
+entities before the remaining eighteen follow mechanically. Infrastructure is provisioned
+by nobody yet, so development runs against Postgres in Docker and deployment waits until
+there is something worth deploying.
+
+- Sync semantics decided before any of it is built — see
+  `docs/adr/0008-synchronisation-semantics.md`
 - Ktor server sharing `core:model`, behind Apache, over cloud Postgres
+- Postgres schema through Flyway, with a test that it has not drifted from SQLDelight's
 - Accounts, authentication, and Row Level Security on `studio_id`
+- Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
+  ready for it since 0.3.0
 - Object storage for media, via presigned URLs
-- Synchronisation, landing on a schema that has been ready for it since 0.3.0
 
 ## 0.8.0 — Collaboration
 
