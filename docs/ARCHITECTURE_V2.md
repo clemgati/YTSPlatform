@@ -170,6 +170,14 @@ on one another.
 
 Reads are exposed as `Flow`, so a change made on one screen appears on every other.
 
+`auth/SessionStore` is the exception to "repositories over a database": the signed-in
+token is a credential rather than a business record, so it lives where each platform keeps
+credentials rather than in a table. The four implementations differ in *kind*, not merely
+in API — Keychain and a keystore-wrapped preference file are backed by keys the application
+cannot extract; a desktop file has only permissions; browser storage has nothing at all.
+`isHardwareBacked` exists so a screen can say which of those a studio is relying on instead
+of implying a guarantee the platform is not making.
+
 ---
 
 ### core:database

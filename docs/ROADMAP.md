@@ -217,8 +217,12 @@ and deployment waits until there is something worth deploying.
   the real transport, and `SyncOverHttpTest` runs it against the real routes — the two halves
   had never actually spoken before that. The wire contract lives in `core:model` and is
   compiled into both sides, so it can no longer drift the way two hand-kept copies could.
-  Still to come: where each platform keeps its token, and a sign-in screen, without which
-  none of this is reachable from the app
+  Each platform now keeps its token where that platform keeps credentials — Keychain on
+  iOS, a keystore-wrapped preference file on Android, an owner-only file on desktop,
+  `localStorage` in a browser, which `isHardwareBacked` is honest about rather than
+  implying a protection browsers do not offer. Only the desktop one has been run; the other
+  three are compiled. Still to come: a sign-in screen, without which none of this is
+  reachable from the application
 - Object storage for media, via presigned URLs
 
 ## 0.8.0 — Collaboration

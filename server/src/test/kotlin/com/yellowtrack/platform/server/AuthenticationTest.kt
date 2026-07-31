@@ -1,9 +1,9 @@
 package com.yellowtrack.platform.server
 
-import com.yellowtrack.platform.server.auth.AccountResponse
-import com.yellowtrack.platform.server.auth.SessionResponse
-import com.yellowtrack.platform.server.auth.SignInRequest
-import com.yellowtrack.platform.server.auth.SignUpRequest
+import com.yellowtrack.platform.core.model.auth.AccountResponse
+import com.yellowtrack.platform.core.model.auth.SessionResponse
+import com.yellowtrack.platform.core.model.auth.SignInRequest
+import com.yellowtrack.platform.core.model.auth.SignUpRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get

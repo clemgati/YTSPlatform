@@ -11,6 +11,7 @@ androidx-core = "1.16.0"
 androidx-espresso = "3.7.0"
 androidx-lifecycle = "2.11.0-beta01"
 androidx-testExt = "1.3.0"
+androidx-securityCrypto = "1.1.0"
 bouncycastle = "1.85"
 composeMultiplatform = "1.11.1"
 flyway = "13.1.0"
@@ -37,6 +38,9 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+# Wraps the session token with a key the application cannot extract, held in the device
+# keystore. See core:data's AndroidSessionStore.
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidx-securityCrypto" }
 androidx-testExt-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-testExt" }
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidx-espresso" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }

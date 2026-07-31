@@ -1,8 +1,8 @@
 package com.yellowtrack.platform.server
 
+import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.server.auth.Accounts
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
-import com.yellowtrack.platform.server.auth.ErrorResponse
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
 import com.yellowtrack.platform.server.sync.Reconciler

@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.server.sync
 
+import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
@@ -10,7 +11,6 @@ import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import com.yellowtrack.platform.core.model.sync.SyncPushResponse
 import com.yellowtrack.platform.core.model.sync.SyncPushResult
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
-import com.yellowtrack.platform.server.auth.ErrorResponse
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate

@@ -1,5 +1,10 @@
 package com.yellowtrack.platform.server.auth
 
+import com.yellowtrack.platform.core.model.auth.AccountResponse
+import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.auth.SessionResponse
+import com.yellowtrack.platform.core.model.auth.SignInRequest
+import com.yellowtrack.platform.core.model.auth.SignUpRequest
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
@@ -9,55 +14,6 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
-import kotlinx.serialization.Serializable
-
-/**
- * The wire shapes of the authentication endpoints.
- *
- * Defined here rather than in `core:model` on purpose. `core:model` holds the domain — the
- * things a photography business is made of — and ADR 0008 already worried about it
- * acquiring concerns that belong to how data moves rather than what it is. When the client
- * wiring lands these move to `core:network`, which `docs/ARCHITECTURE_V2.md` has been
- * holding a place for.
- */
-@Serializable
-data class SignUpRequest(
-    val email: String,
-    val password: String,
-    val name: String,
-    val studioName: String,
-)
-
-@Serializable
-data class SignInRequest(
-    val email: String,
-    val password: String,
-)
-
-@Serializable
-data class SessionResponse(
-    val token: String,
-    val expiresAt: Long,
-    val accountId: String,
-    val email: String,
-    val name: String,
-    val studioId: String,
-    val studioName: String,
-)
-
-@Serializable
-data class AccountResponse(
-    val accountId: String,
-    val email: String,
-    val name: String,
-    val studioId: String,
-    val studioName: String,
-)
-
-@Serializable
-data class ErrorResponse(
-    val error: String,
-)
 
 /** The signed-in caller, carried from the bearer token to the handler. */
 data class SessionPrincipal(
