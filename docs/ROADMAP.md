@@ -177,10 +177,17 @@ entities before the remaining eighteen follow mechanically. Infrastructure is pr
 by nobody yet, so development runs against Postgres in Docker and deployment waits until
 there is something worth deploying.
 
-- Sync semantics decided before any of it is built — see
-  `docs/adr/0008-synchronisation-semantics.md`
-- Ktor server sharing `core:model`, behind Apache, over cloud Postgres
-- Postgres schema through Flyway, with a test that it has not drifted from SQLDelight's
+- ✓ Sync semantics decided before any of it is built — see
+  `docs/adr/0008-synchronisation-semantics.md`, accepted once the schema below was built on it
+- ◐ Ktor server sharing `core:model` — the module exists and the model is proved to cross
+  the wire, but it serves a health route and nothing else. Apache and a cloud Postgres wait
+  until there is something worth deploying
+- ✓ Postgres schema through Flyway, with a test that it has not drifted from SQLDelight's —
+  twenty-five tables mirrored, compared column by column against the committed SQLDelight
+  snapshot, and the three deliberate divergences asserted to be the only ones. `server_seq`
+  is assigned on insert *and* update, which was checked by breaking it. `sync_state` and
+  `sync_conflict` are not here: both need a matching client migration, so they land with the
+  synchronisation itself rather than ahead of it
 - Accounts, authentication, and Row Level Security on `studio_id`
 - Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
   ready for it since 0.3.0

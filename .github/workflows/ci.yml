@@ -64,5 +64,33 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x gradlew
 
+      # Only the Linux half runs `:server:test`, and only that test needs a database, so
+      # Postgres is started here rather than declared as a job-level `services:` block —
+      # services attach to every matrix leg, and the macOS runner has no container engine
+      # to attach them to.
+      #
+      # Pinned to the major version development runs against, so a schema that passes here
+      # is a schema that passed on someone's laptop.
+      - name: Start Postgres
+        if: runner.os == 'Linux'
+        run: |
+          docker run --detach --name postgres \
+            --env POSTGRES_PASSWORD=postgres \
+            --env POSTGRES_DB=yellowtrack_test \
+            --publish 5432:5432 \
+            --health-cmd pg_isready --health-interval 5s --health-retries 20 \
+            postgres:18
+          # The drift test fails rather than skips without a database, so waiting here
+          # turns a start-up race into a wait instead of into a red build.
+          for _ in $(seq 1 40); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' postgres)" = healthy ] && break
+            sleep 2
+          done
+          docker inspect -f '{{.State.Health.Status}}' postgres
+
       - name: ${{ matrix.name }}
         run: ./gradlew ${{ matrix.tasks }} --stacktrace
+        env:
+          YELLOWTRACK_TEST_DB_URL: jdbc:postgresql://localhost:5432/yellowtrack_test
+          YELLOWTRACK_TEST_DB_USER: postgres
+          YELLOWTRACK_TEST_DB_PASSWORD: postgres

@@ -17,9 +17,17 @@ dependencies {
     implementation(libs.ktor.server.contentNegotiation)
     implementation(libs.ktor.serialization.json)
 
+    implementation(libs.flyway.core)
+    // Since Flyway 10 the database dialects ship separately from the core; without this
+    // the migration fails at run time rather than at compile time.
+    runtimeOnly(libs.flyway.postgresql)
+    implementation(libs.postgresql)
+
     testImplementation(libs.ktor.server.testHost)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
+    // The drift test reads the committed SQLDelight snapshot as an ordinary SQLite file.
+    testImplementation(libs.sqlite.jdbc)
 }
 
 kotlin {

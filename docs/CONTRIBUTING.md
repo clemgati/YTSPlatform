@@ -2,6 +2,27 @@
 
 Yellow Track Platform is in early development. Contributions should preserve a stable, understandable, and reviewable codebase.
 
+## Local setup
+
+The client targets need only a JDK and the Android SDK. The `:server` module additionally
+needs a Postgres to test against, because `SchemaDriftTest` compares the server schema
+against the clients' and cannot do that without a database:
+
+```sh
+brew install postgresql@18
+brew services start postgresql@18
+createdb yellowtrack_dev
+createdb yellowtrack_test
+```
+
+That test fails rather than skips when there is no database. This is deliberate: a drift
+check that quietly does not run still reports green while the two schemas part company.
+
+The defaults assume Postgres on the loopback address owned by the account running the
+build, which is what the Homebrew formula produces. Override with `YELLOWTRACK_TEST_DB_URL`,
+`YELLOWTRACK_TEST_DB_USER` and `YELLOWTRACK_TEST_DB_PASSWORD`; the server itself reads
+`DATABASE_URL`, `DATABASE_USER` and `DATABASE_PASSWORD`.
+
 ## Workflow
 
 1. Create or reference a GitHub issue.

@@ -238,6 +238,35 @@ when the two ends are briefly *not* the same build: unknown keys are ignored so 
 client survives a rolling deploy, defaults are written out so the reader cannot fill in a
 different one, and nulls stay explicit so a tombstone cannot vanish in transit.
 
+#### The schema, twice
+
+The Postgres schema lives in `src/main/resources/db/migration` and is applied by Flyway. It
+mirrors the SQLDelight schema the clients carry, which means the same twenty-five tables
+are written twice in two dialects.
+
+The compiler keeps `core:model` honest and can do nothing for this, so `SchemaDriftTest`
+does it instead: it reads the committed SQLDelight snapshot as an ordinary SQLite file,
+applies the real migrations to a real Postgres, and compares them column by column. It
+reads the *highest-numbered* snapshot, so a new client migration widens what is compared
+automatically and fails until the server catches up.
+
+Three divergences are deliberate, and the test asserts they are the only ones:
+
+- `outbox` is device-only. It is the queue of local mutations awaiting upload; the server
+  is what they are uploaded *to*.
+- Every synced table carries a `server_seq` no client has — the pull cursor of ADR 0008.
+- SQLite `INTEGER` becomes `bigint`, except `is_*` columns, which become `boolean`. SQLite
+  has no boolean type, so the prefix is what tells a flag from a count.
+
+`server_seq` is assigned by a trigger on insert **and update**, from one sequence shared by
+every table. Sharing it is what lets a client hold a single cursor across entities; firing
+on update is what stops an edited row from sitting behind a cursor that has already passed
+it, which is the silent loss ADR 0008 exists to prevent.
+
+Running the server tests needs a local Postgres — see `docs/CONTRIBUTING.md`. The drift
+test fails rather than skips without one, because a drift check that quietly does not run
+still looks green while the two schemas part company.
+
 ---
 
 ### core:network
