@@ -208,10 +208,12 @@ and deployment waits until there is something worth deploying.
   into one upload and **re-reads** rather than sending what was queued, pulled rows are
   applied without being queued straight back, and the cursor advances only after the page it
   describes is written. Conflicts travel down, so the discarded version reaches the device.
-  Checked by breaking the ordering, the re-enqueue guard and the collapsing. Still to come:
-  the Ktor transport, so any of it reaches a real server, and the screen that shows a studio
-  its conflicts, which ADR 0008 decision 3 counts as part of the decision rather than a
-  follow-up
+  Checked by breaking the ordering, the re-enqueue guard and the collapsing. **Settings now
+  shows what was discarded** — which entity, when, and the fields that actually moved, with
+  the losing value beside the one that was kept — so ADR 0008 decision 3's condition on
+  last-write-wins is finally being met rather than merely stored for. Still to come: the
+  Ktor transport, so any of it reaches a real server, and something on the Dashboard, since
+  a conflict only a studio that opens Settings will find is not quite "shown"
 - Object storage for media, via presigned URLs
 
 ## 0.8.0 — Collaboration

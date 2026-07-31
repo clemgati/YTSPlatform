@@ -9,6 +9,7 @@ val settingsModule =
         viewModel {
             SettingsViewModel(
                 profileRepository = get(),
+                conflictRepository = get(),
                 studioContext = get(),
                 clock = get(),
             )

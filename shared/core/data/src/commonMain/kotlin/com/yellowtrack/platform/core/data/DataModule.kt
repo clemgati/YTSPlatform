@@ -22,6 +22,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightShotRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightSyncConflictRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import org.koin.dsl.module
@@ -55,6 +56,7 @@ val dataModule =
         single<PackingRepository> { SqlDelightPackingRepository(get(), get(), ioDispatcher) }
         single<LightingRecipeRepository> { SqlDelightLightingRecipeRepository(get(), get(), get(), ioDispatcher) }
         single<ServiceTemplateRepository> { SqlDelightServiceTemplateRepository(get(), get(), get(), ioDispatcher) }
+        single<SyncConflictRepository> { SqlDelightSyncConflictRepository(get(), get(), get(), ioDispatcher) }
 
         single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }
         single<InvoiceRepository> { SqlDelightInvoiceRepository(get(), get(), get(), ioDispatcher) }

@@ -4,7 +4,10 @@ import com.yellowtrack.platform.core.data.LocalStudioContext
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.studio.StudioProfileId
+import com.yellowtrack.platform.core.model.sync.SyncConflict
+import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
+import com.yellowtrack.platform.core.testing.FakeSyncConflictRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
@@ -25,6 +28,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /**
  * The studio's own details, which nothing has held until now.
@@ -47,22 +51,103 @@ class SettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
+    // --- What synchronisation discarded -------------------------------------------------
+
+    @Test
+    fun `a conflict is shown in the studio's own words, not the table's`() =
+        runTest {
+            val harness = harness(conflicts = listOf(conflict(entityTable = "session")))
+
+            val shown =
+                harness.viewModel
+                    .content()
+                    .conflicts
+                    .single()
+
+            assertEquals("A shoot day", shown.what, "the studio never chose the table names")
+            assertEquals("Title", shown.differences.single().label)
+            assertEquals("Ceremony — 2pm", shown.differences.single().discarded)
+        }
+
+    @Test
+    fun `an entity nobody thought to label still appears`() =
+        runTest {
+            val harness = harness(conflicts = listOf(conflict(entityTable = "invoice")))
+
+            assertEquals(
+                "A record",
+                harness.viewModel
+                    .content()
+                    .conflicts
+                    .single()
+                    .what,
+                "the eighteen entities not yet in the slice will arrive before their labels do, " +
+                    "and a conflict with no label is still work somebody lost",
+            )
+        }
+
+    @Test
+    fun `dismissing one reaches the repository`() =
+        runTest {
+            val harness = harness(conflicts = listOf(conflict()))
+
+            harness.viewModel.dismissConflict(SyncConflictId("conflict-1"))
+
+            assertEquals(listOf(SyncConflictId("conflict-1")), harness.conflicts.resolved)
+        }
+
+    @Test
+    fun `no conflicts means nothing to show`() =
+        runTest {
+            val harness = harness()
+
+            assertTrue(
+                harness.viewModel
+                    .content()
+                    .conflicts
+                    .isEmpty(),
+            )
+        }
+
+    private fun conflict(entityTable: String = "session") =
+        SyncConflict(
+            id = SyncConflictId("conflict-1"),
+            studioId = LocalStudioContext().studioId,
+            entityTable = entityTable,
+            entityId = "session-1",
+            losingPayload = """{"title":"Ceremony — 2pm"}""",
+            winningPayload = """{"title":"Ceremony — 3pm"}""",
+            detectedAt = CONFLICT_TIME,
+            audit = AuditMetadata.createdAt(CONFLICT_TIME),
+        )
+
+    private companion object {
+        val CONFLICT_TIME: Instant = Instant.fromEpochMilliseconds(1_781_100_000_000)
+    }
+
     private class Harness(
         val viewModel: SettingsViewModel,
         val repository: FakeStudioProfileRepository,
+        val conflicts: FakeSyncConflictRepository,
     )
 
-    private fun harness(existing: StudioProfile? = null): Harness {
+    private fun harness(
+        existing: StudioProfile? = null,
+        conflicts: List<SyncConflict> = emptyList(),
+    ): Harness {
         val repository = FakeStudioProfileRepository(existing)
+        val conflictRepository = FakeSyncConflictRepository(conflicts)
 
         return Harness(
             viewModel =
                 SettingsViewModel(
                     profileRepository = repository,
+                    conflictRepository = conflictRepository,
                     studioContext = LocalStudioContext(),
                     clock = TestAppClock(),
                 ),
             repository = repository,
+            conflicts = conflictRepository,
         )
     }
 

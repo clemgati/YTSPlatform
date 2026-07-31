@@ -337,6 +337,18 @@ not.
 cursor is a fact about one phone, and two devices of the same studio are at different points
 in the sequence by definition.
 
+On the device, `core:data`'s `sync/` package holds the other half: mutations enqueue to the
+`outbox` in the same transaction as the write, `SyncEngine` drains it — collapsing repeated
+edits and re-reading rows rather than sending what was queued — then applies what it pulls
+straight to the tables, deliberately not through the repositories, which would queue every
+pulled row straight back for upload.
+
+Conflicts surface in Settings. `SyncConflict.differences()` narrows two whole payloads to
+the fields that actually moved, ignoring `version` and `updatedAt` because those differ on
+every write and would bury the one field the studio changed. A payload that cannot be parsed
+is still listed, saying so — a version that will not render is still a version that was
+thrown away, and hiding it is the failure the table exists to prevent.
+
 ---
 
 ### core:network

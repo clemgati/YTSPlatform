@@ -4,10 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.time.AppClock
+import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.SyncConflictRepository
+import com.yellowtrack.platform.core.data.sync.differences
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.studio.StudioProfile
+import com.yellowtrack.platform.core.model.sync.SyncConflict
+import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.ui.state.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,6 +21,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
 
 /**
  * The studio's own details, which every document it sends carries.
@@ -25,6 +31,7 @@ import kotlinx.coroutines.launch
  */
 internal class SettingsViewModel(
     private val profileRepository: StudioProfileRepository,
+    private val conflictRepository: SyncConflictRepository,
     private val studioContext: StudioContext,
     private val clock: AppClock,
 ) : ViewModel() {
@@ -34,7 +41,8 @@ internal class SettingsViewModel(
         combine(
             profileRepository.observeProfile(),
             savedNote,
-        ) { profile, note ->
+            conflictRepository.observeUnresolved(),
+        ) { profile, note, conflicts ->
             SettingsUiState(
                 content =
                     UiState.Success(
@@ -43,6 +51,7 @@ internal class SettingsViewModel(
                             canIssueDocuments = profile?.canIssueDocuments == true,
                             gaps = profile?.documentGaps.orEmpty(),
                             savedNote = note,
+                            conflicts = conflicts.map { it.toSummary() },
                         ),
                     ),
             )
@@ -103,6 +112,19 @@ internal class SettingsViewModel(
         }
     }
 
+    /** Dismisses one. The row stays; only its unresolved-ness goes. */
+    fun dismissConflict(id: SyncConflictId) {
+        viewModelScope.launch { conflictRepository.resolve(id) }
+    }
+
+    private fun SyncConflict.toSummary(): ConflictSummary =
+        ConflictSummary(
+            id = id,
+            what = ENTITY_LABELS[entityTable] ?: "A record",
+            whenDetected = DateFormats.fullDate(detectedAt, TimeZone.currentSystemDefault()),
+            differences = differences(),
+        )
+
     private fun StudioProfile?.toFields(): StudioProfileFields =
         StudioProfileFields(
             name = this?.name.orEmpty(),
@@ -117,6 +139,17 @@ internal class SettingsViewModel(
         )
 
     private companion object {
+        /**
+         * The studio never chose the table names, and "session" means something else
+         * entirely to a photographer.
+         */
+        val ENTITY_LABELS =
+            mapOf(
+                "client" to "A client",
+                "project" to "A booking",
+                "session" to "A shoot day",
+            )
+
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }

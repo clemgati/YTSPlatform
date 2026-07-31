@@ -6,9 +6,12 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
+import com.yellowtrack.platform.core.data.sync.ConflictDifference
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
+import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.ui.state.UiState
+import com.yellowtrack.platform.feature.settings.presentation.ConflictSummary
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
 import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
 import com.yellowtrack.platform.feature.settings.presentation.SettingsUiState
@@ -37,6 +40,7 @@ class SettingsRenderTest {
                             uiState = UiState.Success(sampleContent()).let(::SettingsUiState),
                             onRetry = {},
                             onSave = {},
+                            onDismissConflict = {},
                         )
                     }
                 }
@@ -67,5 +71,21 @@ class SettingsRenderTest {
             canIssueDocuments = true,
             gaps = listOf("no tax registration number", "no payment instructions"),
             savedNote = "Saved. Your documents will carry these details.",
+            conflicts =
+                listOf(
+                    ConflictSummary(
+                        id = SyncConflictId("conflict-1"),
+                        what = "A shoot day",
+                        whenDetected = "July 30, 2026",
+                        differences =
+                            listOf(
+                                ConflictDifference(
+                                    label = "Title",
+                                    discarded = "Ceremony — 2pm",
+                                    kept = "Ceremony — 3pm",
+                                ),
+                            ),
+                    ),
+                ),
         )
 }
