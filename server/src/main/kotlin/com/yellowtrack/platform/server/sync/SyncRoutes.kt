@@ -4,6 +4,11 @@ import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.sync.SyncConflict
+import com.yellowtrack.platform.core.model.sync.SyncPullResponse
+import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
+import com.yellowtrack.platform.core.model.sync.SyncPushResponse
+import com.yellowtrack.platform.core.model.sync.SyncPushResult
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.ErrorResponse
 import com.yellowtrack.platform.server.auth.SessionPrincipal
@@ -16,60 +21,6 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
-import kotlinx.serialization.Serializable
-
-/**
- * What a device asks for, and what it sends back.
- *
- * Three typed lists rather than one list of opaque payloads. A generic envelope would
- * extend to the remaining eighteen entities without a code change, and would throw away
- * the only thing ADR 0007 bought: `core:model` compiled into both sides, so that adding a
- * field to `Session` is a compile error here rather than a field that quietly stops
- * crossing. Growing this by one list per entity is the cost of keeping that, and it is
- * the cheaper mistake to make.
- */
-@Serializable
-data class PullResponse(
-    /** Where the device should resume. Unchanged when nothing came back. */
-    val cursor: Long,
-    /** Whether the studio has more beyond this page, so the device knows to come again. */
-    val hasMore: Boolean,
-    val clients: List<Client> = emptyList(),
-    val projects: List<Project> = emptyList(),
-    val sessions: List<Session> = emptyList(),
-    /**
-     * Work reconciliation discarded, travelling down only.
-     *
-     * There is no matching list on [PushRequest]: the server is the only party that ever
-     * sees both versions, so a device asserting a conflict would be claiming something it
-     * cannot know.
-     */
-    val conflicts: List<SyncConflict> = emptyList(),
-)
-
-@Serializable
-data class PushRequest(
-    val clients: List<Client> = emptyList(),
-    val projects: List<Project> = emptyList(),
-    val sessions: List<Session> = emptyList(),
-)
-
-@Serializable
-data class PushResultResponse(
-    val entityTable: String,
-    val entityId: String,
-    val outcome: String,
-    val version: Int,
-    val detail: String? = null,
-)
-
-@Serializable
-data class PushResponse(
-    val results: List<PushResultResponse>,
-) {
-    /** So a device can show "three of your changes were also made elsewhere" without counting. */
-    val conflicted: Int get() = results.count { it.outcome == PushOutcome.Conflicted.name }
-}
 
 /**
  * Pull and push.
@@ -99,7 +50,7 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                 val changes = reconciler.pull(studioId, since, limit)
 
                 call.respond(
-                    PullResponse(
+                    SyncPullResponse(
                         cursor = changes.cursor,
                         hasMore = changes.hasMore,
                         clients = changes.rows[SyncedEntity.Clients.table].orEmpty().filterIsInstance<Client>(),
@@ -113,7 +64,7 @@ fun Route.syncRoutes(reconciler: Reconciler) {
 
             post("/changes") {
                 val studioId = call.principal<SessionPrincipal>()!!.session.studioId
-                val request = call.receive<PushRequest>()
+                val request = call.receive<SyncPushRequest>()
 
                 // Parents before children, so a project never lands before the client it
                 // belongs to and trips a foreign key.
@@ -124,17 +75,26 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         request.sessions.forEach { add(reconciler.push(studioId, SyncedEntity.Sessions, it)) }
                     }
 
-                call.respond(PushResponse(results.map { it.toResponse() }))
+                call.respond(SyncPushResponse(results.map { it.toWire() }))
             }
         }
     }
 }
 
-private fun PushResult.toResponse() =
-    PushResultResponse(
+/**
+ * The reconciler's own outcome type is internal to the server — it carries `Unanswered`,
+ * which is a thing a device concludes rather than a thing a server ever says.
+ */
+private fun PushResult.toWire() =
+    SyncPushResult(
         entityTable = entityTable,
         entityId = entityId,
-        outcome = outcome.name,
+        outcome =
+            when (outcome) {
+                PushOutcome.Applied -> SyncPushOutcome.Applied
+                PushOutcome.Conflicted -> SyncPushOutcome.Conflicted
+                PushOutcome.Rejected -> SyncPushOutcome.Rejected
+            },
         version = version,
         detail = detail,
     )

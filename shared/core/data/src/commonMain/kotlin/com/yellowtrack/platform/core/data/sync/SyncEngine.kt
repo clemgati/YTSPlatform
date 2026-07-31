@@ -13,6 +13,8 @@ import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.session.SessionId
+import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 
 /** What one reconciliation did. */
 data class SyncReport(
@@ -95,7 +97,7 @@ class SyncEngine(
         val wanted = pending.map { it.entity_table to it.entity_id }.distinct()
 
         val changes =
-            ChangesToPush(
+            SyncPushRequest(
                 clients = wanted.forTable(SyncTables.CLIENT).mapNotNull { clients.getClient(ClientId(it)) },
                 projects = wanted.forTable(SyncTables.PROJECT).mapNotNull { projects.getProject(ProjectId(it)) },
                 sessions = wanted.forTable(SyncTables.SESSION).mapNotNull { sessions.getSession(SessionId(it)) },
@@ -111,30 +113,37 @@ class SyncEngine(
         database.transaction {
             pending.forEach { entry ->
                 val identity = entry.entity_table to entry.entity_id
-                when (
-                    byIdentity[identity]?.outcome
-                        ?: if (identity in vanished) PushOutcome.Applied else PushOutcome.Unanswered
-                ) {
+                val ack = byIdentity[identity]
+
+                when {
+                    // Queued, never uploaded, then hard-deleted. Nothing to send, and
+                    // nothing to keep asking about.
+                    ack == null && identity in vanished -> database.outboxQueries.delete(entry.id)
+
+                    // The server said nothing about this row. Not an outcome it reports —
+                    // a conclusion drawn from silence, which a dropped connection produces
+                    // too. Kept, because the alternative discards the studio's work.
+                    ack == null ->
+                        database.outboxQueries.recordFailure("the server did not answer about this row", entry.id)
+
                     // Conflicted still means stored: the server took this version and kept
                     // the one it displaced. The entry has done its job.
-                    PushOutcome.Applied, PushOutcome.Conflicted -> database.outboxQueries.delete(entry.id)
+                    ack.outcome == SyncPushOutcome.Applied || ack.outcome == SyncPushOutcome.Conflicted ->
+                        database.outboxQueries.delete(entry.id)
 
-                    // Kept, both of them. A rejection is a bug to look at, and an
-                    // unanswered push may simply be a connection that dropped mid-flight —
-                    // discarding either would discard the studio's work.
-                    PushOutcome.Rejected ->
-                        database.outboxQueries.recordFailure(byIdentity[identity]?.detail, entry.id)
-
-                    PushOutcome.Unanswered ->
-                        database.outboxQueries.recordFailure("the server did not answer about this row", entry.id)
+                    // A rejection is a bug to look at rather than work to throw away.
+                    else -> database.outboxQueries.recordFailure(ack.detail, entry.id)
                 }
             }
         }
 
         return PushSummary(
-            uploaded = acks.count { it.outcome == PushOutcome.Applied || it.outcome == PushOutcome.Conflicted },
-            conflicted = acks.count { it.outcome == PushOutcome.Conflicted },
-            rejected = acks.count { it.outcome == PushOutcome.Rejected },
+            uploaded =
+                acks.count {
+                    it.outcome == SyncPushOutcome.Applied || it.outcome == SyncPushOutcome.Conflicted
+                },
+            conflicted = acks.count { it.outcome == SyncPushOutcome.Conflicted },
+            rejected = acks.count { it.outcome == SyncPushOutcome.Rejected },
         )
     }
 
@@ -194,7 +203,7 @@ class SyncEngine(
 
     private fun List<Pair<String, String>>.forTable(table: String) = filter { it.first == table }.map { it.second }
 
-    private fun ChangesToPush.identities(): Set<Pair<String, String>> =
+    private fun SyncPushRequest.identities(): Set<Pair<String, String>> =
         buildSet {
             clients.forEach { add(SyncTables.CLIENT to it.id.value) }
             projects.forEach { add(SyncTables.PROJECT to it.id.value) }

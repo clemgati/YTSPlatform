@@ -1,10 +1,10 @@
 package com.yellowtrack.platform.core.data
 
-import com.yellowtrack.platform.core.data.sync.ChangesToPush
-import com.yellowtrack.platform.core.data.sync.PullPage
-import com.yellowtrack.platform.core.data.sync.PushAck
-import com.yellowtrack.platform.core.data.sync.PushOutcome
 import com.yellowtrack.platform.core.data.sync.SyncTransport
+import com.yellowtrack.platform.core.model.sync.SyncPullResponse
+import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
+import com.yellowtrack.platform.core.model.sync.SyncPushResult
 
 /**
  * A server that does as it is told.
@@ -21,13 +21,13 @@ import com.yellowtrack.platform.core.data.sync.SyncTransport
  * depended on by it. It moves there the first time a feature module needs it.
  */
 class FakeSyncTransport(
-    private val onPush: (ChangesToPush) -> List<PushAck> = ::acceptEverything,
+    private val onPush: (SyncPushRequest) -> List<SyncPushResult> = ::acceptEverything,
 ) : SyncTransport {
-    val pushed = mutableListOf<ChangesToPush>()
+    val pushed = mutableListOf<SyncPushRequest>()
     val pullsSince = mutableListOf<Long>()
 
     /** Pages handed back in order, one per call. An empty list means "nothing new". */
-    var pages: MutableList<PullPage> = mutableListOf()
+    var pages: MutableList<SyncPullResponse> = mutableListOf()
 
     /** Set to throw from the next push, standing in for a connection that drops. */
     var failNextPush: Throwable? = null
@@ -35,12 +35,12 @@ class FakeSyncTransport(
     override suspend fun pull(
         since: Long,
         limit: Int,
-    ): PullPage {
+    ): SyncPullResponse {
         pullsSince += since
-        return if (pages.isEmpty()) PullPage(cursor = since, hasMore = false) else pages.removeAt(0)
+        return if (pages.isEmpty()) SyncPullResponse(cursor = since, hasMore = false) else pages.removeAt(0)
     }
 
-    override suspend fun push(changes: ChangesToPush): List<PushAck> {
+    override suspend fun push(changes: SyncPushRequest): List<SyncPushResult> {
         failNextPush?.let {
             failNextPush = null
             throw it
@@ -51,16 +51,16 @@ class FakeSyncTransport(
     }
 
     companion object {
-        fun acceptEverything(changes: ChangesToPush): List<PushAck> =
+        fun acceptEverything(changes: SyncPushRequest): List<SyncPushResult> =
             buildList {
                 changes.clients.forEach {
-                    add(PushAck("client", it.id.value, PushOutcome.Applied, it.audit.version))
+                    add(SyncPushResult("client", it.id.value, SyncPushOutcome.Applied, it.audit.version))
                 }
                 changes.projects.forEach {
-                    add(PushAck("project", it.id.value, PushOutcome.Applied, it.audit.version))
+                    add(SyncPushResult("project", it.id.value, SyncPushOutcome.Applied, it.audit.version))
                 }
                 changes.sessions.forEach {
-                    add(PushAck("session", it.id.value, PushOutcome.Applied, it.audit.version))
+                    add(SyncPushResult("session", it.id.value, SyncPushOutcome.Applied, it.audit.version))
                 }
             }
     }

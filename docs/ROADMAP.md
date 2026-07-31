@@ -213,8 +213,12 @@ and deployment waits until there is something worth deploying.
   the losing value beside the one that was kept — so ADR 0008 decision 3's condition on
   last-write-wins is finally being met rather than merely stored for, and the Dashboard
   carries a banner so a studio finds out without going looking, which is the half of
-  decision 3 that decides whether the other half is worth having. Still to come: the Ktor
-  transport, so any of this reaches a real server rather than a fake one
+  decision 3 that decides whether the other half is worth having. `core:network` now carries
+  the real transport, and `SyncOverHttpTest` runs it against the real routes — the two halves
+  had never actually spoken before that. The wire contract lives in `core:model` and is
+  compiled into both sides, so it can no longer drift the way two hand-kept copies could.
+  Still to come: where each platform keeps its token, and a sign-in screen, without which
+  none of this is reachable from the app
 - Object storage for media, via presigned URLs
 
 ## 0.8.0 — Collaboration

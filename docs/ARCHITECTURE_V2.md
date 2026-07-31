@@ -50,7 +50,7 @@ shared/
         database/      implemented
         navigation/    implemented
         testing/       implemented
-        network/       planned — arrives with the Ktor server
+        network/       implemented — the client half of the sync wire
         preferences/   planned
 
     feature/
@@ -358,7 +358,22 @@ thrown away, and hiding it is the failure the table exists to prevent.
 
 ### core:network
 
-Networking.
+The device's side of the wire: a Ktor client implementing `core:data`'s `SyncTransport`.
+
+Thin on purpose. Everything that decides whether synchronisation is *correct* — ordering,
+conflict handling, when the cursor advances — lives in `SyncEngine` and is tested without a
+network. What is left here is what a network can get wrong: reaching the server, proving who
+is asking, and turning a failure into something the caller can act on. A pull that answered
+500 and was read as "nothing changed" would look like a quiet successful sync, so failures
+throw rather than return empty.
+
+One HTTP engine per target, because Ktor has none that runs on all four — OkHttp on Android
+and desktop, Darwin on iOS, JS on wasm. Each is the platform's own stack, so TLS and proxies
+behave the way the rest of the device does.
+
+**Where the token is kept is deliberately not decided here.** `SyncCredentials` is a
+function returning one; Keychain, EncryptedSharedPreferences and an OS keyring are different
+right answers and none of them belong in the thing that makes HTTP requests.
 
 Contains:
 

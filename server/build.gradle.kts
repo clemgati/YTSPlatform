@@ -29,6 +29,11 @@ dependencies {
     runtimeOnly(libs.flyway.postgresql)
     implementation(libs.postgresql)
 
+    // The client half, so the end-to-end test can point the *real* transport at the *real*
+    // server. Until this existed the two sides agreed by inspection and had never spoken.
+    testImplementation(project(":shared:core:network"))
+    testImplementation(libs.ktor.client.contentNegotiation)
+
     testImplementation(libs.ktor.server.testHost)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)

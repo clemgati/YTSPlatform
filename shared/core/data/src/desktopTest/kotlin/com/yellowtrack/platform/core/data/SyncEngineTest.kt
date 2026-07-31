@@ -7,10 +7,6 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
-import com.yellowtrack.platform.core.data.sync.ChangesToPush
-import com.yellowtrack.platform.core.data.sync.PullPage
-import com.yellowtrack.platform.core.data.sync.PushAck
-import com.yellowtrack.platform.core.data.sync.PushOutcome
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
@@ -18,6 +14,10 @@ import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
+import com.yellowtrack.platform.core.model.sync.SyncPullResponse
+import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
+import com.yellowtrack.platform.core.model.sync.SyncPushResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -148,7 +148,7 @@ class SyncEngineTest {
             val world =
                 world(
                     onPush = { changes ->
-                        changes.clients.map { PushAck("client", it.id.value, PushOutcome.Conflicted, 7) }
+                        changes.clients.map { SyncPushResult("client", it.id.value, SyncPushOutcome.Conflicted, 7) }
                     },
                 )
             world.clients.saveClient(client("c1", "Ada Okafor"))
@@ -170,10 +170,10 @@ class SyncEngineTest {
                 world(
                     onPush = { changes ->
                         changes.clients.map {
-                            PushAck(
+                            SyncPushResult(
                                 "client",
                                 it.id.value,
-                                PushOutcome.Rejected,
+                                SyncPushOutcome.Rejected,
                                 1,
                                 "that row belongs to another studio",
                             )
@@ -219,7 +219,11 @@ class SyncEngineTest {
         runTest {
             val world = world()
             world.transport.pages +=
-                PullPage(cursor = 12, hasMore = false, clients = listOf(client("remote-1", "Harbourline Coffee")))
+                SyncPullResponse(
+                    cursor = 12,
+                    hasMore = false,
+                    clients = listOf(client("remote-1", "Harbourline Coffee")),
+                )
 
             val report = world.engine.sync()
 
@@ -232,7 +236,11 @@ class SyncEngineTest {
         runTest {
             val world = world()
             world.transport.pages +=
-                PullPage(cursor = 12, hasMore = false, clients = listOf(client("remote-1", "Harbourline Coffee")))
+                SyncPullResponse(
+                    cursor = 12,
+                    hasMore = false,
+                    clients = listOf(client("remote-1", "Harbourline Coffee")),
+                )
 
             world.engine.sync()
 
@@ -251,7 +259,7 @@ class SyncEngineTest {
             world.drainQuietly()
 
             world.transport.pages +=
-                PullPage(
+                SyncPullResponse(
                     cursor = 20,
                     hasMore = false,
                     clients =
@@ -271,7 +279,7 @@ class SyncEngineTest {
     fun `the cursor is remembered, and the next pull starts from it`() =
         runTest {
             val world = world()
-            world.transport.pages += PullPage(cursor = 42, hasMore = false)
+            world.transport.pages += SyncPullResponse(cursor = 42, hasMore = false)
 
             world.engine.sync()
             assertEquals(42L, world.cursor())
@@ -290,11 +298,11 @@ class SyncEngineTest {
         runTest {
             val world = world()
             world.transport.pages +=
-                PullPage(cursor = 10, hasMore = true, clients = listOf(client("a", "One")))
+                SyncPullResponse(cursor = 10, hasMore = true, clients = listOf(client("a", "One")))
             world.transport.pages +=
-                PullPage(cursor = 20, hasMore = true, clients = listOf(client("b", "Two")))
+                SyncPullResponse(cursor = 20, hasMore = true, clients = listOf(client("b", "Two")))
             world.transport.pages +=
-                PullPage(cursor = 30, hasMore = false, clients = listOf(client("c", "Three")))
+                SyncPullResponse(cursor = 30, hasMore = false, clients = listOf(client("c", "Three")))
 
             val report = world.engine.sync()
 
@@ -313,7 +321,7 @@ class SyncEngineTest {
         runTest {
             val world = world()
             world.transport.pages +=
-                PullPage(
+                SyncPullResponse(
                     cursor = 9,
                     hasMore = false,
                     conflicts =
@@ -364,12 +372,12 @@ class SyncEngineTest {
                     audit = AuditMetadata.createdAt(NOW),
                 )
 
-            world.transport.pages += PullPage(cursor = 5, hasMore = false, conflicts = listOf(conflict))
+            world.transport.pages += SyncPullResponse(cursor = 5, hasMore = false, conflicts = listOf(conflict))
             world.engine.sync()
 
             world.database.syncQueries.markConflictResolved(NOW.toEpochMilliseconds(), "conflict-1")
 
-            world.transport.pages += PullPage(cursor = 6, hasMore = false, conflicts = listOf(conflict))
+            world.transport.pages += SyncPullResponse(cursor = 6, hasMore = false, conflicts = listOf(conflict))
             world.engine.sync()
 
             assertEquals(
@@ -390,7 +398,7 @@ class SyncEngineTest {
             val world = world()
             world.clients.saveClient(client("c1", "Mine"))
             world.transport.pages +=
-                PullPage(cursor = 3, hasMore = false, clients = listOf(client("c1", "Theirs")))
+                SyncPullResponse(cursor = 3, hasMore = false, clients = listOf(client("c1", "Theirs")))
 
             world.engine.sync()
 
@@ -435,7 +443,7 @@ class SyncEngineTest {
         }
     }
 
-    private suspend fun world(onPush: ((ChangesToPush) -> List<PushAck>)? = null): World {
+    private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.
         val provider = testDatabaseProvider()

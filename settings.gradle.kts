@@ -46,6 +46,7 @@ include(":shared:core:designsystem")
 include(":shared:core:export")
 include(":shared:core:model")
 include(":shared:core:navigation")
+include(":shared:core:network")
 
 include(":shared:feature:dashboard")
 include(":shared:feature:clients")
