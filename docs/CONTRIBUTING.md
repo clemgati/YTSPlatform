@@ -23,6 +23,17 @@ build, which is what the Homebrew formula produces. Override with `YELLOWTRACK_T
 `YELLOWTRACK_TEST_DB_USER` and `YELLOWTRACK_TEST_DB_PASSWORD`; the server itself reads
 `DATABASE_URL`, `DATABASE_USER` and `DATABASE_PASSWORD`.
 
+Note that the Homebrew role is a **superuser**, and superusers are exempt from every row
+level security policy in the schema. Nothing needs doing about that locally — every
+transaction drops to `yellowtrack_app` before it touches business data — but it is why that
+role exists, and why connecting the server as a superuser in production would silently
+disable the tenant boundary. The migration creates the role without `LOGIN`; deployment
+grants it separately, so no credential is implied by anything in this repository:
+
+```sql
+ALTER ROLE yellowtrack_app LOGIN PASSWORD '...';
+```
+
 ## Workflow
 
 1. Create or reference a GitHub issue.

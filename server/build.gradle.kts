@@ -17,6 +17,12 @@ dependencies {
     implementation(libs.ktor.server.contentNegotiation)
     implementation(libs.ktor.serialization.json)
 
+    implementation(libs.ktor.server.auth)
+    implementation(libs.ktor.server.statusPages)
+
+    implementation(libs.hikari)
+    implementation(libs.bouncycastle)
+
     implementation(libs.flyway.core)
     // Since Flyway 10 the database dialects ship separately from the core; without this
     // the migration fails at run time rather than at compile time.

@@ -188,7 +188,13 @@ there is something worth deploying.
   is assigned on insert *and* update, which was checked by breaking it. `sync_state` and
   `sync_conflict` are not here: both need a matching client migration, so they land with the
   synchronisation itself rather than ahead of it
-- Accounts, authentication, and Row Level Security on `studio_id`
+- ◐ Accounts, authentication, and Row Level Security on `studio_id` — see
+  `docs/adr/0009-accounts-authentication-and-tenant-isolation.md`. A studio signs up, signs
+  in with an Argon2id-hashed password, and gets a revocable token; every business table is
+  behind a Postgres policy that returns **nothing** when a request forgets to name its
+  studio, rather than returning everything. Proved by breaking it three ways. Still to come:
+  the client wiring, so the applications can actually sign in, and password reset, which
+  needs the mail transport 0.6.0 also wanted
 - Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
   ready for it since 0.3.0
 - Object storage for media, via presigned URLs

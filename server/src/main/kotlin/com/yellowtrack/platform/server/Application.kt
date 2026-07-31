@@ -1,11 +1,21 @@
 package com.yellowtrack.platform.server
 
+import com.yellowtrack.platform.server.auth.Accounts
+import com.yellowtrack.platform.server.auth.BEARER_AUTH
+import com.yellowtrack.platform.server.auth.ErrorResponse
+import com.yellowtrack.platform.server.auth.SessionPrincipal
+import com.yellowtrack.platform.server.auth.authRoutes
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
+import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.bearer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
@@ -18,16 +28,20 @@ import kotlinx.serialization.Serializable
  * wasm, and exposing a database to client applications would be wrong regardless. See
  * `docs/adr/0007-ktor-server-over-cloud-postgres.md`.
  *
- * Deliberately almost empty. This module exists at this point in the milestone to prove
- * one thing: that `core:model` compiles and serialises on a JVM server, which is the bet
- * the whole architecture rests on. Endpoints arrive with the schema and accounts.
+ * What is here so far: a health route, and the authentication that everything else will
+ * sit behind. The business endpoints arrive with synchronisation.
  */
 fun main() {
+    // Schema first: a pool handing out connections to a database the code does not match
+    // is a slower way of failing.
+    migrate()
+    val database = Database.pooled()
+
     embeddedServer(
         factory = Netty,
         port = System.getenv("PORT")?.toIntOrNull() ?: DEFAULT_PORT,
         host = "127.0.0.1",
-        module = Application::module,
+        module = { module(database) },
     ).start(wait = true)
 }
 
@@ -37,15 +51,37 @@ fun main() {
  */
 private const val DEFAULT_PORT = 8080
 
-fun Application.module() {
+fun Application.module(database: Database) {
+    val accounts = Accounts(database)
+
     install(ContentNegotiation) {
         json(apiJson)
+    }
+
+    install(StatusPages) {
+        // A malformed body is the caller's mistake, and the default would report it as
+        // the server's. Nothing else is translated: an unexpected exception should be a
+        // 500 and a stack trace in the log, not a tidy message that hides a bug.
+        exception<BadRequestException> { call, _ ->
+            call.respond(HttpStatusCode.BadRequest, ErrorResponse("that request body could not be read"))
+        }
+    }
+
+    install(Authentication) {
+        bearer(BEARER_AUTH) {
+            realm = "Yellow Track"
+            authenticate { credential ->
+                accounts.authenticate(credential.token)?.let(::SessionPrincipal)
+            }
+        }
     }
 
     routing {
         get("/health") {
             call.respond(Health(status = "ok"))
         }
+
+        authRoutes(accounts)
     }
 }
 

@@ -3,7 +3,6 @@ package com.yellowtrack.platform.server
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
-import java.sql.SQLException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -51,6 +50,19 @@ class SchemaDriftTest {
     private val deviceOnlyTables = setOf("outbox")
 
     /**
+     * Tables that exist on the server and on no device.
+     *
+     * Accounts, sessions and the tenant rows themselves (ADR 0009). A device does not hold
+     * other people's accounts, and the credential it holds for itself is a token in
+     * platform storage rather than a row in this schema.
+     *
+     * `studio_member` and `auth_session` carry a `studio_id` and are still not under the
+     * row level security policies, because they are what decides what `app.studio_id`
+     * should be. `RowLevelSecurityTest` holds that line.
+     */
+    private val serverOnlyTables = setOf("studio", "account", "studio_member", "auth_session")
+
+    /**
      * The one column the server adds to every synced table.
      *
      * Postgres assigns it, no client writes it, and it is the cursor every pull ranges
@@ -79,16 +91,27 @@ class SchemaDriftTest {
 
     // -- The comparison ------------------------------------------------------------------
 
+    /** The tables both sides are supposed to hold, which is what "drift" is measured over. */
+    private val mirroredTables: Set<String> get() = postgres.keys - serverOnlyTables
+
     @Test
     fun `every table the device has, the server has too`() {
-        val expected = (sqlite.keys - deviceOnlyTables).sorted()
-        val actual = postgres.keys.sorted()
-
         assertEquals(
-            expected,
-            actual,
+            (sqlite.keys - deviceOnlyTables).sorted(),
+            mirroredTables.sorted(),
             "the server schema and the device schema disagree about which tables exist; " +
                 "a table on only one side is an entity that cannot sync",
+        )
+    }
+
+    @Test
+    fun `the server adds no tables beyond the declared ones`() {
+        assertEquals(
+            serverOnlyTables.sorted(),
+            (postgres.keys - sqlite.keys).sorted(),
+            "the server has grown a table the device knows nothing about. If that is deliberate it " +
+                "belongs in serverOnlyTables with a reason; if it is not, it is a table nothing will " +
+                "ever sync",
         )
     }
 
@@ -136,9 +159,9 @@ class SchemaDriftTest {
 
     @Test
     fun `the sync cursor is the only thing the server adds`() {
-        postgres.forEach { (table, columns) ->
+        mirroredTables.forEach { table ->
             val onDevice = sqlite.getValue(table).map { it.name }.toSet()
-            val added = columns.map { it.name }.toSet() - onDevice
+            val added = postgres.getValue(table).map { it.name }.toSet() - onDevice
 
             assertEquals(
                 setOf(serverOnlyColumn),
@@ -151,9 +174,9 @@ class SchemaDriftTest {
 
     @Test
     fun `the sync cursor is a bigint the client can hold, and is never null`() {
-        postgres.forEach { (table, columns) ->
+        mirroredTables.forEach { table ->
             val cursor =
-                columns.singleOrNull { it.name == serverOnlyColumn }
+                postgres.getValue(table).singleOrNull { it.name == serverOnlyColumn }
                     ?: fail("`$table` has no $serverOnlyColumn, so nothing would ever pull its rows")
 
             assertEquals("bigint", cursor.type, "`$table.$serverOnlyColumn` must be a bigint")
@@ -171,7 +194,7 @@ class SchemaDriftTest {
     fun `every synced table advances its cursor on update as well as on insert`() {
         val triggered = triggerEvents()
 
-        postgres.keys.sorted().forEach { table ->
+        mirroredTables.sorted().forEach { table ->
             assertEquals(
                 setOf("INSERT", "UPDATE"),
                 triggered[table] ?: emptySet(),
@@ -186,11 +209,20 @@ class SchemaDriftTest {
     fun `an update moves a row's cursor past every row written before it`() {
         connection().use { db ->
             db.createStatement().use { statement ->
+                // `studio_id` references a studio row since V2, so the tenant has to exist
+                // before anything can belong to it.
+                statement.execute(
+                    """
+                    INSERT INTO studio(id, name, created_at, updated_at)
+                    VALUES ('drift-studio', 'Drift Test Studio', 1000, 1000)
+                    ON CONFLICT (id) DO NOTHING
+                    """.trimIndent(),
+                )
                 statement.execute(
                     """
                     INSERT INTO client(id, studio_id, account_name, account_type, created_at, updated_at)
-                    VALUES ('drift-1', 'studio-1', 'Ada Okafor', 'Individual', 1000, 1000),
-                           ('drift-2', 'studio-1', 'Harbourline Coffee', 'Company', 1000, 1000)
+                    VALUES ('drift-1', 'drift-studio', 'Ada Okafor', 'Individual', 1000, 1000),
+                           ('drift-2', 'drift-studio', 'Harbourline Coffee', 'Company', 1000, 1000)
                     """.trimIndent(),
                 )
             }
@@ -257,7 +289,7 @@ class SchemaDriftTest {
 
     private val postgres: Map<String, List<Column>> get() = serverSchema
 
-    private fun connection(): Connection = openPostgres(testDatabase())
+    private fun connection(): Connection = TestDatabase.connection()
 
     companion object {
         /**
@@ -267,41 +299,6 @@ class SchemaDriftTest {
          */
         private val snapshotDirectory =
             File("../shared/core/database/src/commonMain/sqldelight/databases")
-
-        private fun testDatabase(): DatabaseConfig =
-            DatabaseConfig(
-                url =
-                    System.getenv("YELLOWTRACK_TEST_DB_URL")
-                        ?: "jdbc:postgresql://localhost:5432/yellowtrack_test",
-                user =
-                    System.getenv("YELLOWTRACK_TEST_DB_USER")
-                        ?: System.getProperty("user.name")
-                        ?: "postgres",
-                password = System.getenv("YELLOWTRACK_TEST_DB_PASSWORD") ?: "",
-            )
-
-        private fun openPostgres(config: DatabaseConfig): Connection =
-            try {
-                DriverManager.getConnection(config.url, config.user, config.password)
-            } catch (error: SQLException) {
-                throw AssertionError(
-                    """
-                    Could not reach Postgres at ${config.url} as ${config.user}.
-
-                    This test compares the server schema against the device one and cannot do that
-                    without a database. It fails rather than skips on purpose: a drift check that
-                    quietly does not run still looks green while the two schemas part company.
-
-                        brew install postgresql@18
-                        brew services start postgresql@18
-                        createdb yellowtrack_test
-
-                    Override with YELLOWTRACK_TEST_DB_URL, YELLOWTRACK_TEST_DB_USER and
-                    YELLOWTRACK_TEST_DB_PASSWORD.
-                    """.trimIndent(),
-                    error,
-                )
-            }
 
         /** The device schema, read from the newest committed snapshot. */
         private val deviceSchema: Map<String, List<Column>> by lazy {
@@ -319,17 +316,7 @@ class SchemaDriftTest {
 
         /** The server schema, read back after applying the real migrations. */
         private val serverSchema: Map<String, List<Column>> by lazy {
-            val config = testDatabase()
-
-            // Proves the migrations themselves apply, not merely that some database
-            // somewhere has the right shape.
-            openPostgres(config).close()
-            flyway(config, allowClean = true).run {
-                clean()
-                migrate()
-            }
-
-            openPostgres(config).use { db ->
+            TestDatabase.connection().use { db ->
                 tableNames(
                     db,
                     """

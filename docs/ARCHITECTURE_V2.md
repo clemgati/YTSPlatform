@@ -267,6 +267,39 @@ Running the server tests needs a local Postgres — see `docs/CONTRIBUTING.md`. 
 test fails rather than skips without one, because a drift check that quietly does not run
 still looks green while the two schemas part company.
 
+#### Who a request is, and what it can see
+
+Authentication and the tenant boundary are separate mechanisms, and deliberately so — see
+`docs/adr/0009-accounts-authentication-and-tenant-isolation.md`.
+
+A `studio` is the tenant that `studio_id` has always meant. An `account` is a person, joined
+to studios through `studio_member`, which carries a role that is `Owner` for everyone until
+0.8.0. Passwords are Argon2id in the PHC string format, so the cost parameters travel with
+the hash and can be raised later without invalidating anyone's password. A session is an
+opaque random token stored only as its SHA-256, revocable because the application is
+offline-first and its sessions are therefore long-lived.
+
+The boundary itself is Postgres's, not the application's. Every business table has
+`ENABLE` **and** `FORCE ROW LEVEL SECURITY` with a policy comparing `studio_id` against
+`current_setting('app.studio_id', true)`. `Database.inStudio` sets it for the length of one
+transaction; `Database.unscoped` deliberately does not.
+
+Two properties are worth knowing before changing any of this:
+
+- **It is fail-closed.** The missing-ok `current_setting` yields NULL when unset, and
+  `studio_id = NULL` is NULL rather than true. A query that forgets its studio returns
+  nothing rather than everything, which turns the expensive mistake into a visible one.
+- **The role matters more than it looks.** Superusers and `BYPASSRLS` roles are exempt from
+  every policy, and a Homebrew Postgres makes the developer a superuser. So *every*
+  transaction issues `SET LOCAL ROLE yellowtrack_app` first, whatever it connected as.
+  Without that, all of this is inert on precisely the machines it is written on.
+
+`RowLevelSecurityTest` holds both, and was checked by breaking them.
+
+The authentication tables sit outside the mechanism, because a policy keyed on
+`app.studio_id` cannot guard the lookup that decides what `app.studio_id` should be. That
+hole is argued for in ADR 0009 decision 7; `Accounts.kt` is the only code inside it.
+
 ---
 
 ### core:network

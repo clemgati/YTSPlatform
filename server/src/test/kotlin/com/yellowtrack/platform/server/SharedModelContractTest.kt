@@ -144,7 +144,7 @@ class SharedModelContractTest {
     fun `the pipeline serialises a domain entity, not just the test's json instance`() =
         testApplication {
             application {
-                module()
+                module(TestDatabase.database)
                 routing {
                     get("/a-session") { call.respond(session()) }
                 }
@@ -162,7 +162,7 @@ class SharedModelContractTest {
     @Test
     fun `the health endpoint answers the proxy`() =
         testApplication {
-            application { module() }
+            application { module(TestDatabase.database) }
 
             val response = client.get("/health")
 
