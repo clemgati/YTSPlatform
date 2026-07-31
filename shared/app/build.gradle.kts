@@ -89,6 +89,8 @@ kotlin {
             implementation(project(":shared:core:export"))
             implementation(project(":shared:core:navigation"))
 
+            implementation(project(":shared:core:network"))
+            implementation(project(":shared:feature:auth"))
             implementation(project(":shared:feature:dashboard"))
             implementation(project(":shared:feature:clients"))
             implementation(project(":shared:feature:ledger"))

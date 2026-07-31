@@ -221,8 +221,10 @@ and deployment waits until there is something worth deploying.
   iOS, a keystore-wrapped preference file on Android, an owner-only file on desktop,
   `localStorage` in a browser, which `isHardwareBacked` is honest about rather than
   implying a protection browsers do not offer. Only the desktop one has been run; the other
-  three are compiled. Still to come: a sign-in screen, without which none of this is
-  reachable from the application
+  three are compiled
+- ✓ A way in. The application opens on sign-in until a session exists, one form for both
+  signing in and starting a studio, and it says plainly when the device cannot store the
+  session securely rather than implying it can
 - Object storage for media, via presigned URLs
 
 ## 0.8.0 — Collaboration

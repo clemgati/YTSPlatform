@@ -16,6 +16,7 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.json)
+            implementation(libs.koin.core)
         }
 
         // One engine per target: Ktor has none that runs on all four. Each is the

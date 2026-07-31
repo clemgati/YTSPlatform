@@ -2,6 +2,8 @@ package com.yellowtrack.platform.core.di
 
 import com.yellowtrack.platform.core.common.storage.JvmVolumeInspector
 import com.yellowtrack.platform.core.common.storage.VolumeInspector
+import com.yellowtrack.platform.core.data.auth.FileSessionStore
+import com.yellowtrack.platform.core.data.auth.SessionStore
 import com.yellowtrack.platform.core.database.DatabaseDriverFactory
 import com.yellowtrack.platform.core.database.JvmDatabaseDriverFactory
 import com.yellowtrack.platform.core.export.DocumentSink
@@ -14,4 +16,5 @@ actual fun platformModule(): Module =
         single<DatabaseDriverFactory> { JvmDatabaseDriverFactory() }
         single<DocumentSink> { JvmDocumentSink() }
         single<VolumeInspector> { JvmVolumeInspector() }
+        single<SessionStore> { FileSessionStore() }
     }

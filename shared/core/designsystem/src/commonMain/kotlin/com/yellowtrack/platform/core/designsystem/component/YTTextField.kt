@@ -10,6 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 
 /**
@@ -32,6 +34,14 @@ fun YTTextField(
     imeAction: ImeAction = ImeAction.Next,
     singleLine: Boolean = true,
     enabled: Boolean = true,
+    /**
+     * Masks what is typed.
+     *
+     * There is no reveal control. A password field on a shoot day is filled in with clients
+     * and second shooters in the room, and the field this application asks for is entered
+     * rarely enough that the trade is not worth making.
+     */
+    isPassword: Boolean = false,
 ) {
     val isError = errorMessage != null
 
@@ -50,6 +60,8 @@ fun YTTextField(
             enabled = enabled,
             shape = YTTheme.shapes.medium,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+            visualTransformation =
+                if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
         )
 
         val supporting = errorMessage ?: help

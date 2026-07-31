@@ -55,6 +55,7 @@ shared/
 
     feature/
 
+        auth/
         dashboard/
         clients/
         sessions/
