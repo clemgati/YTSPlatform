@@ -14,6 +14,7 @@ val dashboardModule =
                 leadRepository = get(),
                 studioContext = get(),
                 studioProfileRepository = get(),
+                conflictRepository = get(),
                 clock = get(),
             )
         }

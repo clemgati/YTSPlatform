@@ -10,6 +10,7 @@ import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.SyncConflictRepository
 import com.yellowtrack.platform.core.data.currency
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.lead.Lead
@@ -47,6 +48,7 @@ internal class DashboardViewModel(
     private val leadRepository: LeadRepository,
     private val studioContext: StudioContext,
     private val studioProfileRepository: StudioProfileRepository,
+    private val conflictRepository: SyncConflictRepository,
     private val clock: AppClock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ViewModel() {
@@ -67,7 +69,8 @@ internal class DashboardViewModel(
                     projectRepository.observeProjects(),
                     clientRepository.observeClients(),
                     leadRepository.observeAwaitingResponse(),
-                ) { sessions, projects, clients, waitingEnquiries ->
+                    conflictRepository.observeUnresolvedCount(),
+                ) { sessions, projects, clients, waitingEnquiries, unresolvedConflicts ->
                     DashboardUiState(
                         summary =
                             UiState.Success(
@@ -81,7 +84,7 @@ internal class DashboardViewModel(
                                     // milestone. Until then the section shows its empty
                                     // state rather than invented checkboxes.
                                     studioStatus = DashboardStudioStatus(items = emptyList()),
-                                ),
+                                ).copy(unresolvedConflicts = unresolvedConflicts),
                             ),
                     )
                 }.catch { throwable ->

@@ -14,6 +14,7 @@ import com.yellowtrack.platform.core.testing.FakeLeadRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
+import com.yellowtrack.platform.core.testing.FakeSyncConflictRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.feature.dashboard.presentation.DashboardViewModel
 import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
@@ -48,16 +49,19 @@ class EnquiryActionsTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(leads: FakeLeadRepository) =
-        DashboardViewModel(
-            clientRepository = FakeClientRepository(),
-            projectRepository = FakeProjectRepository(),
-            sessionRepository = FakeSessionRepository(),
-            leadRepository = leads,
-            studioProfileRepository = FakeStudioProfileRepository(),
-            studioContext = LocalStudioContext(),
-            clock = clock,
-        )
+    private fun viewModel(
+        leads: FakeLeadRepository,
+        conflicts: FakeSyncConflictRepository = FakeSyncConflictRepository(),
+    ) = DashboardViewModel(
+        clientRepository = FakeClientRepository(),
+        projectRepository = FakeProjectRepository(),
+        sessionRepository = FakeSessionRepository(),
+        leadRepository = leads,
+        studioProfileRepository = FakeStudioProfileRepository(),
+        conflictRepository = conflicts,
+        studioContext = LocalStudioContext(),
+        clock = clock,
+    )
 
     private fun lead(
         firstResponseAt: kotlin.time.Instant? = null,

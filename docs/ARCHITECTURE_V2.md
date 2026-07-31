@@ -343,7 +343,12 @@ edits and re-reading rows rather than sending what was queued — then applies w
 straight to the tables, deliberately not through the repositories, which would queue every
 pulled row straight back for upload.
 
-Conflicts surface in Settings. `SyncConflict.differences()` narrows two whole payloads to
+Conflicts surface in two places, which decision 3 needs both of: the Dashboard says *that*
+something was discarded, and Settings shows *what*. Splitting them is the point — a count on
+the Dashboard is what a photographer meets without going looking, and unpicking which field
+was lost needs a screen with room to do it properly.
+
+`SyncConflict.differences()` narrows two whole payloads to
 the fields that actually moved, ignoring `version` and `updatedAt` because those differ on
 every write and would bury the one field the studio changed. A payload that cannot be parsed
 is still listed, saying so — a version that will not render is still a version that was

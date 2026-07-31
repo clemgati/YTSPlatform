@@ -211,9 +211,10 @@ and deployment waits until there is something worth deploying.
   Checked by breaking the ordering, the re-enqueue guard and the collapsing. **Settings now
   shows what was discarded** — which entity, when, and the fields that actually moved, with
   the losing value beside the one that was kept — so ADR 0008 decision 3's condition on
-  last-write-wins is finally being met rather than merely stored for. Still to come: the
-  Ktor transport, so any of it reaches a real server, and something on the Dashboard, since
-  a conflict only a studio that opens Settings will find is not quite "shown"
+  last-write-wins is finally being met rather than merely stored for, and the Dashboard
+  carries a banner so a studio finds out without going looking, which is the half of
+  decision 3 that decides whether the other half is worth having. Still to come: the Ktor
+  transport, so any of this reaches a real server rather than a fake one
 - Object storage for media, via presigned URLs
 
 ## 0.8.0 — Collaboration
