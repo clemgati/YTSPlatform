@@ -403,6 +403,17 @@ MAIL_FROM=no-reply@yourdomain
 SES rejects the connection anyway, so the mistake is loud rather than silent, which is not
 true of the next one.
 
+No tenant, and the Essentials plan. SES tenants isolate reputation between customers you
+send *on behalf of*; every message here goes from Yellow Track to one of its own account
+holders, so there is one sender and one reputation to protect. Pro's dedicated IP would be
+worse than the shared pool, not better — a dedicated address needs steady volume to warm,
+and password resets will never supply it.
+
+Both change together, and only if Yellow Track ever sends as a studio rather than to one —
+an invoice to a studio's client, a session reminder in the studio's name. Then one studio's
+stale address list can sink deliverability for all of them, which is the case tenants exist
+for. It would want an ADR: it changes who the sender is.
+
 ### The sandbox is the silent failure
 
 `ADR 0010` has the reset endpoint answer `202 If that address has an account, a code is on
