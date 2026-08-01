@@ -308,11 +308,21 @@ Wants=postgresql.service
 Type=simple
 User=yellowtrack
 WorkingDirectory=/opt/yellowtrack
-EnvironmentFile=/etc/yellowtrack/env      # chmod 600, owned by root
+# systemd has no trailing comments: anything after the value, including a #, is part of
+# the value. This file is chmod 600 and owned by root.
+EnvironmentFile=/etc/yellowtrack/env
 Environment=JAVA_OPTS=-Xmx512m
 ExecStart=/opt/yellowtrack/bin/server
 Restart=on-failure
 RestartSec=5
+
+# It needs its own directory, a port on loopback and a socket to Postgres, and nothing
+# else. Cheap to add now; awkward to add after an incident.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/yellowtrack
 
 [Install]
 WantedBy=multi-user.target
