@@ -1,6 +1,14 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.kotlinSerialization)
+    // Gives `run` for development and `installDist` for deployment. Until this the server
+    // had no supported way to be started, which is a strange gap in a thing whose whole
+    // job is to be running.
+    application
+}
+
+application {
+    mainClass.set("com.yellowtrack.platform.server.ApplicationKt")
 }
 
 // The point of this module, and of ADR 0007: it depends on the same `core:model` the

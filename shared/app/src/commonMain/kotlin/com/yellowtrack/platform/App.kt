@@ -1,8 +1,11 @@
 package com.yellowtrack.platform
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yellowtrack.platform.app.AppShell
 import com.yellowtrack.platform.app.rememberAppState
@@ -10,6 +13,7 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
+import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.feature.auth.SignInRoute
 import org.koin.compose.koinInject
@@ -41,7 +45,18 @@ fun App() {
             // flash it at somebody who is already signed in.
             SessionState.Unknown -> Unit
 
-            SessionState.SignedOut -> SignInRoute()
+            // Wrapped, because screens in this application paint no background of their
+            // own — AppShell does — and this one deliberately sits outside it. Without
+            // this the heading is white on the default light surface and the warning
+            // underneath is illegible. Found by running it; the render test had supplied
+            // the Surface the application did not.
+            SessionState.SignedOut ->
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = YTTheme.colors.background,
+                ) {
+                    SignInRoute()
+                }
 
             is SessionState.SignedIn ->
                 AppShell(
