@@ -11,6 +11,9 @@ import com.yellowtrack.platform.app.AppShell
 import com.yellowtrack.platform.app.rememberAppState
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
+import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.adoptStudioName
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.sync.Synchroniser
@@ -38,6 +41,22 @@ fun App() {
 
     val synchroniser: Synchroniser = koinInject()
     val session by auth.session.collectAsStateWithLifecycle()
+
+    // The studio named itself when it signed up; nothing carried that across to the profile
+    // every document is built from. Keyed on the session so a second device fills itself in
+    // too — the profile does not synchronise yet.
+    val profiles: StudioProfileRepository = koinInject()
+    val studioContext: StudioContext = koinInject()
+
+    LaunchedEffect(session) {
+        (session as? SessionState.SignedIn)?.let { signedIn ->
+            profiles.adoptStudioName(
+                studioName = signedIn.session.studioName,
+                studioId = studioContext.studioId,
+                now = clock.now(),
+            )
+        }
+    }
 
     // Started once, on the first session. Reconciling is the whole point of having signed
     // in, and leaving it to a button would mean a device only ever held what its own user
