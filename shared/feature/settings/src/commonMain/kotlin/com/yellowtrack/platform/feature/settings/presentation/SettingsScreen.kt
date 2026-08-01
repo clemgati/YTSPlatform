@@ -39,6 +39,7 @@ internal fun SettingsScreen(
     onSave: (StudioProfileFields) -> Unit,
     onDismissConflict: (SyncConflictId) -> Unit,
     onSyncNow: () -> Unit,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     StatefulContent(
@@ -93,6 +94,10 @@ internal fun SettingsScreen(
                     onClick = onSyncNow,
                     enabled = !content.sync.isWorking,
                 )
+            }
+
+            content.account?.let { account ->
+                AccountSection(account = account, onSignOut = onSignOut)
             }
 
             YTSectionCard(title = "Your studio") {
@@ -286,6 +291,42 @@ private fun ConflictsSection(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AccountSection(
+    account: AccountSummary,
+    onSignOut: () -> Unit,
+) {
+    YTSectionCard(title = "Account") {
+        Text(
+            text = "Signed in as ${account.email}, for ${account.studioName}.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurface,
+        )
+
+        Text(
+            text =
+                if (account.isHardwareBacked) {
+                    "Signing out removes this device's access. Your work stays on it, and " +
+                        "goes up the next time you sign in."
+                } else {
+                    // The same warning the sign-in screen gives, repeated where the remedy
+                    // is. Telling somebody to sign out on a screen that cannot sign them out
+                    // is what this section was added to fix.
+                    "This device cannot store your sign-in securely, so sign out when you " +
+                        "have finished. Your work stays on it, and goes up the next time you " +
+                        "sign in."
+                },
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        YTButton(
+            text = "Sign out",
+            onClick = onSignOut,
+        )
     }
 }
 

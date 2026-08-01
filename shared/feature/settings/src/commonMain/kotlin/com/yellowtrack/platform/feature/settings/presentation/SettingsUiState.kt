@@ -38,6 +38,27 @@ internal data class SettingsContent(
     /** Work synchronisation discarded, oldest first. */
     val conflicts: List<ConflictSummary>,
     val sync: SyncSummary,
+    /** Null only in the instant between signing out and the shell swapping to sign-in. */
+    val account: AccountSummary?,
+)
+
+/**
+ * Who this device is signed in as, and the way back out.
+ *
+ * The sign-in screen has always told a studio to sign out when it has finished, on a device
+ * that cannot hold the session securely. Nothing in the application let them: `signOut`
+ * existed on the repository and was called only by the synchroniser, when the server had
+ * already revoked the token. Advice the application gives and then refuses is worse than no
+ * advice.
+ */
+internal data class AccountSummary(
+    val email: String,
+    val studioName: String,
+    /**
+     * False where the token sits in a file this account could read — a desktop keystore
+     * with no hardware behind it. It is why signing out matters more here than on a phone.
+     */
+    val isHardwareBacked: Boolean,
 )
 
 /**

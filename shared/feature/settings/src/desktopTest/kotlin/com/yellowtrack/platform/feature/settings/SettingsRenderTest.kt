@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.ui.state.UiState
+import com.yellowtrack.platform.feature.settings.presentation.AccountSummary
 import com.yellowtrack.platform.feature.settings.presentation.ConflictSummary
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
 import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
@@ -43,6 +44,7 @@ class SettingsRenderTest {
                             onSave = {},
                             onDismissConflict = {},
                             onSyncNow = {},
+                            onSignOut = {},
                         )
                     }
                 }
@@ -74,6 +76,12 @@ class SettingsRenderTest {
             gaps = listOf("no tax registration number", "no payment instructions"),
             savedNote = "Saved. Your documents will carry these details.",
             sync = SyncSummary(lastResult = "Sent 3, received 1."),
+            account =
+                AccountSummary(
+                    email = "ada@harbourline.test",
+                    studioName = "Harbourline Photography",
+                    isHardwareBacked = false,
+                ),
             conflicts =
                 listOf(
                     ConflictSummary(

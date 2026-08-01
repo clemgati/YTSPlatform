@@ -19,6 +19,7 @@ fun SettingsRoute(modifier: Modifier = Modifier) {
         onSave = viewModel::save,
         onDismissConflict = viewModel::dismissConflict,
         onSyncNow = viewModel::syncNow,
+        onSignOut = viewModel::signOut,
         modifier = modifier,
     )
 }

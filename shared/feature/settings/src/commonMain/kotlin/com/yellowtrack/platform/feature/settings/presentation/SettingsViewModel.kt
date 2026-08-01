@@ -8,6 +8,8 @@ import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.SyncConflictRepository
+import com.yellowtrack.platform.core.data.auth.AuthRepository
+import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.sync.SyncStatus
 import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.data.sync.differences
@@ -35,6 +37,7 @@ internal class SettingsViewModel(
     private val profileRepository: StudioProfileRepository,
     private val conflictRepository: SyncConflictRepository,
     private val synchroniser: Synchroniser,
+    private val auth: AuthRepository,
     private val studioContext: StudioContext,
     private val clock: AppClock,
 ) : ViewModel() {
@@ -46,7 +49,8 @@ internal class SettingsViewModel(
             savedNote,
             conflictRepository.observeUnresolved(),
             synchroniser.status,
-        ) { profile, note, conflicts, syncStatus ->
+            auth.session,
+        ) { profile, note, conflicts, syncStatus, session ->
             SettingsUiState(
                 content =
                     UiState.Success(
@@ -57,6 +61,7 @@ internal class SettingsViewModel(
                             savedNote = note,
                             conflicts = conflicts.map { it.toSummary() },
                             sync = syncStatus.toSummary(),
+                            account = (session as? SessionState.SignedIn)?.toSummary(),
                         ),
                     ),
             )
@@ -120,6 +125,25 @@ internal class SettingsViewModel(
     fun syncNow() {
         synchroniser.syncNow()
     }
+
+    /**
+     * Ends the session on this device, and on the server.
+     *
+     * The shell swaps itself for the sign-in screen when the session goes, so there is
+     * nothing to navigate. Work already written stays in the local database: signing out is
+     * not a way to discard anything, and anything not yet uploaded goes up on the next sign
+     * in rather than being lost here.
+     */
+    fun signOut() {
+        viewModelScope.launch { auth.signOut() }
+    }
+
+    private fun SessionState.SignedIn.toSummary(): AccountSummary =
+        AccountSummary(
+            email = session.email,
+            studioName = session.studioName,
+            isHardwareBacked = auth.isHardwareBacked,
+        )
 
     private fun SyncStatus.toSummary(): SyncSummary =
         when (this) {

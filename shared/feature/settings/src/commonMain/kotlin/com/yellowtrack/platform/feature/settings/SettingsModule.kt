@@ -11,6 +11,7 @@ val settingsModule =
                 profileRepository = get(),
                 conflictRepository = get(),
                 synchroniser = get(),
+                auth = get(),
                 studioContext = get(),
                 clock = get(),
             )

@@ -3,6 +3,7 @@ package com.yellowtrack.platform.feature.settings
 import com.yellowtrack.platform.core.data.LocalStudioContext
 import com.yellowtrack.platform.core.data.auth.AuthApi
 import com.yellowtrack.platform.core.data.auth.AuthRepository
+import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.auth.SessionStore
 import com.yellowtrack.platform.core.data.auth.StoredSession
 import com.yellowtrack.platform.core.data.sync.Synchroniser
@@ -127,18 +128,27 @@ class SettingsViewModelTest {
             audit = AuditMetadata.createdAt(CONFLICT_TIME),
         )
 
+    @Test
+    fun `offers a way out, which the application did not have`() =
+        runTest {
+            val harness = harness()
+            harness.auth.restore(now = 0)
+
+            val account = assertNotNull(harness.viewModel.content().account, "nothing showed who was signed in")
+            assertEquals("ada@harbourline.test", account.email)
+            assertEquals("Harbourline Photography", account.studioName)
+
+            harness.viewModel.signOut()
+
+            assertTrue(
+                harness.auth.session.value is SessionState.SignedOut,
+                "signOut existed on the repository and only the synchroniser ever called it, so the " +
+                    "sign-in screen's advice to sign out when finished could not be followed",
+            )
+        }
+
     private companion object {
         val CONFLICT_TIME: Instant = Instant.fromEpochMilliseconds(1_781_100_000_000)
-    }
-
-    private object NoSessionStore : SessionStore {
-        override val isHardwareBacked = false
-
-        override suspend fun read(): StoredSession? = null
-
-        override suspend fun write(session: StoredSession) = Unit
-
-        override suspend fun clear() = Unit
     }
 
     private object UnusedAuthApi : AuthApi {
@@ -165,10 +175,37 @@ class SettingsViewModelTest {
         ) = error("unused")
     }
 
+    /** Starts out holding a session, so there is something to sign out of. */
+    private class InMemorySessionStore : SessionStore {
+        override val isHardwareBacked = false
+
+        var session: StoredSession? =
+            StoredSession(
+                token = "a-token",
+                expiresAt = Long.MAX_VALUE,
+                accountId = "account-1",
+                email = "ada@harbourline.test",
+                name = "Ada Okafor",
+                studioId = "studio-1",
+                studioName = "Harbourline Photography",
+            )
+
+        override suspend fun read(): StoredSession? = session
+
+        override suspend fun write(session: StoredSession) {
+            this.session = session
+        }
+
+        override suspend fun clear() {
+            session = null
+        }
+    }
+
     private class Harness(
         val viewModel: SettingsViewModel,
         val repository: FakeStudioProfileRepository,
         val conflicts: FakeSyncConflictRepository,
+        val auth: AuthRepository,
     )
 
     private fun harness(
@@ -177,6 +214,7 @@ class SettingsViewModelTest {
     ): Harness {
         val repository = FakeStudioProfileRepository(existing)
         val conflictRepository = FakeSyncConflictRepository(conflicts)
+        val auth = AuthRepository(store = InMemorySessionStore(), api = UnusedAuthApi)
 
         return Harness(
             viewModel =
@@ -185,15 +223,17 @@ class SettingsViewModelTest {
                     conflictRepository = conflictRepository,
                     synchroniser =
                         Synchroniser(
-                            reconcile = { error("the settings tests never sign in, so this is unreachable") },
-                            auth = AuthRepository(store = NoSessionStore, api = UnusedAuthApi),
+                            reconcile = { error("the settings tests never reconcile, so this is unreachable") },
+                            auth = auth,
                             scope = CoroutineScope(UnconfinedTestDispatcher()),
                         ),
+                    auth = auth,
                     studioContext = LocalStudioContext(),
                     clock = TestAppClock(),
                 ),
             repository = repository,
             conflicts = conflictRepository,
+            auth = auth,
         )
     }
 
