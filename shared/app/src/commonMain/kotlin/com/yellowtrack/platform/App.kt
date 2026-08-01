@@ -13,6 +13,7 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
+import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.feature.auth.SignInRoute
@@ -35,7 +36,15 @@ fun App() {
         auth.restore(clock.now().toEpochMilliseconds())
     }
 
+    val synchroniser: Synchroniser = koinInject()
     val session by auth.session.collectAsStateWithLifecycle()
+
+    // Started once, on the first session. Reconciling is the whole point of having signed
+    // in, and leaving it to a button would mean a device only ever held what its own user
+    // typed into it.
+    LaunchedEffect(session is SessionState.SignedIn) {
+        if (session is SessionState.SignedIn) synchroniser.startPeriodicSync()
+    }
 
     YellowTrackTheme {
         when (session) {

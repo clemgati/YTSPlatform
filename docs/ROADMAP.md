@@ -222,6 +222,12 @@ and deployment waits until there is something worth deploying.
   `localStorage` in a browser, which `isHardwareBacked` is honest about rather than
   implying a protection browsers do not offer. Only the desktop one has been run; the other
   three are compiled
+- ✓ Synchronisation actually runs, and has been watched doing it. A client typed into the
+  desktop application reached Postgres under the signed-in studio, and a row inserted
+  server-side arrived in the application — both directions, against a real server. The
+  studio is now the signed-in one rather than the placeholder constant `StudioContext` had
+  returned since 0.3.0, without which every push would have been refused as another
+  studio's row
 - ✓ A way in. The application opens on sign-in until a session exists, one form for both
   signing in and starting a studio, and it says plainly when the device cannot store the
   session securely rather than implying it can

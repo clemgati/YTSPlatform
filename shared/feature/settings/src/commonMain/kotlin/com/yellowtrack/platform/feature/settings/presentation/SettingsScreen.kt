@@ -38,6 +38,7 @@ internal fun SettingsScreen(
     onRetry: () -> Unit,
     onSave: (StudioProfileFields) -> Unit,
     onDismissConflict: (SyncConflictId) -> Unit,
+    onSyncNow: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     StatefulContent(
@@ -67,6 +68,30 @@ internal fun SettingsScreen(
                 ConflictsSection(
                     conflicts = content.conflicts,
                     onDismiss = onDismissConflict,
+                )
+            }
+
+            YTSectionCard(title = "Synchronisation") {
+                Text(
+                    text =
+                        "Your work is kept on this device and copied to your other ones. It " +
+                            "keeps working with no connection and catches up afterwards.",
+                    style = YTTheme.typography.bodyMedium,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+
+                content.sync.lastResult?.let { result ->
+                    Text(
+                        text = result,
+                        style = YTTheme.typography.bodyMedium,
+                        color = if (content.sync.isFailure) YTTheme.colors.error else YTTheme.colors.onSurface,
+                    )
+                }
+
+                YTButton(
+                    text = if (content.sync.isWorking) "Syncing…" else "Sync now",
+                    onClick = onSyncNow,
+                    enabled = !content.sync.isWorking,
                 )
             }
 

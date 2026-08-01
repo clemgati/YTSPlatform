@@ -2,6 +2,8 @@ package com.yellowtrack.platform.core.data
 
 import com.yellowtrack.platform.core.common.coroutines.ioDispatcher
 import com.yellowtrack.platform.core.common.time.AppClock
+import com.yellowtrack.platform.core.data.auth.AuthRepository
+import com.yellowtrack.platform.core.data.auth.SessionStudioContext
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightCodbRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightContractRepository
@@ -24,7 +26,11 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeReposi
 import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSyncConflictRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
+import com.yellowtrack.platform.core.data.sync.SyncEngine
+import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.database.DatabaseProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import org.koin.dsl.module
 
 /**
@@ -37,7 +43,13 @@ import org.koin.dsl.module
 val dataModule =
     module {
         single<AppClock> { AppClock.System }
-        single<StudioContext> { LocalStudioContext() }
+        // AuthRepository lives here rather than with the HTTP client, so that the studio
+        // context can be built from it — the repositories need to know which studio they
+        // are serving, and that is now an answer only the session has. `AuthApi` is bound
+        // by `networkModule`; Koin resolves it lazily, so the direction of the dependency
+        // is data <- network as it should be.
+        single { AuthRepository(store = get(), api = get()) }
+        single<StudioContext> { SessionStudioContext(get()) }
 
         single { DatabaseProvider(driverFactory = get()) }
 
@@ -57,6 +69,32 @@ val dataModule =
         single<LightingRecipeRepository> { SqlDelightLightingRecipeRepository(get(), get(), get(), ioDispatcher) }
         single<ServiceTemplateRepository> { SqlDelightServiceTemplateRepository(get(), get(), get(), ioDispatcher) }
         single<SyncConflictRepository> { SqlDelightSyncConflictRepository(get(), get(), get(), ioDispatcher) }
+
+        // Application-lived, so the periodic loop survives navigation. Cancelled only when
+        // the process ends, which on every one of these platforms is when the application
+        // is gone anyway.
+        single {
+            val engine = get<SyncEngine>()
+            Synchroniser(
+                reconcile = engine::sync,
+                auth = get(),
+                scope = CoroutineScope(SupervisorJob() + ioDispatcher),
+            )
+        }
+
+        // The engine was written, tested and then left unreachable: nothing constructed it,
+        // so no device ever synchronised. `SyncTransport` comes from `networkModule`.
+        single {
+            SyncEngine(
+                provider = get(),
+                studioContext = get(),
+                transport = get(),
+                clients = get(),
+                projects = get(),
+                sessions = get(),
+                clock = get(),
+            )
+        }
 
         single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }
         single<InvoiceRepository> { SqlDelightInvoiceRepository(get(), get(), get(), ioDispatcher) }

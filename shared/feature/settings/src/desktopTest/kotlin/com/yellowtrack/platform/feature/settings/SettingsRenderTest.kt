@@ -16,6 +16,7 @@ import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
 import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
 import com.yellowtrack.platform.feature.settings.presentation.SettingsUiState
 import com.yellowtrack.platform.feature.settings.presentation.StudioProfileFields
+import com.yellowtrack.platform.feature.settings.presentation.SyncSummary
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -41,6 +42,7 @@ class SettingsRenderTest {
                             onRetry = {},
                             onSave = {},
                             onDismissConflict = {},
+                            onSyncNow = {},
                         )
                     }
                 }
@@ -71,6 +73,7 @@ class SettingsRenderTest {
             canIssueDocuments = true,
             gaps = listOf("no tax registration number", "no payment instructions"),
             savedNote = "Saved. Your documents will carry these details.",
+            sync = SyncSummary(lastResult = "Sent 3, received 1."),
             conflicts =
                 listOf(
                     ConflictSummary(

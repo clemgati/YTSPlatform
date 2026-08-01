@@ -10,6 +10,7 @@ val settingsModule =
             SettingsViewModel(
                 profileRepository = get(),
                 conflictRepository = get(),
+                synchroniser = get(),
                 studioContext = get(),
                 clock = get(),
             )

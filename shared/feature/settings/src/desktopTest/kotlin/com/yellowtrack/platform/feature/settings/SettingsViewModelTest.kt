@@ -1,6 +1,11 @@
 package com.yellowtrack.platform.feature.settings
 
 import com.yellowtrack.platform.core.data.LocalStudioContext
+import com.yellowtrack.platform.core.data.auth.AuthApi
+import com.yellowtrack.platform.core.data.auth.AuthRepository
+import com.yellowtrack.platform.core.data.auth.SessionStore
+import com.yellowtrack.platform.core.data.auth.StoredSession
+import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.studio.StudioProfileId
@@ -13,6 +18,7 @@ import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
 import com.yellowtrack.platform.feature.settings.presentation.SettingsViewModel
 import com.yellowtrack.platform.feature.settings.presentation.StudioProfileFields
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -125,6 +131,32 @@ class SettingsViewModelTest {
         val CONFLICT_TIME: Instant = Instant.fromEpochMilliseconds(1_781_100_000_000)
     }
 
+    private object NoSessionStore : SessionStore {
+        override val isHardwareBacked = false
+
+        override suspend fun read(): StoredSession? = null
+
+        override suspend fun write(session: StoredSession) = Unit
+
+        override suspend fun clear() = Unit
+    }
+
+    private object UnusedAuthApi : AuthApi {
+        override suspend fun signIn(
+            email: String,
+            password: String,
+        ): StoredSession = error("unused")
+
+        override suspend fun signUp(
+            email: String,
+            password: String,
+            name: String,
+            studioName: String,
+        ): StoredSession = error("unused")
+
+        override suspend fun signOut(token: String) = Unit
+    }
+
     private class Harness(
         val viewModel: SettingsViewModel,
         val repository: FakeStudioProfileRepository,
@@ -143,6 +175,12 @@ class SettingsViewModelTest {
                 SettingsViewModel(
                     profileRepository = repository,
                     conflictRepository = conflictRepository,
+                    synchroniser =
+                        Synchroniser(
+                            reconcile = { error("the settings tests never sign in, so this is unreachable") },
+                            auth = AuthRepository(store = NoSessionStore, api = UnusedAuthApi),
+                            scope = CoroutineScope(UnconfinedTestDispatcher()),
+                        ),
                     studioContext = LocalStudioContext(),
                     clock = TestAppClock(),
                 ),

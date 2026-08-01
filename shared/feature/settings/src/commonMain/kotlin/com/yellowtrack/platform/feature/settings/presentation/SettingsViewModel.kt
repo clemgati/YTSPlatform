@@ -8,6 +8,8 @@ import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.SyncConflictRepository
+import com.yellowtrack.platform.core.data.sync.SyncStatus
+import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.data.sync.differences
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.studio.StudioProfile
@@ -32,6 +34,7 @@ import kotlinx.datetime.TimeZone
 internal class SettingsViewModel(
     private val profileRepository: StudioProfileRepository,
     private val conflictRepository: SyncConflictRepository,
+    private val synchroniser: Synchroniser,
     private val studioContext: StudioContext,
     private val clock: AppClock,
 ) : ViewModel() {
@@ -42,7 +45,8 @@ internal class SettingsViewModel(
             profileRepository.observeProfile(),
             savedNote,
             conflictRepository.observeUnresolved(),
-        ) { profile, note, conflicts ->
+            synchroniser.status,
+        ) { profile, note, conflicts, syncStatus ->
             SettingsUiState(
                 content =
                     UiState.Success(
@@ -52,6 +56,7 @@ internal class SettingsViewModel(
                             gaps = profile?.documentGaps.orEmpty(),
                             savedNote = note,
                             conflicts = conflicts.map { it.toSummary() },
+                            sync = syncStatus.toSummary(),
                         ),
                     ),
             )
@@ -111,6 +116,28 @@ internal class SettingsViewModel(
                 }
         }
     }
+
+    fun syncNow() {
+        synchroniser.syncNow()
+    }
+
+    private fun SyncStatus.toSummary(): SyncSummary =
+        when (this) {
+            SyncStatus.Idle -> SyncSummary()
+            SyncStatus.Working -> SyncSummary(isWorking = true)
+            is SyncStatus.Succeeded ->
+                SyncSummary(
+                    lastResult =
+                        if (report.isQuiet) {
+                            "Up to date."
+                        } else {
+                            "Sent ${report.uploaded}, received ${report.downloaded}."
+                        },
+                )
+            // Named rather than swallowed. A device that quietly stopped reconciling looks
+            // identical to one with nothing to reconcile.
+            is SyncStatus.Failed -> SyncSummary(lastResult = reason, isFailure = true)
+        }
 
     /** Dismisses one. The row stays; only its unresolved-ness goes. */
     fun dismissConflict(id: SyncConflictId) {

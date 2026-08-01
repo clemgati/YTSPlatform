@@ -22,10 +22,6 @@ val networkModule =
 
         single<AuthApi> { HttpAuthApi(client = get(), baseUrl = get<String>()) }
 
-        single {
-            AuthRepository(store = get(), api = get())
-        }
-
         // The transport reads the token per request rather than holding one, so signing out
         // takes effect on the next call instead of leaving a live client behind.
         single<SyncTransport> {

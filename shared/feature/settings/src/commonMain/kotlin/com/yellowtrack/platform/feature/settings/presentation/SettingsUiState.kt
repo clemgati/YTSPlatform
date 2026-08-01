@@ -37,6 +37,21 @@ internal data class SettingsContent(
     val savedNote: String?,
     /** Work synchronisation discarded, oldest first. */
     val conflicts: List<ConflictSummary>,
+    val sync: SyncSummary,
+)
+
+/**
+ * Whether synchronisation is actually working, in a form a studio can read.
+ *
+ * Worth showing at all because the failure it guards against is silence: a device that
+ * stopped reconciling looks exactly like one with nothing to reconcile, and the difference
+ * only becomes visible when somebody opens a booking on the other device and it is not
+ * there.
+ */
+internal data class SyncSummary(
+    val isWorking: Boolean = false,
+    val lastResult: String? = null,
+    val isFailure: Boolean = false,
 )
 
 /**
