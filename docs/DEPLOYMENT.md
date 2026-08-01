@@ -421,8 +421,14 @@ Then, once `dig +short api.yourdomain` returns the Elastic IP and not before —
 attempted against a name that does not resolve counts against Let's Encrypt's rate limits:
 
 ```sh
-sudo certbot --apache -d api.yourdomain --dry-run   # staging; a mistake costs nothing
-sudo certbot --apache -d api.yourdomain             # answer yes to the HTTPS redirect
+# Rehearse the validation. certonly, because --dry-run cannot rehearse installing a
+# certificate and refuses to run alongside --apache's installer:
+#     --dry-run currently only works with the 'certonly' or 'renew' subcommands
+# The authenticator is the same either way, so this exercises the part that fails.
+sudo certbot certonly --apache -d api.yourdomain --dry-run
+
+# Then for real, with the installer, answering yes to the HTTPS redirect.
+sudo certbot --apache -d api.yourdomain
 ```
 
 Certbot writes `yellowtrack-le-ssl.conf` beside your file, which is the finished article:
