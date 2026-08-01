@@ -19,9 +19,23 @@ S3_BUCKET="${S3_BUCKET:-}"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dump="$BACKUP_DIR/${DB_NAME}-${stamp}.dump"
 
-mkdir -p "$BACKUP_DIR"
-# The dump holds every studio's clients, contracts and takings in plain text.
-chmod 700 "$BACKUP_DIR"
+# Named rather than left to mkdir, which says "Permission denied" and not which path or
+# which user — and this runs as postgres from a timer, where neither is obvious.
+if [ ! -d "$BACKUP_DIR" ] && ! mkdir -p "$BACKUP_DIR" 2>/dev/null; then
+    echo "cannot create $BACKUP_DIR as $(id -un):" >&2
+    echo "    sudo install -d -o $(id -un) -g $(id -gn) -m 700 $BACKUP_DIR" >&2
+    exit 1
+fi
+
+if [ ! -w "$BACKUP_DIR" ]; then
+    echo "$BACKUP_DIR is not writable by $(id -un):" >&2
+    echo "    sudo chown $(id -un):$(id -gn) $BACKUP_DIR" >&2
+    exit 1
+fi
+
+# The dump holds every studio's clients, contracts and takings in plain text. Not fatal if
+# it fails: a directory somebody else owns but has let us write to is unusual, not broken.
+chmod 700 "$BACKUP_DIR" 2>/dev/null || true
 
 echo "==> Dumping $DB_NAME"
 # Custom format rather than plain SQL: compressed, and pg_restore can read a single table

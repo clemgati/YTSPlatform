@@ -414,6 +414,10 @@ After=postgresql.service
 Type=oneshot
 User=postgres
 Environment=S3_BUCKET=yellowtrack-backups
+# The + runs this one step as root: postgres cannot create a directory under /var/backups.
+# Here rather than in a setup instruction, so the unit provisions what it needs and there
+# is no manual step to leave undone.
+ExecStartPre=+/usr/bin/install -d -o postgres -g postgres -m 700 /var/backups/yellowtrack
 ExecStart=/usr/local/bin/backup-database.sh
 ```
 
