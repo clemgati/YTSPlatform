@@ -2,6 +2,8 @@ package com.yellowtrack.platform.server.auth
 
 import com.yellowtrack.platform.core.model.auth.AccountResponse
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.auth.ForgotPasswordRequest
+import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
@@ -27,7 +29,10 @@ data class SessionPrincipal(
  * give the same 401 with the same body, because distinguishing them turns this into a way
  * to ask whether a given photographer has an account here.
  */
-fun Route.authRoutes(accounts: Accounts) {
+fun Route.authRoutes(
+    accounts: Accounts,
+    resets: PasswordResets,
+) {
     route("/auth") {
         post("/sign-up") {
             val request = call.receive<SignUpRequest>()
@@ -61,6 +66,39 @@ fun Route.authRoutes(accounts: Accounts) {
                 .signIn(request.email, request.password)
                 .onSuccess { call.respond(HttpStatusCode.OK, it.toResponse()) }
                 .onFailure { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("email or password is wrong")) }
+        }
+
+        // Always 202, always the same body. ADR 0010 decision 3: any difference between a
+        // known and an unknown address is a difference somebody can measure, and sign-in
+        // was deliberately built not to answer that question.
+        post("/forgot-password") {
+            val request = call.receive<ForgotPasswordRequest>()
+            resets.request(request.email)
+            call.respond(
+                HttpStatusCode.Accepted,
+                ErrorResponse("If that address has an account, a code is on its way."),
+            )
+        }
+
+        post("/reset-password") {
+            val request = call.receive<ResetPasswordRequest>()
+
+            if (request.newPassword.length < MINIMUM_PASSWORD_LENGTH) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    ErrorResponse("a password needs at least $MINIMUM_PASSWORD_LENGTH characters"),
+                )
+                return@post
+            }
+
+            try {
+                resets.reset(request.email, request.code.trim().uppercase(), request.newPassword)
+                call.respond(HttpStatusCode.NoContent)
+            } catch (_: ResetRefused) {
+                // One message for expired, consumed, superseded and never-existed. Telling
+                // them apart tells a stranger which codes were real.
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("That code is not usable. Ask for a new one."))
+            }
         }
 
         authenticate(BEARER_AUTH) {

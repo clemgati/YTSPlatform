@@ -30,6 +30,8 @@ dependencies {
 
     implementation(libs.hikari)
     implementation(libs.bouncycastle)
+    implementation(libs.angus.mail)
+    runtimeOnly(libs.logback.classic)
 
     implementation(libs.flyway.core)
     // Since Flyway 10 the database dialects ship separately from the core; without this

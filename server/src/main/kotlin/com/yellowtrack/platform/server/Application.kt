@@ -3,14 +3,18 @@ package com.yellowtrack.platform.server
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.server.auth.Accounts
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
+import com.yellowtrack.platform.server.auth.PasswordResets
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
+import com.yellowtrack.platform.server.mail.MailConfig
+import com.yellowtrack.platform.server.mail.SmtpMail
 import com.yellowtrack.platform.server.sync.Reconciler
 import com.yellowtrack.platform.server.sync.syncRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
+import io.ktor.server.application.log
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.bearer
 import io.ktor.server.engine.embeddedServer
@@ -56,6 +60,14 @@ private const val DEFAULT_PORT = 8080
 fun Application.module(database: Database) {
     val accounts = Accounts(database)
 
+    // Null when MAIL_HOST is unset. Reset codes are still issued and stored — they simply
+    // are not delivered, which a development machine can live with and a deployment cannot,
+    // so it is said once at boot rather than discovered at the first reset.
+    val mailConfig = MailConfig.fromEnvironment()
+    if (mailConfig == null) log.warn("MAIL_HOST is not set: password reset codes will be issued but not sent.")
+    val resets =
+        PasswordResets(database, mailConfig?.let(::SmtpMail), onSendFailure = { log.error("could not send mail", it) })
+
     install(ContentNegotiation) {
         json(apiJson)
     }
@@ -83,7 +95,7 @@ fun Application.module(database: Database) {
             call.respond(Health(status = "ok"))
         }
 
-        authRoutes(accounts)
+        authRoutes(accounts, resets)
         syncRoutes(Reconciler(database))
     }
 }

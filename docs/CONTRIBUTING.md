@@ -34,6 +34,20 @@ grants it separately, so no credential is implied by anything in this repository
 ALTER ROLE yellowtrack_app LOGIN PASSWORD '...';
 ```
 
+For anything that sends mail — password reset today, documents later — the server needs an
+SMTP host. A capture server on your own machine is a real one, so the development path
+exercises the same code as production rather than a stub:
+
+```sh
+brew install mailpit
+mailpit                     # SMTP on :1025, an inbox to read at http://localhost:8025
+MAIL_HOST=localhost MAIL_PORT=1025 ./gradlew :server:run
+```
+
+With `MAIL_HOST` unset the server warns at boot and still issues reset codes — they simply
+are not delivered. That is survivable on a laptop and not in a deployment, which is why it
+is said once at startup rather than discovered at the first reset.
+
 ## Workflow
 
 1. Create or reference a GitHub issue.

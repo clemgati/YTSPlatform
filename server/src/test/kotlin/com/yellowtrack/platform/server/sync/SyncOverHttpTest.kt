@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.server.sync
 
 import com.yellowtrack.platform.core.data.sync.SyncTransport
+import com.yellowtrack.platform.core.data.sync.SyncUnauthorised
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientId
@@ -17,7 +18,6 @@ import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
 import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import com.yellowtrack.platform.core.network.HttpSyncTransport
-import com.yellowtrack.platform.core.network.SyncUnauthorised
 import com.yellowtrack.platform.core.network.syncJson
 import com.yellowtrack.platform.server.TestDatabase
 import com.yellowtrack.platform.server.auth.Accounts

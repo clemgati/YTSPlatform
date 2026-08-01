@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.core.network
 
 import com.yellowtrack.platform.core.data.sync.SyncTransport
+import com.yellowtrack.platform.core.data.sync.SyncUnauthorised
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
 import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import com.yellowtrack.platform.core.model.sync.SyncPushResponse
@@ -30,9 +31,6 @@ class SyncRequestFailed(
     val status: Int,
     override val message: String,
 ) : Exception(message)
-
-/** Raised when the session is no longer good, so the caller can send the studio to sign in. */
-class SyncUnauthorised : Exception("this device is no longer signed in")
 
 /**
  * Supplies the bearer token for the signed-in device.

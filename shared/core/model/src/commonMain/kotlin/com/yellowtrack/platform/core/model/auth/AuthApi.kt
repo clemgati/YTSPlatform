@@ -52,6 +52,24 @@ data class AccountResponse(
     val studioName: String,
 )
 
+/** Asks for a reset code. Answered identically whether or not the address has an account. */
+@Serializable
+data class ForgotPasswordRequest(
+    val email: String,
+)
+
+/**
+ * Sets a new password with a code from the email.
+ *
+ * The address is sent as well as the code, so a code alone is not enough — see ADR 0010.
+ */
+@Serializable
+data class ResetPasswordRequest(
+    val email: String,
+    val code: String,
+    val newPassword: String,
+)
+
 /**
  * Why a request was refused, in words meant for a person.
  *

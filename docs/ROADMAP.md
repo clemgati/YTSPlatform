@@ -162,8 +162,8 @@ The biggest gap in the original roadmap.
   hand the file to the system share sheet, saving it first so a sheet that fails to appear
   costs nothing — though **neither has been run**, only compiled, so treat the sheet itself
   as unproven until someone opens the app on a phone. Emailing a document without leaving
-  the application is still to come and needs a mail transport, which belongs with the
-  server in 0.7.0
+  the application is still to come; the mail transport it was waiting for now exists in the
+  server (ADR 0010), so this is wiring rather than a missing piece
 - ✓ Studio details, which every document carries — the Settings screen has claimed since
   0.1.0 that there was nothing to configure, and an invoice with no name on it is not an
   invoice
@@ -222,6 +222,14 @@ and deployment waits until there is something worth deploying.
   `localStorage` in a browser, which `isHardwareBacked` is honest about rather than
   implying a protection browsers do not offer. Only the desktop one has been run; the other
   three are compiled
+- ✓ Password reset, and the mail transport 0.6.0 also wanted — see
+  `docs/adr/0010-password-reset-by-emailed-code.md`. A code rather than a link, because
+  there is no web front end for a link to land on. Requesting one answers the same whether
+  or not the address has an account; a completed reset revokes every session. Proved against
+  a real SMTP server: two requests, identical answers, one email actually sent, the code
+  read out of the delivered message, old password refused, new password accepted, reuse
+  refused, two sessions revoked. Still to come: the screen in the application that takes a
+  code — the endpoints exist and nothing calls them yet
 - ✓ **The conflict path has been watched working against a real server.** Two devices were
   put on version 2 of the same client with different names; the server detected it, kept the
   displaced version in full, and the device pulled it down. The Dashboard showed "1 change

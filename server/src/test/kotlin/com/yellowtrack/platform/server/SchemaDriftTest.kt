@@ -63,8 +63,12 @@ class SchemaDriftTest {
      * `studio_member` and `auth_session` carry a `studio_id` and are still not under the
      * row level security policies, because they are what decides what `app.studio_id`
      * should be. `RowLevelSecurityTest` holds that line.
+     *
+     * `password_reset` is here for a plainer reason: a device has no use for anybody's
+     * reset codes, including its own. The code arrives by email and is typed in.
      */
-    private val serverOnlyTables = setOf("studio", "account", "studio_member", "auth_session")
+    private val serverOnlyTables =
+        setOf("studio", "account", "studio_member", "auth_session", "password_reset")
 
     /**
      * The one column the server adds to every synced table.
