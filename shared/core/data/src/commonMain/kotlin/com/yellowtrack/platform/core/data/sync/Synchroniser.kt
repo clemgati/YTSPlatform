@@ -103,6 +103,12 @@ class Synchroniser(
             state.value = SyncStatus.Working
             val report = reconcile()
             state.value = SyncStatus.Succeeded(clock.now().toEpochMilliseconds(), report)
+        } catch (_: SyncUnauthorised) {
+            // The token is genuinely no longer good — a password reset, or this device
+            // signed out from elsewhere. Reporting "sync failed" forever would leave a
+            // studio staring at an error whose remedy is a sign-in nobody offered them.
+            state.value = SyncStatus.Idle
+            auth.signOut()
         } catch (error: Throwable) {
             state.value =
                 SyncStatus.Failed(clock.now().toEpochMilliseconds(), error.message ?: "Could not synchronise.")

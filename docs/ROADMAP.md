@@ -230,8 +230,10 @@ and deployment waits until there is something worth deploying.
   read out of the delivered message, old password refused, new password accepted, reuse
   refused, two sessions revoked. The application has the screen too: "I have forgotten my
   password" on the sign-in form, an address, then the code and a new password, with the
-  wording kept as non-committal as the server's answer. Rendered and read; not yet driven
-  against a live server
+  wording kept as non-committal as the server's answer. **Driven live, whole loop:** a
+  revoked token signed the device out by itself, the reset was asked for and the code read
+  out of the delivered email, the new password was set, every session was revoked, and
+  signing in with it came back to the Dashboard
 - ✓ **The conflict path has been watched working against a real server.** Two devices were
   put on version 2 of the same client with different names; the server detected it, kept the
   displaced version in full, and the device pulled it down. The Dashboard showed "1 change
