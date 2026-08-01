@@ -19,6 +19,7 @@ fun SignInRoute(modifier: Modifier = Modifier) {
         onPasswordChanged = viewModel::onPasswordChanged,
         onNameChanged = viewModel::onNameChanged,
         onStudioNameChanged = viewModel::onStudioNameChanged,
+        onCodeChanged = viewModel::onCodeChanged,
         onModeChanged = viewModel::onModeChanged,
         onSubmit = viewModel::submit,
         modifier = modifier,

@@ -24,6 +24,20 @@ class SignInRenderTest {
         render("sign-in.png", SignInUiState(fields = SignInFields(email = "ada@harbourline.test", password = "secret")))
 
         render(
+            "reset-enter-code.png",
+            SignInUiState(
+                mode = SignInMode.EnterCode,
+                fields =
+                    SignInFields(
+                        email = "ada@harbourline.test",
+                        code = "XNFAR-JVDPG",
+                        password = "a completely new password",
+                    ),
+                notice = "If that address has an account, a code is on its way. It expires in an hour.",
+            ),
+        )
+
+        render(
             "sign-up.png",
             SignInUiState(
                 mode = SignInMode.SignUp,
@@ -60,6 +74,7 @@ class SignInRenderTest {
                             onPasswordChanged = {},
                             onNameChanged = {},
                             onStudioNameChanged = {},
+                            onCodeChanged = {},
                             onModeChanged = {},
                             onSubmit = {},
                         )

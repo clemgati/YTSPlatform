@@ -38,11 +38,15 @@ internal fun SignInScreen(
     onPasswordChanged: (String) -> Unit,
     onNameChanged: (String) -> Unit,
     onStudioNameChanged: (String) -> Unit,
+    onCodeChanged: (String) -> Unit,
     onModeChanged: (SignInMode) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val signingUp = uiState.mode == SignInMode.SignUp
+    val asking = uiState.mode == SignInMode.ForgotPassword
+    val entering = uiState.mode == SignInMode.EnterCode
+    val resetting = asking || entering
 
     Column(
         modifier =
@@ -65,17 +69,36 @@ internal fun SignInScreen(
                 color = YTTheme.colors.onBackground,
             )
 
-            YTSectionCard(title = if (signingUp) "Start your studio" else "Sign in") {
+            YTSectionCard(
+                title =
+                    when (uiState.mode) {
+                        SignInMode.SignUp -> "Start your studio"
+                        SignInMode.ForgotPassword -> "Reset your password"
+                        SignInMode.EnterCode -> "Enter your code"
+                        SignInMode.SignIn -> "Sign in"
+                    },
+            ) {
                 Text(
                     text =
-                        if (signingUp) {
-                            "Your bookings, ledger and shoot days, on every device you use."
-                        } else {
-                            "Welcome back."
+                        when (uiState.mode) {
+                            SignInMode.SignUp -> "Your bookings, ledger and shoot days, on every device you use."
+                            SignInMode.ForgotPassword ->
+                                "We will email you a code. Resetting signs you out everywhere, " +
+                                    "including this device."
+                            SignInMode.EnterCode -> "Check your email, then set a new password."
+                            SignInMode.SignIn -> "Welcome back."
                         },
                     style = YTTheme.typography.bodyMedium,
                     color = YTTheme.colors.onSurfaceVariant,
                 )
+
+                uiState.notice?.let { notice ->
+                    Text(
+                        text = notice,
+                        style = YTTheme.typography.bodyMedium,
+                        color = YTTheme.colors.primary,
+                    )
+                }
 
                 YTTextField(
                     value = uiState.fields.email,
@@ -84,15 +107,27 @@ internal fun SignInScreen(
                     keyboardType = KeyboardType.Email,
                 )
 
-                YTTextField(
-                    value = uiState.fields.password,
-                    onValueChange = onPasswordChanged,
-                    label = "Password",
-                    keyboardType = KeyboardType.Password,
-                    isPassword = true,
-                    imeAction = if (signingUp) ImeAction.Next else ImeAction.Done,
-                    help = "At least 12 characters.".takeIf { signingUp },
-                )
+                if (entering) {
+                    YTTextField(
+                        value = uiState.fields.code,
+                        onValueChange = onCodeChanged,
+                        label = "Code from the email",
+                        placeholder = "XXXXX-XXXXX",
+                        help = "It works once and expires an hour after it was sent.",
+                    )
+                }
+
+                if (!asking) {
+                    YTTextField(
+                        value = uiState.fields.password,
+                        onValueChange = onPasswordChanged,
+                        label = if (entering) "New password" else "Password",
+                        keyboardType = KeyboardType.Password,
+                        isPassword = true,
+                        imeAction = if (signingUp) ImeAction.Next else ImeAction.Done,
+                        help = "At least 12 characters.".takeIf { signingUp || entering },
+                    )
+                }
 
                 if (signingUp) {
                     YTTextField(
@@ -123,6 +158,8 @@ internal fun SignInScreen(
                         when {
                             uiState.isWorking -> "Just a moment…"
                             signingUp -> "Create studio"
+                            asking -> "Email me a code"
+                            entering -> "Set new password"
                             else -> "Sign in"
                         },
                     onClick = onSubmit,
@@ -133,10 +170,33 @@ internal fun SignInScreen(
                 // The lesser action, and it must look like it. Two filled buttons leave the
                 // screen with no primary action at all.
                 YTTextButton(
-                    text = if (signingUp) "I already have an account" else "Start a new studio",
-                    onClick = { onModeChanged(if (signingUp) SignInMode.SignIn else SignInMode.SignUp) },
+                    text =
+                        when {
+                            resetting -> "Back to signing in"
+                            signingUp -> "I already have an account"
+                            else -> "Start a new studio"
+                        },
+                    onClick = {
+                        onModeChanged(
+                            when {
+                                resetting -> SignInMode.SignIn
+                                signingUp -> SignInMode.SignIn
+                                else -> SignInMode.SignUp
+                            },
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                // Only offered where it makes sense. On the sign-up form it would be an
+                // invitation to reset a password that does not exist yet.
+                if (uiState.mode == SignInMode.SignIn) {
+                    YTTextButton(
+                        text = "I have forgotten my password",
+                        onClick = { onModeChanged(SignInMode.ForgotPassword) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
 
             // Said plainly rather than buried. On a browser the token is readable by any

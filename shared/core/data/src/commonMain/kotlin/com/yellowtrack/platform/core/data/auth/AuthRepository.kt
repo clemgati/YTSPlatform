@@ -41,6 +41,22 @@ interface AuthApi {
     ): StoredSession
 
     /**
+     * Asks for a reset code.
+     *
+     * Returns normally whether or not the address has an account — the server answers the
+     * same either way, and a client that inferred otherwise would hand back the
+     * account-existence answer the server refuses to give.
+     */
+    suspend fun requestPasswordReset(email: String)
+
+    /** Sets a new password with an emailed code. Throws [AuthFailure] if the code is not usable. */
+    suspend fun resetPassword(
+        email: String,
+        code: String,
+        newPassword: String,
+    )
+
+    /**
      * Ends the session server-side.
      *
      * Best effort by design — see [AuthRepository.signOut] on why a failure here must not
@@ -125,6 +141,26 @@ class AuthRepository(
      * revocation is attempted and its failure ignored; the session expires on its own if
      * the call never lands.
      */
+    suspend fun requestPasswordReset(email: String) {
+        api.requestPasswordReset(email)
+    }
+
+    /**
+     * Does not sign in afterwards.
+     *
+     * The reset revoked every session, so there is nothing to resume; the studio signs in
+     * with the new password like anybody else. Quietly issuing a session here would also
+     * mean a code from an email was enough to be signed in, which is a lower bar than the
+     * password it just replaced.
+     */
+    suspend fun resetPassword(
+        email: String,
+        code: String,
+        newPassword: String,
+    ) {
+        api.resetPassword(email, code, newPassword)
+    }
+
     suspend fun signOut() {
         val current = (state.value as? SessionState.SignedIn)?.session
 

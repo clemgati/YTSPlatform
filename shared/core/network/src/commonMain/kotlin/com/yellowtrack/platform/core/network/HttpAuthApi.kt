@@ -4,6 +4,8 @@ import com.yellowtrack.platform.core.data.auth.AuthApi
 import com.yellowtrack.platform.core.data.auth.AuthFailure
 import com.yellowtrack.platform.core.data.auth.StoredSession
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.auth.ForgotPasswordRequest
+import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
@@ -59,6 +61,36 @@ class HttpAuthApi(
                 )
             }
         }.toSession()
+
+    override suspend fun requestPasswordReset(email: String) {
+        reaching {
+            client.post("$baseUrl/auth/forgot-password") {
+                contentType(ContentType.Application.Json)
+                setBody(ForgotPasswordRequest(email.trim()))
+            }
+        }
+    }
+
+    override suspend fun resetPassword(
+        email: String,
+        code: String,
+        newPassword: String,
+    ) {
+        reaching {
+            client.post("$baseUrl/auth/reset-password") {
+                contentType(ContentType.Application.Json)
+                setBody(
+                    ResetPasswordRequest(
+                        email = email.trim(),
+                        // Typed off a screen, so capitals and stray spaces are the reader's
+                        // problem to have and not the studio's.
+                        code = code.trim().uppercase(),
+                        newPassword = newPassword,
+                    ),
+                )
+            }
+        }
+    }
 
     override suspend fun signOut(token: String) {
         reaching {

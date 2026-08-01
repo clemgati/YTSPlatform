@@ -4,6 +4,12 @@ package com.yellowtrack.platform.feature.auth.presentation
 internal enum class SignInMode {
     SignIn,
     SignUp,
+
+    /** Asking for a code. Email only. */
+    ForgotPassword,
+
+    /** Typing the code in, with the new password. */
+    EnterCode,
 }
 
 /**
@@ -18,6 +24,7 @@ internal data class SignInFields(
     val password: String = "",
     val name: String = "",
     val studioName: String = "",
+    val code: String = "",
 )
 
 internal data class SignInUiState(
@@ -26,6 +33,14 @@ internal data class SignInUiState(
     val isWorking: Boolean = false,
     /** What went wrong, in the words the studio should read. Null when nothing has. */
     val error: String? = null,
+    /**
+     * Something that went right and needs saying.
+     *
+     * Separate from [error] because the reset flow has two moments that are neither a
+     * failure nor a screen change — "a code is on its way" and "your password is changed" —
+     * and colouring either of them as an error would be a lie.
+     */
+    val notice: String? = null,
     /**
      * Whether the device protects the token with a key it cannot extract.
      *
@@ -45,6 +60,14 @@ internal data class SignInUiState(
         get() =
             !isWorking &&
                 fields.email.isNotBlank() &&
-                fields.password.isNotBlank() &&
-                (mode == SignInMode.SignIn || (fields.name.isNotBlank() && fields.studioName.isNotBlank()))
+                when (mode) {
+                    SignInMode.SignIn -> fields.password.isNotBlank()
+                    SignInMode.SignUp ->
+                        fields.password.isNotBlank() &&
+                            fields.name.isNotBlank() &&
+                            fields.studioName.isNotBlank()
+                    // An address is all the server is being asked for.
+                    SignInMode.ForgotPassword -> true
+                    SignInMode.EnterCode -> fields.code.isNotBlank() && fields.password.isNotBlank()
+                }
 }

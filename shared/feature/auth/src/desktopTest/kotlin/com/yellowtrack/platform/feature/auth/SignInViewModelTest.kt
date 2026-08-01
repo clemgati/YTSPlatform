@@ -139,6 +139,81 @@ class SignInViewModelTest {
             )
         }
 
+    // -- Getting back in ----------------------------------------------------------------
+
+    @Test
+    fun `asking for a code moves on to entering one, and says so without promising`() =
+        runTest {
+            val world = world()
+            world.viewModel.onModeChanged(SignInMode.ForgotPassword)
+            world.viewModel.onEmailChanged("ada@harbourline.test")
+
+            world.viewModel.submit()
+
+            assertEquals(SignInMode.EnterCode, world.viewModel.uiState.value.mode)
+            assertTrue(
+                world.viewModel.uiState.value.notice!!
+                    .startsWith("If that address has an account"),
+                "the server will not say whether the address had an account, so neither can this",
+            )
+        }
+
+    @Test
+    fun `asking for a code needs only an address`() =
+        runTest {
+            val world = world()
+            world.viewModel.onModeChanged(SignInMode.ForgotPassword)
+
+            assertFalse(world.viewModel.uiState.value.canSubmit)
+            world.viewModel.onEmailChanged("ada@harbourline.test")
+            assertTrue(
+                world.viewModel.uiState.value.canSubmit,
+                "a password is exactly what the person does not have",
+            )
+        }
+
+    @Test
+    fun `a completed reset returns to signing in and says the devices are out`() =
+        runTest {
+            val world = world()
+            world.viewModel.onModeChanged(SignInMode.EnterCode)
+            world.viewModel.onEmailChanged("ada@harbourline.test")
+            world.viewModel.onCodeChanged("XNFAR-JVDPG")
+            world.viewModel.onPasswordChanged("a completely new password")
+
+            world.viewModel.submit()
+
+            assertEquals(SignInMode.SignIn, world.viewModel.uiState.value.mode)
+            assertTrue(
+                world.viewModel.uiState.value.notice!!
+                    .contains("signed out"),
+            )
+            assertEquals(
+                "",
+                world.viewModel.uiState.value.fields.password,
+                "the new password must not sit in the sign-in field as if it had been typed there",
+            )
+        }
+
+    @Test
+    fun `an unusable code is reported without moving on`() =
+        runTest {
+            val world = world(api = FailingApi(AuthFailure.Rejected("That code is not usable. Ask for a new one.")))
+            world.viewModel.onModeChanged(SignInMode.EnterCode)
+            world.viewModel.onEmailChanged("ada@harbourline.test")
+            world.viewModel.onCodeChanged("WRONG-CODE1")
+            world.viewModel.onPasswordChanged("a completely new password")
+
+            world.viewModel.submit()
+
+            assertEquals(
+                SignInMode.EnterCode,
+                world.viewModel.uiState.value.mode,
+                "staying put is what lets them retype it",
+            )
+            assertEquals("That code is not usable. Ask for a new one.", world.viewModel.uiState.value.error)
+        }
+
     // -- Plumbing ---------------------------------------------------------------------------
 
     private fun SignInViewModel.fill(
@@ -194,6 +269,14 @@ class SignInViewModelTest {
         ) = session
 
         override suspend fun signOut(token: String) = Unit
+
+        override suspend fun requestPasswordReset(email: String) = Unit
+
+        override suspend fun resetPassword(
+            email: String,
+            code: String,
+            newPassword: String,
+        ) = Unit
     }
 
     private class FailingApi(
@@ -212,6 +295,14 @@ class SignInViewModelTest {
         ): StoredSession = throw failure
 
         override suspend fun signOut(token: String) = Unit
+
+        override suspend fun requestPasswordReset(email: String): Unit = throw failure
+
+        override suspend fun resetPassword(
+            email: String,
+            code: String,
+            newPassword: String,
+        ): Unit = throw failure
     }
 
     private companion object {

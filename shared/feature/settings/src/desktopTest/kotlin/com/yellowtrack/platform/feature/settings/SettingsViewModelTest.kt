@@ -155,6 +155,14 @@ class SettingsViewModelTest {
         ): StoredSession = error("unused")
 
         override suspend fun signOut(token: String) = Unit
+
+        override suspend fun requestPasswordReset(email: String) = error("unused")
+
+        override suspend fun resetPassword(
+            email: String,
+            code: String,
+            newPassword: String,
+        ) = error("unused")
     }
 
     private class Harness(

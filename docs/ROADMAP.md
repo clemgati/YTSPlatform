@@ -228,8 +228,10 @@ and deployment waits until there is something worth deploying.
   or not the address has an account; a completed reset revokes every session. Proved against
   a real SMTP server: two requests, identical answers, one email actually sent, the code
   read out of the delivered message, old password refused, new password accepted, reuse
-  refused, two sessions revoked. Still to come: the screen in the application that takes a
-  code — the endpoints exist and nothing calls them yet
+  refused, two sessions revoked. The application has the screen too: "I have forgotten my
+  password" on the sign-in form, an address, then the code and a new password, with the
+  wording kept as non-committal as the server's answer. Rendered and read; not yet driven
+  against a live server
 - ✓ **The conflict path has been watched working against a real server.** Two devices were
   put on version 2 of the same client with different names; the server detected it, kept the
   displaced version in full, and the device pulled it down. The Dashboard showed "1 change

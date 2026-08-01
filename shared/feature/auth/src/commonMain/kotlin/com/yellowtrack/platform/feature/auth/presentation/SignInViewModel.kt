@@ -31,16 +31,18 @@ internal class SignInViewModel(
 
     fun onStudioNameChanged(value: String) = edit { it.copy(studioName = value) }
 
-    /** Keeps what has been typed, because the email is the same either way. */
+    fun onCodeChanged(value: String) = edit { it.copy(code = value) }
+
+    /** Keeps what has been typed, because the email is the same in all four. */
     fun onModeChanged(mode: SignInMode) {
-        state.value = state.value.copy(mode = mode, error = null)
+        state.value = state.value.copy(mode = mode, error = null, notice = null)
     }
 
     fun submit() {
         val current = state.value
         if (!current.canSubmit) return
 
-        state.value = current.copy(isWorking = true, error = null)
+        state.value = current.copy(isWorking = true, error = null, notice = null)
 
         viewModelScope.launch {
             val outcome =
@@ -55,17 +57,47 @@ internal class SignInViewModel(
                                 name = current.fields.name,
                                 studioName = current.fields.studioName,
                             )
+                        SignInMode.ForgotPassword ->
+                            auth.requestPasswordReset(current.fields.email)
+                        SignInMode.EnterCode ->
+                            auth.resetPassword(
+                                email = current.fields.email,
+                                code = current.fields.code,
+                                newPassword = current.fields.password,
+                            )
                     }
                 }
 
-            // On success nothing is set here: the repository's session state changes and the
-            // shell swaps this screen out. Clearing the fields first would blank the form
-            // for a moment on the way past.
             state.value =
-                state.value.copy(
-                    isWorking = false,
-                    error = outcome.exceptionOrNull()?.readable(),
-                )
+                if (outcome.isFailure) {
+                    state.value.copy(isWorking = false, error = outcome.exceptionOrNull()?.readable())
+                } else {
+                    // Signing in and signing up set nothing here: the session changes and the
+                    // shell swaps this screen out. The two reset steps stay on the screen and
+                    // have to say what happened themselves.
+                    when (current.mode) {
+                        SignInMode.ForgotPassword ->
+                            state.value.copy(
+                                isWorking = false,
+                                mode = SignInMode.EnterCode,
+                                // Worded as the server answers it, because the server will
+                                // not say whether the address had an account and neither can
+                                // this.
+                                notice = "If that address has an account, a code is on its way. It expires in an hour.",
+                                fields = state.value.fields.copy(password = ""),
+                            )
+                        SignInMode.EnterCode ->
+                            state.value.copy(
+                                isWorking = false,
+                                mode = SignInMode.SignIn,
+                                notice =
+                                    "Your password is changed. Every device has been signed out, " +
+                                        "including this one.",
+                                fields = state.value.fields.copy(password = "", code = ""),
+                            )
+                        else -> state.value.copy(isWorking = false)
+                    }
+                }
         }
     }
 
