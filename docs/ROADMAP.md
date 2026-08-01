@@ -222,6 +222,13 @@ and deployment waits until there is something worth deploying.
   `localStorage` in a browser, which `isHardwareBacked` is honest about rather than
   implying a protection browsers do not offer. Only the desktop one has been run; the other
   three are compiled
+- ✓ **The conflict path has been watched working against a real server.** Two devices were
+  put on version 2 of the same client with different names; the server detected it, kept the
+  displaced version in full, and the device pulled it down. The Dashboard showed "1 change
+  was overwritten", Settings narrowed two whole payloads to the one field that moved —
+  Kept: *Renamed on the desktop*, Set aside: *Renamed on the laptop* — and dismissing it
+  did not reopen on the next sync. That is ADR 0008 decision 3, the condition the whole
+  last-write-wins choice rests on, holding outside a test for the first time
 - ✓ Synchronisation actually runs, and has been watched doing it. A client typed into the
   desktop application reached Postgres under the signed-in studio, and a row inserted
   server-side arrived in the application — both directions, against a real server. The
