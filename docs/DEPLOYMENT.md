@@ -371,6 +371,59 @@ environment rather than a checked-in file.
 
 ---
 
+## SES
+
+Do this in an order that respects the one part you cannot hurry: production access is a
+review, and it can take a day.
+
+1. **Region.** The SES console's region selector, set to the instance's region. Identities
+   are per region, and verifying in the wrong one is starting again.
+2. **The domain**, with Easy DKIM. Three CNAMEs to add wherever the zone lives. Leave the
+   custom MAIL FROM alone: it wants an MX record, and a domain already serving something
+   else is not where to add DNS you do not need.
+3. **Your own address**, as a second identity. In the sandbox, this is the only address you
+   can send to, so it is what makes the reset loop testable today.
+4. **Production access**, requested as early as possible. Transactional password resets to
+   account holders who asked for them, low volume, bounces not retried.
+5. **SMTP credentials**, from *SMTP settings* — which creates an IAM user and shows the
+   password once. These are not AWS access keys. They resemble them closely enough that
+   using the wrong pair is common, and the failure is an authentication error that does not
+   say which kind of credential it wanted.
+
+```
+MAIL_HOST=email-smtp.eu-west-1.amazonaws.com
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_TLS=true
+MAIL_FROM=no-reply@yourdomain
+```
+
+`MAIL_TLS` defaults to *false* — correct for a local capture server, wrong everywhere else.
+SES rejects the connection anyway, so the mistake is loud rather than silent, which is not
+true of the next one.
+
+### The sandbox is the silent failure
+
+`ADR 0010` has the reset endpoint answer `202 If that address has an account, a code is on
+its way` regardless of what happened, because answering differently would tell an attacker
+which addresses have accounts. A send that SES refuses is therefore invisible from the
+outside: the studio sees the same reassuring sentence and waits for mail that will never
+arrive.
+
+Only two things surface it, and both need looking at deliberately:
+
+```sh
+curl -s localhost:8080/ready | grep '"mail"'         # false means nothing is even attempted
+sudo journalctl -u yellowtrack | grep -i mail        # a refused send is logged, not raised
+```
+
+This is why `verify-deployment.sh` fails rather than warns on `mail:false`, and why the
+first thing to do after production access is granted is to reset a password end to end and
+watch it arrive.
+
+---
+
 ## Backups
 
 Two scripts, in `scripts/`. They are not deployed by `deploy-server.sh` — that syncs the
