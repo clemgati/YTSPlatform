@@ -371,6 +371,116 @@ environment rather than a checked-in file.
 
 ---
 
+## Backups
+
+Two scripts, in `scripts/`. They are not deployed by `deploy-server.sh` — that syncs the
+built application and nothing else — so put them somewhere they will survive a deploy:
+
+```sh
+scp scripts/backup-database.sh scripts/restore-database.sh yellowtrack:/tmp/
+ssh yellowtrack 'sudo install -m 755 /tmp/backup-database.sh /tmp/restore-database.sh /usr/local/bin/'
+```
+
+### Off the instance, or it is not a backup
+
+`backup-database.sh` writes to `/var/backups/yellowtrack` and, if `S3_BUCKET` is set, copies
+each dump to S3 and says so. Leave it unset and it prints a warning every run, because the
+failure worth insuring against is losing the instance, and a dump on that instance's own
+volume goes with it.
+
+```sh
+aws s3 mb s3://yellowtrack-backups --region eu-west-1
+aws s3api put-public-access-block --bucket yellowtrack-backups \
+  --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+```
+
+The instance profile from *Choosing the instance* needs `s3:PutObject` on
+`arn:aws:s3:::yellowtrack-backups/*` and nothing else. Not `s3:*`, and not `GetObject`: an
+instance that can only write cannot be made to hand back every studio's history by anyone
+who reaches it.
+
+Add a lifecycle rule expiring objects after 90 days, or the bucket grows forever.
+
+### The timer
+
+`/etc/systemd/system/yellowtrack-backup.service`:
+
+```ini
+[Unit]
+Description=Back up the Yellow Track database
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+Environment=S3_BUCKET=yellowtrack-backups
+ExecStart=/usr/local/bin/backup-database.sh
+```
+
+`/etc/systemd/system/yellowtrack-backup.timer`:
+
+```ini
+[Unit]
+Description=Daily database backup
+
+[Timer]
+OnCalendar=daily
+# Runs on the next boot if the instance was down when it was due. Without this a stopped
+# instance silently skips backups for as long as it is stopped.
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target
+```
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now yellowtrack-backup.timer
+sudo systemctl start yellowtrack-backup.service   # once, now, rather than waiting a day
+sudo journalctl -u yellowtrack-backup -n 20 --no-pager
+```
+
+### Restoring, which is the half that matters
+
+```sh
+sudo -u postgres restore-database.sh --latest
+```
+
+That restores the newest dump into a scratch database, prints the table and row counts,
+drops it, and exits non-zero if fewer tables came back than the schema has. Nothing live is
+touched, so it is safe to run whenever — which is the point, because the alternative is
+finding out during an outage.
+
+Run it now, while the answer being "no" is merely embarrassing.
+
+For a real restore, after `sudo systemctl stop yellowtrack`:
+
+```sh
+sudo -u postgres restore-database.sh --latest --into yellowtrack
+```
+
+It asks you to type the database name first. `--clean` replaces rather than merges, because
+a database half restored from a backup and half left over is a state nobody can reason
+about.
+
+A weekly rehearsal, so the belief is checked without anyone remembering to:
+
+```ini
+# yellowtrack-restore-check.timer
+[Timer]
+OnCalendar=weekly
+Persistent=true
+```
+
+### What a dump does not contain
+
+`/etc/yellowtrack/env`. It holds the database and SES passwords, and a restored database
+with no credentials is not a running service. Keep a copy in a password manager — not in
+the bucket beside the dumps, where one compromise would yield both.
+
+---
+
 ## Apache
 
 The server binds to `127.0.0.1` on purpose: Apache terminates TLS and is the only thing
