@@ -377,6 +377,56 @@ The server binds to `127.0.0.1` on purpose: Apache terminates TLS and is the onl
 that reaches it. That is what `ADR 0007` assumed and it is why the JAR has no TLS
 configuration of its own.
 
+Write the **port 80** vhost first. The 443 one below is where you end up, not where you
+start: its certificate paths do not exist yet, and Apache will not start while they are
+missing.
+
+`/etc/apache2/sites-available/yellowtrack.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName api.yourdomain
+
+    DocumentRoot /var/www/html
+
+    # Let's Encrypt fetches a challenge file from this path over plain HTTP, and it must be
+    # served from disk. Proxied to the application it is a 404, and certbot then fails a
+    # validation in a way that reads like a DNS problem.
+    ProxyPass /.well-known/acme-challenge/ !
+
+    ProxyPreserveHost On
+    ProxyPass        / http://127.0.0.1:8080/
+    ProxyPassReverse / http://127.0.0.1:8080/
+
+    # A device that has been offline for a day pushes its whole outbox at once.
+    ProxyTimeout 120
+</VirtualHost>
+```
+
+```sh
+sudo a2enmod proxy proxy_http headers
+sudo a2ensite yellowtrack
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+
+# Prove the proxy before adding TLS, so a certbot failure is only ever about certbot.
+curl -s http://api.yourdomain/health          # {"status":"ok"}
+```
+
+Ports 80 and 443 have to be open to `0.0.0.0/0` in the security group: the challenge is
+Let's Encrypt connecting inbound, so it cannot be narrowed to your own address the way 22
+is. 5432 stays shut.
+
+Then, once `dig +short api.yourdomain` returns the Elastic IP and not before — a validation
+attempted against a name that does not resolve counts against Let's Encrypt's rate limits:
+
+```sh
+sudo certbot --apache -d api.yourdomain --dry-run   # staging; a mistake costs nothing
+sudo certbot --apache -d api.yourdomain             # answer yes to the HTTPS redirect
+```
+
+Certbot writes `yellowtrack-le-ssl.conf` beside your file, which is the finished article:
+
 ```apache
 <VirtualHost *:443>
     ServerName api.yourdomain
@@ -389,13 +439,27 @@ configuration of its own.
     ProxyPass        / http://127.0.0.1:8080/
     ProxyPassReverse / http://127.0.0.1:8080/
 
-    # A device that has been offline for a day pushes its whole outbox at once.
     ProxyTimeout 120
 </VirtualHost>
 ```
 
-`certbot --apache` for the certificate. Renewal is a cron job it installs; check it once,
-because an expired certificate takes every device offline simultaneously.
+No certificate needs buying: Let's Encrypt is a certificate authority browsers trust like
+any other. Paid certificates buy organisation validation, which nobody using a private API
+will ever look at.
+
+```sh
+sudo certbot renew --dry-run             # renewal, which is not the same as issuance
+systemctl list-timers | grep certbot     # what runs it unattended
+```
+
+Check renewal once. Issuance working says nothing about whether renewal will, and the way
+you find out otherwise is every device losing sync on the same morning, ninety days later.
+
+### A subdomain, not the apex
+
+If the main domain serves something else — a gallery host, a marketing site — this belongs
+on `api.` with its own A record. Adding a record cannot disturb the existing ones; editing
+the apex or `www` is the only way to take the other service down, so leave them alone.
 
 ---
 
