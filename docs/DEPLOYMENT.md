@@ -58,6 +58,125 @@ once** — an untested backup is a belief, not a backup.
 
 ---
 
+## Choosing the instance
+
+**Ubuntu 24.04 LTS, arm64, `t4g.small`, gp3 storage.**
+
+**arm64 is safe because nothing in this stack is native.** Ktor, Flyway, Hikari, the
+Postgres JDBC driver, Angus Mail and Logback are all pure JVM. The one place a native
+dependency nearly appeared was password hashing, and `ADR 0009` decision 3 chose
+BouncyCastle's Argon2 over the usual JNI binding to avoid a per-platform artefact in CI.
+That decision pays off a second time here: Graviton needs no thought, at roughly 20% less
+than the x86 equivalent.
+
+**Ubuntu over Amazon Linux 2023, for one reason: Postgres versions.** The PGDG repository
+carries every major version, so production can run the same one as development. Nothing in
+the schema needs a recent Postgres — the newest things it uses are `FORCE ROW LEVEL
+SECURITY` and the missing-ok form of `current_setting`, both long-standing — so AL2023's
+packaged version would work. But `SchemaDriftTest` exists to hold two schemas identical,
+and running different majors either side adds a variable to exactly the thing being held
+still. Take AL2023 instead if SSM and cloud-init working out of the box matter more; it is
+a trade, not a mistake.
+
+**`t4g.small` rather than `micro`, because of Argon2.** Hashing is configured at 64 MiB per
+password — that memory is the point, it is what makes the hash expensive to attack in
+parallel. But every concurrent sign-in transiently claims 64 MiB on top of a 512 MB JVM
+heap and 256 MB of shared buffers. On a 1 GB `t4g.micro` that is tight, and the failure is
+Postgres being OOM-killed during a burst of sign-ins. If 1 GB is ever required, the honest
+lever is lowering the Argon2 memory parameter — a security decision rather than a sizing
+one, and the PHC-format hash means it can be raised later without invalidating anybody's
+password.
+
+### In the launch wizard
+
+**File systems: None.** EFS is NFS, and a Postgres data directory on NFS is a known route
+to corruption and poor latency; "S3 Files" is object storage presented as a mount, with no
+atomic renames; FSx is for other workloads entirely. Backups reach S3 through `aws s3 cp`
+from `pg_dump`, not through a mount.
+
+**Storage: two volumes.**
+
+| | Size | Delete on termination |
+| --- | --- | --- |
+| Root | 16 GB gp3 | Yes — it is only the OS and the application |
+| Data | 20 GB gp3 | **No** |
+
+The data volume's flag is the one worth stopping over. The root volume defaults to deleting
+on termination, which is right for it; if the data volume inherits that, terminating the
+instance destroys the business. Encrypt both — it is free. A separate volume also means the
+database can be snapshotted independently and survives rebuilding the instance, which is
+the cheapest thing that makes "one lost instance is one lost business" less true.
+
+20 GB is generous: this database holds text rows. No image ever lands in it.
+
+**Security group:**
+
+| Port | From | Why |
+| --- | --- | --- |
+| 443 | Anywhere | The API |
+| 80 | Anywhere | certbot's HTTP-01 challenge, not just redirects |
+| 22 | Your own address only | And ideally closed once SSM works |
+
+**Never open 5432.** Postgres listens on localhost and Apache is the only thing that
+reaches the server. An exposed database port on a box holding several studios' financial
+records is the superuser trap above, but reachable from the internet.
+
+**Key pair: create one, ED25519, `.pem`.** The private half downloads exactly once — AWS
+keeps only the public key — so it belongs in a password manager rather than `~/Downloads`.
+`chmod 400` it or `ssh` refuses it. The login user is `ubuntu` on Ubuntu and `ec2-user` on
+Amazon Linux.
+
+Do not choose "proceed without a key pair" even if you intend to use SSM Session Manager,
+which is better and lets port 22 stay shut: the key is what gets you in when the SSM agent
+is not running, and that is precisely when you need a way in.
+
+**IAM instance profile:** attach a role with `AmazonSSMManagedInstanceCore` and write access
+to the backup bucket. It can be changed on a running instance, so this is tidiness rather
+than a one-shot decision.
+
+---
+
+## Preparing the instance
+
+```sh
+# Postgres 18 from PGDG, to match development.
+sudo apt update && sudo apt install -y curl ca-certificates
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+  https://www.postgresql.org/media/keys/ACCC4CF8.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+  https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+  | sudo tee /etc/apt/sources.list.d/pgdg.list
+
+sudo apt update
+sudo apt install -y postgresql-18 apache2 openjdk-21-jre-headless
+sudo a2enmod proxy proxy_http ssl headers
+```
+
+### The data volume
+
+```sh
+lsblk                                    # find it; likely /dev/nvme1n1
+sudo mkfs.ext4 /dev/nvme1n1              # only if it is new and empty
+sudo systemctl stop postgresql
+sudo mkdir -p /mnt/pgdata
+sudo mount /dev/nvme1n1 /mnt/pgdata
+
+# Persist across reboots by UUID — device names can move between boots.
+echo "UUID=$(sudo blkid -s UUID -o value /dev/nvme1n1) /mnt/pgdata ext4 defaults,nofail 0 2" \
+  | sudo tee -a /etc/fstab
+
+sudo rsync -av /var/lib/postgresql/18/main/ /mnt/pgdata/
+sudo chown -R postgres:postgres /mnt/pgdata
+# Point data_directory at /mnt/pgdata in postgresql.conf, then start again.
+sudo systemctl start postgresql
+```
+
+`nofail` in the fstab entry is deliberate: without it, an instance whose data volume fails
+to attach will not finish booting, and you lose the ability to log in and fix it.
+
+---
+
 ## The instance
 
 Postgres and the server share one box. That is right at this scale and stops being right
@@ -89,14 +208,11 @@ the pool size and the application fails under exactly the load that made you loo
 
 ---
 
-## Software
+## Building and copying up
 
 The server is a **JVM application**, not Node — nothing in this stack uses Node except the
-web build's toolchain, which runs on your machine and not on the instance.
-
-```sh
-sudo dnf install -y java-21-amazon-corretto-headless postgresql16-server httpd
-```
+web build's toolchain, which runs on your machine and not on the instance. Packages are
+installed in *Preparing the instance* above.
 
 Build a distribution locally and copy it up:
 
