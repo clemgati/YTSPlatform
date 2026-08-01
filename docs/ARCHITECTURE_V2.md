@@ -219,6 +219,27 @@ Two decisions worth knowing:
 
 ---
 
+### server
+
+The API in front of Postgres, deployed as a JAR behind Apache — see
+`docs/adr/0007-ktor-server-over-cloud-postgres.md`.
+
+Plain Kotlin/JVM rather than a Kotlin Multiplatform module: nothing here ships to a phone,
+and a single-target module keeps the server off the Apple half of CI entirely.
+
+Depends on `:shared:core:model` and nothing else from the client tree. That dependency is
+the whole argument for a Kotlin server over a Node one: one definition of every entity is
+compiled into both sides, so adding a field is a compile error rather than a runtime
+surprise. `SharedModelContractTest` proves the model actually crosses the wire — inline
+value classes, money as minor units, instants, and nulls that mean something.
+
+The JSON configuration is deliberate rather than default, because it decides what happens
+when the two ends are briefly *not* the same build: unknown keys are ignored so an older
+client survives a rolling deploy, defaults are written out so the reader cannot fill in a
+different one, and nulls stay explicit so a tombstone cannot vanish in transit.
+
+---
+
 ### core:network
 
 Networking.
