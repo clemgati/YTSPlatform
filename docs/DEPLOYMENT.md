@@ -192,6 +192,34 @@ sudo systemctl start postgresql
 `nofail` in the fstab entry is deliberate: without it, an instance whose data volume fails
 to attach will not finish booting, and you lose the ability to log in and fix it.
 
+### The database and its two roles
+
+Three objects, created once, as `postgres`. Order matters and none of it is done by the
+application.
+
+```sh
+# Owns the schema and runs migrations. Never serves a request.
+sudo -u postgres createuser yellowtrack_owner --pwprompt
+sudo -u postgres createdb yellowtrack -O yellowtrack_owner
+
+# Serves every request, and owns nothing. Created here rather than by the migration:
+# CREATE ROLE is cluster-wide, and yellowtrack_owner deliberately has no CREATEROLE.
+sudo -u postgres psql -c "CREATE ROLE yellowtrack_app NOLOGIN"
+```
+
+V2 creates `yellowtrack_app` only `IF NOT EXISTS`, so doing it here makes that block a
+no-op rather than a conflict. Skip this step and the first deploy dies on `permission
+denied to create role`, having rolled the migration back.
+
+The alternative is `ALTER ROLE yellowtrack_owner CREATEROLE`, which makes the deploy work
+with one fewer command. It is not the trade to make: that is a standing privilege on an
+account whose password lives in `/etc/yellowtrack/env`, and the point of `ADR 0009` is that
+what is on the instance cannot reshape the cluster. Creating a role once is an act;
+granting the power to create roles is a capability.
+
+`yellowtrack_app` gets its `LOGIN` and password later — see *The three things that fail
+silently*, above — because the first boot has to happen as the owner.
+
 ---
 
 ## The instance
