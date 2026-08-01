@@ -10,6 +10,8 @@ import com.yellowtrack.platform.server.mail.MailConfig
 import com.yellowtrack.platform.server.mail.SmtpMail
 import com.yellowtrack.platform.server.sync.Reconciler
 import com.yellowtrack.platform.server.sync.syncRoutes
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -21,6 +23,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
@@ -47,7 +50,7 @@ fun main() {
         factory = Netty,
         port = System.getenv("PORT")?.toIntOrNull() ?: DEFAULT_PORT,
         host = "127.0.0.1",
-        module = { module(database) },
+        module = { module(database, Deployment.fromEnvironment()) },
     ).start(wait = true)
 }
 
@@ -57,7 +60,10 @@ fun main() {
  */
 private const val DEFAULT_PORT = 8080
 
-fun Application.module(database: Database) {
+fun Application.module(
+    database: Database,
+    deployment: Deployment = Deployment(allowedOrigins = emptyList()),
+) {
     val accounts = Accounts(database)
 
     // Null when MAIL_HOST is unset. Reset codes are still issued and stored — they simply
@@ -70,6 +76,26 @@ fun Application.module(database: Database) {
 
     install(ContentNegotiation) {
         json(apiJson)
+    }
+
+    // Only installed when there is something to allow. The native clients send no Origin
+    // and need none of this; the browser build cannot work without its own origin listed,
+    // and listing none is safer than listing all.
+    if (deployment.allowedOrigins.isNotEmpty()) {
+        install(CORS) {
+            deployment.allowedOrigins.forEach { origin ->
+                val withoutScheme = origin.substringAfter("://")
+                allowHost(withoutScheme, schemes = listOf(origin.substringBefore("://")))
+            }
+            allowHeader(HttpHeaders.Authorization)
+            allowHeader(HttpHeaders.ContentType)
+            allowMethod(HttpMethod.Post)
+            allowMethod(HttpMethod.Get)
+        }
+    } else {
+        log.info(
+            "ALLOWED_ORIGINS is not set: the browser build will be refused by the browser. Native clients are unaffected.",
+        )
     }
 
     install(StatusPages) {
@@ -91,8 +117,31 @@ fun Application.module(database: Database) {
     }
 
     routing {
+        // Answers whether the process is up. Deliberately touches nothing: a health check
+        // that queries the database turns a slow database into an unhealthy process and a
+        // proxy that takes it out of service.
         get("/health") {
             call.respond(Health(status = "ok"))
+        }
+
+        // Answers whether it can actually do its job. Separate from health because the
+        // remedies differ: a failing readiness check is a misconfiguration to fix, not a
+        // process to restart.
+        get("/ready") {
+            val databaseReachable =
+                runCatching { database.unscoped { it.createStatement().use { s -> s.execute("SELECT 1") } } }
+                    .isSuccess
+
+            val readiness =
+                Readiness(
+                    database = databaseReachable,
+                    mail = mailConfig != null,
+                )
+
+            call.respond(
+                if (readiness.database) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable,
+                readiness,
+            )
         }
 
         authRoutes(accounts, resets)
@@ -104,4 +153,18 @@ fun Application.module(database: Database) {
 @Serializable
 data class Health(
     val status: String,
+)
+
+/**
+ * Whether the server can reach what it needs.
+ *
+ * `mail` being false is reported rather than fatal: reset codes are still issued, they
+ * simply are not delivered. On a laptop that is survivable; in a deployment it means a
+ * password reset that answers "a code is on its way" and never arrives, which is the one
+ * failure ADR 0010 deliberately made invisible to the caller.
+ */
+@Serializable
+data class Readiness(
+    val database: Boolean,
+    val mail: Boolean,
 )

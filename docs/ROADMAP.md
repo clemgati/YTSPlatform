@@ -250,11 +250,24 @@ and deployment waits until there is something worth deploying.
 - ✓ A way in. The application opens on sign-in until a session exists, one form for both
   signing in and starting a studio, and it says plainly when the device cannot store the
   session securely rather than implying it can
-- Object storage for media, via presigned URLs
+- ◐ Deployment. `docs/DEPLOYMENT.md` covers one EC2 instance running Apache, Postgres and
+  the server, with SES for mail — written for that shape rather than generically, because
+  the three things that fail *silently* are all shape-specific: connecting as a superuser
+  makes every row level security policy inert, SES's sandbox makes password reset appear to
+  work and never arrive, and same-box Postgres means one lost instance is one lost business.
+  The code side is done: the server URL is generated from the build rather than hardcoded to
+  loopback, CORS is configurable for the browser build, and `/ready` reports whether the
+  database and mail are actually reachable. Provisioning is nobody's yet
+- **Moved to 0.8.0 — object storage for media, via presigned URLs.** Nothing consumes it:
+  no entity in the domain model holds an image or attachment, and `media_copy` records where
+  files sit on the studio's *own* drives, which 0.6.0 said would stay a card-reader job.
+  The thing that needs it is client proofing, and that is 0.8.0 — where the gallery will
+  decide the shape of it rather than a guess made a milestone early
 
 ## 0.8.0 — Collaboration
 
-- Client proofing, selections, and approvals
+- Client proofing, selections, and approvals — and the object storage they need, moved here
+  from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
 ## 0.9.0 — Release Candidate

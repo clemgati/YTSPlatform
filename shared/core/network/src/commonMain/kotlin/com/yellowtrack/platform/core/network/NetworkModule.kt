@@ -7,18 +7,16 @@ import io.ktor.client.HttpClient
 import org.koin.dsl.module
 
 /**
- * Where the server is.
+ * Where the server is, supplied rather than assumed.
  *
- * A loopback default, because that is what `./gradlew :server:run` produces and there is no
- * deployment yet. It is a single binding so that pointing a build at a real host is one
- * override rather than a search for string literals.
+ * It was a literal pointing at loopback, which is reachable from exactly one machine and no
+ * phone. The application passes the value its build was given — see `generateBuildInfo` and
+ * `-Pyellowtrack.serverUrl`.
  */
-const val DEFAULT_SERVER_URL: String = "http://localhost:8080"
-
-val networkModule =
+fun networkModule(serverUrl: String) =
     module {
         single { syncHttpClient() }
-        single(createdAtStart = false) { DEFAULT_SERVER_URL }
+        single(createdAtStart = false) { serverUrl }
 
         single<AuthApi> { HttpAuthApi(client = get(), baseUrl = get<String>()) }
 

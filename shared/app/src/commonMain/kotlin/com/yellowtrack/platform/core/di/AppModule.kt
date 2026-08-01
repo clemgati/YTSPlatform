@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.di
 
+import com.yellowtrack.platform.app.BuildInfo
 import com.yellowtrack.platform.core.data.dataModule
 import com.yellowtrack.platform.core.network.networkModule
 import com.yellowtrack.platform.feature.auth.authFeatureModule
@@ -20,7 +21,7 @@ val appModule =
     module {
         includes(
             dataModule,
-            networkModule,
+            networkModule(BuildInfo.SERVER_URL),
             authFeatureModule,
             dashboardModule,
             clientsModule,
