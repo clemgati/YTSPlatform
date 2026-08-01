@@ -321,7 +321,21 @@ checking Settings → Synchronisation on a device before shipping one.
 
 ---
 
-## Verifying it, in order
+## Verifying it
+
+```sh
+./scripts/verify-deployment.sh https://api.yourdomain
+```
+
+Run it on the instance, after the server is up. It checks the three silent failures above
+plus a few others, exits non-zero if any fail, and — importantly — reports what it *could
+not* check as skipped rather than passing over it. A check that quietly does not run reads
+as a check that passed, which is the exact shape of failure the script exists to catch.
+
+The superuser check was verified by deliberately granting `SUPERUSER` to `yellowtrack_app`
+and confirming it fails, rather than by assuming.
+
+## Verifying it by hand, in order
 
 ```sh
 # 1. The process is up.
