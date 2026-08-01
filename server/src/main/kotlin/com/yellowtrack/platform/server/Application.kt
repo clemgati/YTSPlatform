@@ -130,14 +130,22 @@ fun Application.module(
         // remedies differ: a failing readiness check is a misconfiguration to fix, not a
         // process to restart.
         get("/ready") {
-            val databaseReachable =
+            val reached =
                 runCatching { database.unscoped { it.createStatement().use { s -> s.execute("SELECT 1") } } }
-                    .isSuccess
 
             val readiness =
                 Readiness(
-                    database = databaseReachable,
+                    database = reached.isSuccess,
                     mail = mailConfig != null,
+                    // Postgres says "permission denied to set role" here, which names the
+                    // problem exactly. Worth forwarding: this endpoint is reachable only
+                    // from the instance, so there is no one to disclose it to.
+                    databaseError =
+                        reached
+                            .exceptionOrNull()
+                            ?.message
+                            ?.trim()
+                            ?.take(300),
                 )
 
             call.respond(
@@ -169,4 +177,14 @@ data class Health(
 data class Readiness(
     val database: Boolean,
     val mail: Boolean,
+    /**
+     * Why the database is unreachable, when it is.
+     *
+     * A bare `"database": false` costs an hour: it looks like a network or credentials
+     * problem, and the commonest cause is neither. Every transaction issues
+     * `SET LOCAL ROLE yellowtrack_app`, which requires membership in that role — so a
+     * server still on the owner's credentials after a first boot fails here while its
+     * migrations succeeded, and says nothing about which of the two it was.
+     */
+    val databaseError: String? = null,
 )

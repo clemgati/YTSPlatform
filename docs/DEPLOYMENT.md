@@ -55,6 +55,15 @@ exist and there is no password to put in `DATABASE_PASSWORD`. Start once with th
 fails until you have — that check is there because a server left on the owner credentials
 works perfectly and enforces nothing.
 
+**Expect `/ready` to answer 503 in between.** A server on the owner's credentials starts,
+migrates, and answers `/health`, then fails every query: each transaction issues
+`SET LOCAL ROLE yellowtrack_app`, and `SET ROLE` needs *membership* in the target role,
+which the owner has no reason to hold. `/ready` names it — `permission denied to set role`
+— rather than leaving you with a bare `"database": false` that reads like a network fault.
+It clears the moment `DATABASE_USER` becomes `yellowtrack_app`, for which setting its own
+role is trivially permitted. Do not fix it with `GRANT yellowtrack_app TO yellowtrack_owner`;
+that makes the wrong state work.
+
 ### 2. SES starts in sandbox, and a password reset will not say so
 
 In the sandbox SES rejects mail to any address you have not verified. The reset endpoint

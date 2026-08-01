@@ -60,7 +60,9 @@ echo "==> Readiness"
 # Reported rather than enforced. A deployment where mail is unconfigured is still a
 # deployment; it is a password reset that answers 202 and never arrives, which is worth
 # printing every single time rather than only when somebody thinks to look.
-ssh "$HOST" "curl -fsS -m 5 http://127.0.0.1:8080/ready" || true
+# Without --fail, so a 503 prints the body saying why rather than "error: 503". Being
+# unready is the thing this line exists to report; hiding it defeats the point.
+ssh "$HOST" "curl -sS -m 5 -w ' (HTTP %{http_code})' http://127.0.0.1:8080/ready" || true
 echo
 
 echo "Deployed. Run ./scripts/verify-deployment.sh on the instance for the full checks."
