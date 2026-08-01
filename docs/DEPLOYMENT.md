@@ -208,7 +208,33 @@ the pool size and the application fails under exactly the load that made you loo
 
 ---
 
-## Building and copying up
+## Deploying
+
+Once the instance is prepared, deploys are one command:
+
+```sh
+./scripts/deploy-server.sh yellowtrack
+```
+
+The argument is an ssh host. A `~/.ssh/config` alias keeps the address, user and key path
+out of this repository:
+
+```
+Host yellowtrack
+    HostName api.yourdomain
+    User ubuntu
+    IdentityFile ~/.ssh/yellowtrack.pem
+    ServerAliveInterval 60
+```
+
+The script builds, uploads with `--delete` so a removed library does not linger on the
+classpath, restarts the service, waits for `/health`, and prints `/ready` — which is where
+an unconfigured mail host shows up, every deploy, rather than when somebody thinks to look.
+
+It does not run the tests: those need a Postgres and this does not. Deploying an untested
+build should be a decision somebody makes, not one a script makes quietly.
+
+## Building by hand
 
 The server is a **JVM application**, not Node — nothing in this stack uses Node except the
 web build's toolchain, which runs on your machine and not on the instance. Packages are
