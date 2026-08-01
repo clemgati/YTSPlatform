@@ -32,6 +32,30 @@ data class DatabaseConfig(
                 user = System.getenv("DATABASE_USER") ?: System.getProperty("user.name") ?: "postgres",
                 password = System.getenv("DATABASE_PASSWORD") ?: "",
             )
+
+        /**
+         * The credentials migrations run under, which are not the ones requests run under.
+         *
+         * ADR 0009 has the application connect as `yellowtrack_app`, which owns nothing and
+         * holds no `CREATE` — that is the whole point, because a role that owns the tables
+         * is exempt from their policies. Flyway needs precisely what that role lacks.
+         *
+         * Two failures follow from using one credential for both, and both of them happen
+         * during a deployment rather than in a test. On a fresh database `yellowtrack_app`
+         * does not exist yet, because migration V2 is what creates it. On an existing one,
+         * the next migration cannot create a table.
+         *
+         * Falls back to the request credentials when unset, so development — where one
+         * account is the owner and there is no separation to make — is unchanged.
+         */
+        fun forMigrations(): DatabaseConfig {
+            val serving = fromEnvironment()
+
+            return serving.copy(
+                user = System.getenv("MIGRATION_USER") ?: serving.user,
+                password = System.getenv("MIGRATION_PASSWORD") ?: serving.password,
+            )
+        }
     }
 }
 

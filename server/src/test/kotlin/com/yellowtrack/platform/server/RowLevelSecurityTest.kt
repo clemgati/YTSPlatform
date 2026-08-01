@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -21,6 +22,44 @@ import kotlin.test.assertTrue
  */
 class RowLevelSecurityTest {
     // -- The mechanism is switched on -------------------------------------------------------
+
+    @Test
+    fun `the application role cannot create tables, which is why migrations need another`() {
+        TestDatabase.connection().use { db ->
+            db.autoCommit = false
+            db.createStatement().use { it.execute("SET LOCAL ROLE yellowtrack_app") }
+
+            val refusal =
+                assertFailsWith<SQLException>(
+                    "a role that can create tables can own them, and an owner is exempt from " +
+                        "its own policies unless every one of them is FORCEd",
+                ) {
+                    db.createStatement().use { it.execute("CREATE TABLE rls_probe (id text)") }
+                }
+
+            assertTrue(
+                refusal.message?.contains("permission denied", ignoreCase = true) == true,
+                "expected a privilege refusal, got: ${refusal.message}",
+            )
+            db.rollback()
+        }
+    }
+
+    /**
+     * The counterpart to the test above, and the reason `MIGRATION_USER` exists.
+     *
+     * These two roles were once one variable. On a fresh database that fails because
+     * migration V2 is what creates `yellowtrack_app`; on an existing one the next migration
+     * stops at `permission denied for schema public`. Both failures land during a deployment.
+     */
+    @Test
+    fun `the migrating role is not the role that serves requests`() {
+        assertNotEquals(
+            "yellowtrack_app",
+            DatabaseConfig.forMigrations().user,
+            "migrations must run as an owner; serving must not",
+        )
+    }
 
     @Test
     fun `every table keyed to a studio has row level security, forced`() {

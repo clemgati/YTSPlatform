@@ -111,6 +111,20 @@ else
         note "If that role is a superuser, every policy is bypassed and nothing looks wrong."
     fi
 
+    # Set to the app role, or unset and falling back to it, and the next migration fails
+    # mid-deploy rather than here.
+    migration_user="$(sudo grep -hs '^MIGRATION_USER=' /etc/yellowtrack/env 2>/dev/null | cut -d= -f2- || echo "")"
+    if [ -z "$migration_user" ]; then
+        fail "MIGRATION_USER is not set"
+        note "Migrations fall back to DATABASE_USER, which owns nothing: the next one you"
+        note "add will stop at 'permission denied for schema public' during a deploy."
+    elif [ "$migration_user" = "yellowtrack_app" ]; then
+        fail "MIGRATION_USER is yellowtrack_app, which cannot create tables"
+        note "It should be the role that owns the schema."
+    else
+        pass "migrations run as '$migration_user', separately from requests"
+    fi
+
     unguarded="$(psql_super -d "$DB_NAME" -tAc "
         SELECT count(*) FROM information_schema.columns c
         WHERE c.table_schema = 'public'

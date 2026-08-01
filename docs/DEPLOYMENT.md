@@ -35,8 +35,25 @@ Then `DATABASE_USER=yellowtrack_app`. Verify it took, on the running instance:
 SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = 'yellowtrack_app';
 ```
 
-Migrations still run as the owner — Flyway needs to create tables, and the application
-role cannot. That is why there are two roles and why only one of them is in `DATABASE_USER`.
+Migrations run as the owner, which is a **separate** variable — Flyway needs to create
+tables and `yellowtrack_app` deliberately cannot:
+
+```
+MIGRATION_USER=yellowtrack_owner
+MIGRATION_PASSWORD=...
+```
+
+Leave these unset and both jobs use `DATABASE_USER`, which fails twice over: on a fresh
+database `yellowtrack_app` does not exist yet, because migration V2 is what creates it, and
+on an existing one the next migration stops at `permission denied for schema public`. That
+is why there are two roles here and why only one of them serves requests.
+
+**The first boot is the exception.** Nothing has run yet, so `yellowtrack_app` does not
+exist and there is no password to put in `DATABASE_PASSWORD`. Start once with the owner in
+*both* pairs, let the migrations create the role, then run the `ALTER ROLE` above, set
+`DATABASE_USER`/`DATABASE_PASSWORD` to `yellowtrack_app`, and restart. `verify-deployment.sh`
+fails until you have — that check is there because a server left on the owner credentials
+works perfectly and enforces nothing.
 
 ### 2. SES starts in sandbox, and a password reset will not say so
 
@@ -259,6 +276,8 @@ here — every one of them is a laptop default.
 | `DATABASE_URL` | `jdbc:postgresql://localhost:5432/yellowtrack` | |
 | `DATABASE_USER` | `yellowtrack_app` | **Never a superuser.** See above |
 | `DATABASE_PASSWORD` | | From the `ALTER ROLE` above |
+| `MIGRATION_USER` | `yellowtrack_owner` | Owns the tables. Falls back to `DATABASE_USER`, which fails |
+| `MIGRATION_PASSWORD` | | Used only at startup, never to serve a request |
 | `MAIL_HOST` | `email-smtp.eu-west-1.amazonaws.com` | Your SES region |
 | `MAIL_PORT` | `587` | |
 | `MAIL_USERNAME` | | SES **SMTP credentials**, not an IAM access key |

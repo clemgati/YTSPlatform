@@ -28,7 +28,11 @@ object TestDatabase {
             password = System.getenv("YELLOWTRACK_TEST_DB_PASSWORD") ?: "",
         )
 
-    /** A pool that connects as the migrating role, exactly as the server does. */
+    /**
+     * A pool connecting as the owner. The server connects as `yellowtrack_app` instead —
+     * `Database` issues `SET LOCAL ROLE` per transaction, so the policies apply either way,
+     * and tests that care about the distinction set the role themselves.
+     */
     val database: Database by lazy {
         ensureMigrated()
         Database.pooled(config)

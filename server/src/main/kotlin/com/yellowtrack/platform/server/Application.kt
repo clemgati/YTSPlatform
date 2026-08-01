@@ -43,7 +43,9 @@ import kotlinx.serialization.Serializable
 fun main() {
     // Schema first: a pool handing out connections to a database the code does not match
     // is a slower way of failing.
-    migrate()
+    //
+    // As the owner, not as the role that serves requests — see DatabaseConfig.forMigrations.
+    migrate(DatabaseConfig.forMigrations())
     val database = Database.pooled()
 
     embeddedServer(
