@@ -157,6 +157,7 @@ internal class SettingsViewModel(
                         } else {
                             "Sent ${report.uploaded}, received ${report.downloaded}."
                         },
+                    notReconciled = report.notReconciledByServer,
                 )
             // Named rather than swallowed. A device that quietly stopped reconciling looks
             // identical to one with nothing to reconcile.

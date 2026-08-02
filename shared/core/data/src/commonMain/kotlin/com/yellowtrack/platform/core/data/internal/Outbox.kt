@@ -73,4 +73,37 @@ internal object SyncTables {
     const val STUDIO_PROFILE = "studio_profile"
     const val CODB_PROFILE = "codb_profile"
     const val SERVICE_TEMPLATE = "service_template"
+
+    /**
+     * Everything this build synchronises, for comparing against what a server says it
+     * reconciles. A table missing from the server's list is one whose rows go nowhere.
+     */
+    val all: Set<String> =
+        setOf(
+            CLIENT,
+            CONTACT,
+            CLIENT_CONTACT,
+            PROJECT,
+            SESSION,
+            INVOICE,
+            PAYMENT,
+            CREW_MEMBER,
+            DELIVERABLE,
+            GEAR_ITEM,
+            PACKING_ENTRY,
+            STORAGE_VOLUME,
+            MEDIA_COPY,
+            LEAD,
+            EXPENSE,
+            MILEAGE,
+            QUOTE,
+            CONTRACT,
+            SHOT,
+            POST_TASK,
+            TALENT_RELEASE,
+            LIGHTING_RECIPE,
+            STUDIO_PROFILE,
+            CODB_PROFILE,
+            SERVICE_TEMPLATE,
+        )
 }

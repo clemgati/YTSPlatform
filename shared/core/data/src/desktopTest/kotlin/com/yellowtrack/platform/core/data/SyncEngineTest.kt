@@ -914,6 +914,79 @@ class SyncEngineTest {
             )
         }
 
+    /**
+     * A server older than this build is noticed, rather than trusted.
+     *
+     * `ApiJson` ignores unknown keys, which is right for forwards compatibility and means a
+     * server that has never heard of an entity discards it from a push and answers
+     * successfully. Every screen then says the sync worked while a whole category of the
+     * studio's work stays on one device. That is what happened with studio profiles, and it
+     * took an afternoon to find because nothing anywhere said a word.
+     */
+    @Test
+    fun `a server that reconciles less than this build is reported`() =
+        runTest {
+            val device = world()
+
+            device.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 4,
+                        hasMore = false,
+                        // An older server: everything except the three that landed last.
+                        reconciles =
+                            (
+                                SyncTables.all -
+                                    setOf(
+                                        SyncTables.STUDIO_PROFILE,
+                                        SyncTables.CODB_PROFILE,
+                                        SyncTables.SERVICE_TEMPLATE,
+                                    )
+                            ).toList(),
+                    ),
+                )
+
+            val report = device.engine.sync()
+
+            assertEquals(
+                setOf(SyncTables.STUDIO_PROFILE, SyncTables.CODB_PROFILE, SyncTables.SERVICE_TEMPLATE),
+                report.notReconciledByServer,
+                "the studio should be told which kinds of record are going nowhere",
+            )
+        }
+
+    @Test
+    fun `a server as new as this build reports no gap`() =
+        runTest {
+            val device = world()
+
+            device.transport.pages =
+                mutableListOf(SyncPullResponse(cursor = 4, hasMore = false, reconciles = SyncTables.all.toList()))
+
+            val report = device.engine.sync()
+
+            assertEquals(emptySet(), report.notReconciledByServer)
+        }
+
+    /**
+     * A server predating the field at all, which is the case that actually bit.
+     *
+     * It cannot fill `reconciles`, so the list arrives empty — and empty has to read as
+     * "knows nothing of these" rather than as "no gap", or the check would be blind to
+     * exactly the servers it exists to catch.
+     */
+    @Test
+    fun `a server too old to say anything is treated as knowing nothing`() =
+        runTest {
+            val device = world()
+
+            device.transport.pages = mutableListOf(SyncPullResponse(cursor = 4, hasMore = false))
+
+            val report = device.engine.sync()
+
+            assertEquals(SyncTables.all, report.notReconciledByServer)
+        }
+
     private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.

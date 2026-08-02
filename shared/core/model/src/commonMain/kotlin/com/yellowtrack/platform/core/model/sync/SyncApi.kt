@@ -103,6 +103,19 @@ data class SyncPullResponse(
     /** What the studio sells. Keyed by studio and name where the application seeded it. */
     val serviceTemplates: List<ServiceTemplate> = emptyList(),
     /**
+     * Every table this server reconciles.
+     *
+     * Sent so a device can tell it is talking to a server older than itself. `ApiJson` is
+     * configured with `ignoreUnknownKeys`, which is right for forwards compatibility and
+     * means a server that has never heard of an entity **silently discards it** from a
+     * push while answering successfully — a studio's work stays on one device and every
+     * screen says the sync worked. That happened, and took an afternoon to find.
+     *
+     * Empty is itself the answer: a server predating this field cannot fill it, and a
+     * server that reconciles nothing is not a server anybody is syncing with.
+     */
+    val reconciles: List<String> = emptyList(),
+    /**
      * Work reconciliation discarded, travelling down only.
      *
      * There is no matching list on [SyncPushRequest]: the server is the only party that

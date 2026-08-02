@@ -22,6 +22,15 @@ data class SyncReport(
     val conflicted: Int,
     val rejected: Int,
     val cursor: Long,
+    /**
+     * Tables this build synchronises that the server said nothing about.
+     *
+     * Not an error — everything else still reconciles — but rows of these kinds go
+     * nowhere, silently, because the server discards fields it does not recognise while
+     * answering successfully. A studio would otherwise see "Up to date" while a whole
+     * category of its work stayed on one device.
+     */
+    val notReconciledByServer: Set<String> = emptySet(),
 ) {
     val isQuiet: Boolean get() = uploaded == 0 && downloaded == 0
 }
@@ -65,6 +74,7 @@ class SyncEngine(
             conflicted = pushed.conflicted,
             rejected = pushed.rejected,
             cursor = pulled.cursor,
+            notReconciledByServer = pulled.notReconciled,
         )
     }
 
@@ -329,6 +339,8 @@ class SyncEngine(
     private data class PullSummary(
         val downloaded: Int,
         val cursor: Long,
+        /** What the server did not claim to reconcile. Empty when it claimed everything. */
+        val notReconciled: Set<String> = emptySet(),
     )
 
     /**
@@ -347,6 +359,10 @@ class SyncEngine(
         var cursor = currentCursor(database)
         var downloaded = 0
         var pages = 0
+
+        // A server older than this build discards entities it has never heard of while
+        // answering successfully, so the absence has to be noticed here or not at all.
+        var notReconciled = emptySet<String>()
 
         while (pages < MAX_PAGES) {
             val page = transport.pull(since = cursor, limit = BATCH)
@@ -398,6 +414,8 @@ class SyncEngine(
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
             }
 
+            notReconciled = SyncTables.all - page.reconciles.toSet()
+
             downloaded += arrived
             cursor = page.cursor
             pages++
@@ -405,7 +423,7 @@ class SyncEngine(
             if (!page.hasMore) break
         }
 
-        return PullSummary(downloaded, cursor)
+        return PullSummary(downloaded, cursor, notReconciled)
     }
 
     private suspend fun currentCursor(database: YellowTrackDatabase): Long =
