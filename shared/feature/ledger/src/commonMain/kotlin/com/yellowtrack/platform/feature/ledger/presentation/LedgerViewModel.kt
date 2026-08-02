@@ -213,7 +213,15 @@ internal class LedgerViewModel(
                                             )
                                         },
                                     expenses =
-                                        buildExpenseSummary(costs.expenses, costs.mileage, year, currency),
+                                        buildExpenseSummary(
+                                            costs.expenses,
+                                            costs.mileage,
+                                            year,
+                                            currency,
+                                            // So a cost names the booking it came out of
+                                            // rather than showing an identifier.
+                                            projectNames = books.projects.associate { it.id to it.name },
+                                        ),
                                     projects =
                                         books.projects.map { project ->
                                             ProjectOption(

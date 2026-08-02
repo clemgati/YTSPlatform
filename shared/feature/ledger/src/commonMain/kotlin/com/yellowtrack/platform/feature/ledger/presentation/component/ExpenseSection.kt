@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 
 @Composable
 internal fun ExpenseSection(
@@ -60,6 +61,16 @@ internal fun ExpenseSection(
                 caption = "Claimable against the rate recorded per journey",
             )
 
+            if (summary.items.isNotEmpty()) {
+                Text(
+                    text = "What was spent",
+                    style = YTTheme.typography.titleSmall,
+                    color = YTTheme.colors.onSurface,
+                )
+
+                summary.items.forEach { cost -> RecordedCostRow(cost) }
+            }
+
             TextButton(onClick = onAddExpense) {
                 Text(
                     text = "Record a cost",
@@ -68,6 +79,42 @@ internal fun ExpenseSection(
                 )
             }
         }
+    }
+}
+
+/**
+ * One cost, as entered.
+ *
+ * These were only ever totalled before, which meant a studio could record something and
+ * never see it again — no way to check an amount, spot the invoice entered twice, or
+ * itemise the year. The allocation is shown on every row because it is the field that
+ * decides whether the money came out of one booking or off every job.
+ */
+@Composable
+private fun RecordedCostRow(cost: RecordedCost) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = cost.description,
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurface,
+            )
+            Text(
+                text = "${cost.date} · ${cost.allocation}",
+                style = YTTheme.typography.labelMedium,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
+
+        Text(
+            text = cost.amount,
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurface,
+        )
     }
 }
 

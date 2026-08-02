@@ -14,6 +14,7 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
@@ -21,6 +22,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSumma
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 import kotlinx.datetime.TimeZone
 import kotlin.time.Instant
 
@@ -225,8 +227,12 @@ internal fun buildExpenseSummary(
     mileage: List<Mileage>,
     year: Int,
     currency: CurrencyCode,
+    /** Booking labels, so a cost says which job it came out of rather than showing an id. */
+    projectNames: Map<ProjectId, String> = emptyMap(),
 ): ExpenseSummary {
     val inCurrency = expenses.filter { it.amount.currency == currency }
+
+    fun allocation(projectId: ProjectId?): String = projectId?.let { projectNames[it] ?: "A booking" } ?: "Overhead"
 
     return ExpenseSummary(
         year = year,
@@ -249,6 +255,40 @@ internal fun buildExpenseSummary(
                 .sum(currency)
                 .display(),
         recorded = expenses.size,
+        // Newest first: the reason to open this is almost always to check what was just
+        // entered, or to find the thing entered twice.
+        items =
+            (
+                inCurrency.map { expense ->
+                    expense.incurredOn to
+                        RecordedCost(
+                            id = expense.id.value,
+                            date = DateFormats.shortDate(expense.incurredOn),
+                            description = expense.description,
+                            amount = expense.amount.display(),
+                            allocation = allocation(expense.projectId),
+                        )
+                } +
+                    mileage.filter { it.ratePerUnit.currency == currency }.map { journey ->
+                        journey.travelledOn to
+                            RecordedCost(
+                                id = journey.id.value,
+                                date = DateFormats.shortDate(journey.travelledOn),
+                                // The purpose is what a studio wrote down; without one the
+                                // distance is the only honest description of the journey.
+                                description =
+                                    journey.purpose?.takeIf { it.isNotBlank() }
+                                        ?: "${journey.distance} ${journey.unit.name.lowercase()}",
+                                amount = journey.deductibleAmount.display(),
+                                allocation = allocation(journey.projectId),
+                            )
+                    }
+            )
+                // Sorted on the date itself, never on the rendering of it: "Jul 21" sorts
+                // before "Mar 3" alphabetically, which would put the year in the wrong order
+                // and look entirely plausible doing it.
+                .sortedByDescending { (date, _) -> date }
+                .map { (_, cost) -> cost },
     )
 }
 

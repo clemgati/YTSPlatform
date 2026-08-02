@@ -191,6 +191,30 @@ internal data class ExpenseSummary(
     val jobCostTotal: String,
     val mileageDeduction: String,
     val recorded: Int,
+    /**
+     * The costs themselves, newest first.
+     *
+     * Totals were all this screen showed, which meant a studio could record a cost and
+     * never see it again: no way to check what was entered, notice the same invoice was
+     * entered twice, or itemise anything at the end of the year. A number is not an
+     * account of where the money went.
+     */
+    val items: List<RecordedCost> = emptyList(),
+)
+
+/** One cost as it reads on the screen — a journey and an invoice look the same here. */
+internal data class RecordedCost(
+    val id: String,
+    val date: String,
+    val description: String,
+    val amount: String,
+    /**
+     * "Overhead", or the booking it is charged to.
+     *
+     * The consequential field: overhead raises the floor under every job, a job cost comes
+     * out of one booking's margin.
+     */
+    val allocation: String,
 )
 
 /** An enquiry that has been waiting for a reply. */

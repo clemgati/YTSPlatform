@@ -25,6 +25,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSumma
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 import kotlinx.datetime.LocalDate
 import java.io.File
 import kotlin.test.Test
@@ -207,6 +208,33 @@ class LedgerScreenRenderTest {
                     jobCostTotal = "$3,180.00",
                     mileageDeduction = "$642.50",
                     recorded = 37,
+                    // Itemised, because totals alone meant a studio could record a cost and
+                    // never see it again. Both kinds are here: the list does not care which
+                    // table a row came from, and neither does the person reading it.
+                    items =
+                        listOf(
+                            RecordedCost(
+                                id = "e1",
+                                date = "Jul 26",
+                                description = "Second shooter — Okafor wedding",
+                                amount = "$450.00",
+                                allocation = "Okafor — Wedding",
+                            ),
+                            RecordedCost(
+                                id = "m1",
+                                date = "Jul 24",
+                                description = "Venue recce",
+                                amount = "$18.90",
+                                allocation = "Overhead",
+                            ),
+                            RecordedCost(
+                                id = "e2",
+                                date = "Jul 02",
+                                description = "Insurance renewal",
+                                amount = "$1,240.00",
+                                allocation = "Overhead",
+                            ),
+                        ),
                 ),
             projects = emptyList(),
             today = LocalDate(2026, 7, 28),
@@ -217,7 +245,13 @@ class LedgerScreenRenderTest {
     private companion object {
         const val WIDTH = 1_280
 
-        /** Tall enough that the scrolling column is captured whole rather than clipped. */
-        const val HEIGHT = 3_400
+        /**
+         * Tall enough that the scrolling column is captured whole rather than clipped.
+         *
+         * The itemised costs sit below the pricing floor, and at 3,400 the render stopped
+         * short of them — which is a render test that does not cover the section it is
+         * supposed to.
+         */
+        const val HEIGHT = 4_600
     }
 }
