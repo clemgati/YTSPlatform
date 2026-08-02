@@ -28,7 +28,14 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import kotlin.time.Instant
 
-/** A fresh in-memory database per test, with foreign keys enforced as they are in production. */
+/**
+ * A fresh in-memory database per test, with foreign keys enforced as they now are in
+ * production.
+ *
+ * "As in production" was not true until 0.7.0 — no real driver set the pragma, so the tests
+ * were stricter than the thing they tested, and the one hazard that difference hid was a
+ * child arriving a page before its parent.
+ */
 class InMemoryDatabaseDriverFactory : DatabaseDriverFactory {
     override suspend fun create(): SqlDriver {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)

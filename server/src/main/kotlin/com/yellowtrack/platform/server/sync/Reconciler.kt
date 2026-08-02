@@ -69,11 +69,7 @@ class Reconciler(
     ): PulledChanges =
         database.inStudio(studioId) { connection ->
             val page = changedIds(connection, since, limit)
-            val rows =
-                SyncedEntity.all.associate { entity ->
-                    val ids = page.ids[entity.table].orEmpty()
-                    entity.table to if (ids.isEmpty()) emptyList() else fetch(connection, entity, ids)
-                }
+            val rows = closeOverParents(connection, page.ids)
 
             PulledChanges(cursor = page.cursor.coerceAtLeast(since), hasMore = page.hasMore, rows = rows)
         }
@@ -185,6 +181,64 @@ class Reconciler(
         }
 
     // -- Reading ---------------------------------------------------------------------------
+
+    /**
+     * Fetches the page, and then the parents of anything in it, until nothing is missing.
+     *
+     * A page ordered by `server_seq` is not a page a device can apply on its own. An edit
+     * bumps the sequence, so a parent edited after its own child sorts behind it and lands
+     * a page later — and a device syncing from scratch receives the child first. With
+     * foreign keys enforced that fails, and fails the same way on every retry, because the
+     * cursor advances only once a page has been written.
+     *
+     * Parents pulled in this way are outside the page's range and will be sent again when
+     * their own sequence is reached. That costs one idempotent upsert, which is cheaper
+     * than every alternative: ordering the union by a dependency-aware key, or teaching the
+     * device to hold orphans aside and retry them.
+     *
+     * The loop runs to a fixed point rather than a fixed depth, so a chain — a payment, its
+     * invoice, that invoice's project, that project's client — resolves without anyone
+     * having to remember how deep it goes.
+     */
+    private fun closeOverParents(
+        connection: Connection,
+        pageIds: Map<String, List<String>>,
+    ): Map<String, List<Any?>> {
+        val wanted = SyncedEntity.all.associate { it.table to pageIds[it.table].orEmpty().toMutableSet() }
+        val fetched = SyncedEntity.all.associate { it.table to mutableMapOf<String, Any?>() }
+
+        var frontier = wanted.mapValues { (_, ids) -> ids.toSet() }
+
+        while (frontier.any { it.value.isNotEmpty() }) {
+            val next = SyncedEntity.all.associate { it.table to mutableSetOf<String>() }
+
+            SyncedEntity.all.forEach { erased ->
+                val ids = frontier[erased.table].orEmpty().toList()
+                if (ids.isEmpty()) return@forEach
+
+                // `all` is a list of star projections, so nothing on it can be called with a
+                // row. One cast here is cheaper than a visitor, and is safe because the rows
+                // came from this very entity.
+                @Suppress("UNCHECKED_CAST")
+                val entity = erased as SyncedEntity<Any?>
+
+                fetch(connection, entity, ids).forEach { row ->
+                    fetched.getValue(entity.table)[entity.identify(row)] = row
+
+                    entity.parents.forEach { reference ->
+                        val parentId = reference.idOf(row) ?: return@forEach
+                        if (wanted.getValue(reference.entity.table).add(parentId)) {
+                            next.getValue(reference.entity.table) += parentId
+                        }
+                    }
+                }
+            }
+
+            frontier = next
+        }
+
+        return fetched.mapValues { (_, byId) -> byId.values.toList() }
+    }
 
     private data class Page(
         val ids: Map<String, List<String>>,

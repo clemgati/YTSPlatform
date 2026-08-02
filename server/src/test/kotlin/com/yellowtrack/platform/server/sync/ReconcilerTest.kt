@@ -9,6 +9,9 @@ import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -37,6 +40,87 @@ class ReconcilerTest {
     private val reconciler = Reconciler(TestDatabase.database)
 
     // -- Pulling ---------------------------------------------------------------------------
+
+    /**
+     * Every entity that exists is in `all`, which is the list that drives pulling.
+     *
+     * `CrewMembers` and `Deliverables` were added, wired into the envelope, the routes and
+     * the apply loop, covered field by field — and left out of this list, because the edit
+     * that should have added them matched nothing. They could be pushed and would never come
+     * back. Nothing failed; the rows simply never arrived, which is the shape of every
+     * synchronisation bug worth fearing.
+     */
+    @Test
+    fun `every synchronised entity is in the list that drives pulling`() {
+        val declared =
+            SyncedEntity::class
+                .sealedSubclasses
+                .mapNotNull { it.objectInstance }
+                .map { it.table }
+                .toSet()
+
+        val pulled = SyncedEntity.all.map { it.table }.toSet()
+
+        assertEquals(
+            emptySet(),
+            declared - pulled,
+            "these entities exist and are never pulled: a device can push them and will never " +
+                "receive them, and nothing anywhere reports it",
+        )
+    }
+
+    @Test
+    fun `a page carries the parents of everything in it, however the sequence fell`() {
+        val studio = studio()
+        push(studio, SyncedEntity.Clients, client(studio, "c1", "Ada Okafor"))
+        push(studio, SyncedEntity.Projects, project(studio, "p1", "c1", "Autumn Shoot"))
+        push(studio, SyncedEntity.Sessions, session(studio, "s1", "p1", "Shoot day"))
+        push(studio, SyncedEntity.CrewMembers, crew(studio, "cr1", "s1", "Rosa Iyer"))
+
+        // Everything above the crew member is edited afterwards, which is ordinary — a
+        // client renamed, a booking retitled, a shoot retimed — and which moves all three
+        // behind their own descendant in the sequence.
+        push(studio, SyncedEntity.Clients, client(studio, "c1", "Ada Okafor-Iyer").bumpedClient())
+        push(studio, SyncedEntity.Projects, project(studio, "p1", "c1", "Autumn Shoot, revised").bumpedProject())
+        push(studio, SyncedEntity.Sessions, session(studio, "s1", "p1", "Shoot day, moved").bumped())
+
+        // A page small enough to hold only the crew member, which is now lowest.
+        val page = reconciler.pull(studio, since = 0, limit = 1)
+
+        assertEquals(1, page.crew().size, "the page should begin with the row lowest in the sequence")
+        assertEquals(
+            1,
+            page.sessions().size,
+            "the crew member's session was not in the page, so a device enforcing foreign keys " +
+                "could not apply it — and would fail identically on every retry, because the " +
+                "cursor only advances once a page has been written",
+        )
+        assertEquals(1, page.projects().size, "the session's project has to come too")
+        assertEquals(1, page.clients().size, "and the project's client, which is two hops away")
+    }
+
+    @Test
+    fun `a parent pulled in early is still sent when its own sequence is reached`() {
+        val studio = studio()
+        push(studio, SyncedEntity.Clients, client(studio, "c1", "Ada Okafor"))
+        push(studio, SyncedEntity.Projects, project(studio, "p1", "c1", "Autumn Shoot"))
+        push(studio, SyncedEntity.Sessions, session(studio, "s1", "p1", "Shoot day"))
+        push(studio, SyncedEntity.CrewMembers, crew(studio, "cr1", "s1", "Rosa Iyer"))
+
+        push(studio, SyncedEntity.Clients, client(studio, "c1", "Ada Okafor-Iyer").bumpedClient())
+        push(studio, SyncedEntity.Projects, project(studio, "p1", "c1", "Autumn Shoot, revised").bumpedProject())
+        push(studio, SyncedEntity.Sessions, session(studio, "s1", "p1", "Shoot day, moved").bumped())
+
+        val first = reconciler.pull(studio, since = 0, limit = 1)
+        val second = reconciler.pull(studio, since = first.cursor, limit = 50)
+
+        assertEquals(
+            "Shoot day, moved",
+            second.sessions().single().title,
+            "the cursor advances by server_seq alone, so the session arrives again on its own " +
+                "account — an idempotent upsert, and the price of pages that stand alone",
+        )
+    }
 
     @Test
     fun `a device that has never synced is sent everything the studio has`() {
@@ -382,6 +466,8 @@ class ReconcilerTest {
         val winningPayload: String,
     )
 
+    private fun PulledChanges.crew() = rows[SyncedEntity.CrewMembers.table].orEmpty().filterIsInstance<CrewMember>()
+
     private fun PulledChanges.clients() = rows[SyncedEntity.Clients.table].orEmpty().filterIsInstance<Client>()
 
     private fun PulledChanges.projects() = rows[SyncedEntity.Projects.table].orEmpty().filterIsInstance<Project>()
@@ -465,6 +551,24 @@ class ReconcilerTest {
         name = name,
         serviceLine = ServiceLine.Wedding,
         status = ProjectStatus.Booked,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun Client.bumpedClient() = copy(audit = audit.copy(version = audit.version + 1))
+
+    private fun Project.bumpedProject() = copy(audit = audit.copy(version = audit.version + 1))
+
+    private fun crew(
+        studioId: String,
+        id: String,
+        sessionId: String,
+        name: String,
+    ) = CrewMember(
+        id = CrewMemberId(scoped(studioId, id)),
+        studioId = StudioId(studioId),
+        sessionId = SessionId(scoped(studioId, sessionId)),
+        name = name,
+        role = CrewRole.SecondShooter,
         audit = AuditMetadata.createdAt(NOW),
     )
 
