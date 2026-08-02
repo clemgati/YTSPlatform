@@ -38,6 +38,10 @@ import com.yellowtrack.platform.core.model.gear.GearCategory
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
 import com.yellowtrack.platform.core.model.gear.GearStatus
+import com.yellowtrack.platform.core.model.gear.LightRole
+import com.yellowtrack.platform.core.model.gear.LightSetup
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
+import com.yellowtrack.platform.core.model.gear.LightingRecipeId
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.invoice.Invoice
@@ -57,18 +61,28 @@ import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.media.StorageVolumeId
 import com.yellowtrack.platform.core.model.media.VolumeStatus
+import com.yellowtrack.platform.core.model.post.PostProductionTask
+import com.yellowtrack.platform.core.model.post.PostProductionTaskId
+import com.yellowtrack.platform.core.model.post.PostTaskKind
+import com.yellowtrack.platform.core.model.post.PostTaskStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.model.quote.QuoteStatus
+import com.yellowtrack.platform.core.model.release.ReleaseKind
+import com.yellowtrack.platform.core.model.release.ReleaseStatus
+import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.server.TestDatabase
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
@@ -518,6 +532,96 @@ class SyncFieldCoverageTest {
                     usageLicense = usageLicence(),
                     documentReference = "DOC-8841",
                     notes = "Signed on paper, scanned.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Shot crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Shots,
+            fixture =
+                Shot(
+                    id = ShotId("66666666-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    sessionId = SessionId(SESSION),
+                    description = "Rings on the windowsill",
+                    group = "Details",
+                    people = "None",
+                    position = 3,
+                    isCaptured = true,
+                    capturedAt = Instant.fromEpochMilliseconds(1_781_205_000_000),
+                    notes = "Use the 100mm macro.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a PostProductionTask crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.PostProductionTasks,
+            fixture =
+                PostProductionTask(
+                    id = PostProductionTaskId("77777777-bbbb-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    name = "Cull and rate",
+                    kind = PostTaskKind.Cull,
+                    status = PostTaskStatus.InProgress,
+                    estimatedHours = 6.5,
+                    actualHours = 8.25,
+                    completedAt = Instant.fromEpochMilliseconds(1_781_800_000_000),
+                    notes = "Two passes, then rate.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a TalentRelease crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.TalentReleases,
+            fixture =
+                TalentRelease(
+                    id = TalentReleaseId("88888888-bbbb-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    sessionId = SessionId(SESSION),
+                    personName = "Rosa Iyer",
+                    kind = ReleaseKind.Minor,
+                    status = ReleaseStatus.Signed,
+                    signedAt = Instant.fromEpochMilliseconds(1_781_190_000_000),
+                    guardianName = "Ada Okafor",
+                    email = "ada@harbourline.test",
+                    documentReference = "REL-4412",
+                    notes = "Signed at the venue.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a LightingRecipe crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.LightingRecipes,
+            fixture =
+                LightingRecipe(
+                    id = LightingRecipeId("99999999-bbbb-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    name = "Two-light clamshell",
+                    lights =
+                        listOf(
+                            LightSetup(
+                                role = LightRole.Key,
+                                instrument = "Profoto B10",
+                                modifier = "Beauty dish",
+                                power = "1/4",
+                                position = "Above, 45 degrees",
+                                distance = "1.2m",
+                            ),
+                        ),
+                    notes = "Drop the fill for men.",
                     audit = audit(),
                 ),
         )
