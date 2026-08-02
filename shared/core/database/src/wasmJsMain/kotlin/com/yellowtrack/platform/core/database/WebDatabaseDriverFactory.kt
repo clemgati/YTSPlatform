@@ -21,6 +21,7 @@ class WebDatabaseDriverFactory : DatabaseDriverFactory {
     override suspend fun create(): SqlDriver {
         val driver = WebWorkerDriver(createSqlJsWorker())
         YellowTrackDatabase.Schema.awaitCreate(driver)
+        driver.enforceForeignKeys()
         return driver
     }
 }

@@ -9,5 +9,5 @@ class NativeDatabaseDriverFactory : DatabaseDriverFactory {
         NativeSqliteDriver(
             schema = YellowTrackDatabase.Schema.synchronous(),
             name = DatabaseDriverFactory.DATABASE_NAME,
-        )
+        ).also { it.enforceForeignKeys() }
 }

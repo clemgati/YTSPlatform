@@ -17,5 +17,5 @@ class AndroidDatabaseDriverFactory(
             schema = YellowTrackDatabase.Schema.synchronous(),
             context = context,
             name = DatabaseDriverFactory.DATABASE_NAME,
-        )
+        ).also { it.enforceForeignKeys() }
 }

@@ -16,11 +16,15 @@ class JvmDatabaseDriverFactory(
     override suspend fun create(): SqlDriver {
         databaseFile.parentFile?.mkdirs()
 
-        return JdbcSqliteDriver(
-            url = "jdbc:sqlite:${databaseFile.absolutePath}",
-            properties = Properties(),
-            schema = YellowTrackDatabase.Schema.synchronous(),
-        )
+        val driver =
+            JdbcSqliteDriver(
+                url = "jdbc:sqlite:${databaseFile.absolutePath}",
+                properties = Properties(),
+                schema = YellowTrackDatabase.Schema.synchronous(),
+            )
+
+        driver.enforceForeignKeys()
+        return driver
     }
 
     companion object {

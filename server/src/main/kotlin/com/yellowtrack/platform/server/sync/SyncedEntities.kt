@@ -47,6 +47,17 @@ import java.sql.ResultSet
 import kotlin.time.Instant
 
 /**
+ * One reference from a child row to a parent row.
+ *
+ * [idOf] returns null where the reference is optional and absent, which is not the same as
+ * a parent that is missing: nothing needs fetching either way.
+ */
+class ParentRef<T>(
+    val entity: SyncedEntity<*>,
+    val idOf: (T) -> String?,
+)
+
+/**
  * The three entities in the 0.7.0 slice, and how each crosses between a Postgres row and
  * the shared model.
  *
@@ -71,6 +82,7 @@ import kotlin.time.Instant
  * that does not. Silently dropping them would be the more convenient choice and would mean
  * a device believing it had uploaded something it had not.
  */
+
 sealed interface SyncedEntity<T> {
     /** Matches `sync_conflict.entity_table`, and the table this reads and writes. */
     val table: String
@@ -84,6 +96,21 @@ sealed interface SyncedEntity<T> {
     fun deletedAtOf(entity: T): Long?
 
     fun read(rows: ResultSet): T
+
+    /**
+     * The rows this one references, so a page can be applied on its own.
+     *
+     * Ordering within a page is not enough. The server pages by `server_seq` and an edit
+     * bumps it, so a session created before its crew but retimed afterwards sorts *after*
+     * its own crew member — and a device syncing from scratch receives the child a page
+     * early. With foreign keys enforced that fails, and fails identically on every retry,
+     * because the cursor only advances once a page has been written.
+     *
+     * Declaring the reference lets `pull` close each page over its parents. A parent sent
+     * early is sent again when its own sequence is reached, which costs one idempotent
+     * upsert and is the whole price of the arrangement.
+     */
+    val parents: List<ParentRef<T>> get() = emptyList()
 
     /** Serialises for `sync_conflict`, where both sides of a discarded edit are kept. */
     fun encode(entity: T): String
@@ -259,6 +286,13 @@ sealed interface SyncedEntity<T> {
     object ClientContactLinks : SyncedEntity<ClientContactLink> {
         override val table = "client_contact"
 
+        override val parents by lazy {
+            listOf(
+                ParentRef<ClientContactLink>(Clients) { it.clientId.value },
+                ParentRef<ClientContactLink>(Contacts) { it.contactId.value },
+            )
+        }
+
         override fun identify(entity: ClientContactLink) = entity.id.value
 
         override fun studioOf(entity: ClientContactLink) = entity.studioId.value
@@ -327,6 +361,8 @@ sealed interface SyncedEntity<T> {
      */
     object Invoices : SyncedEntity<Invoice> {
         override val table = "invoice"
+
+        override val parents by lazy { listOf(ParentRef<Invoice>(Projects) { it.projectId.value }) }
 
         override fun identify(entity: Invoice) = entity.id.value
 
@@ -419,6 +455,8 @@ sealed interface SyncedEntity<T> {
     object Payments : SyncedEntity<Payment> {
         override val table = "payment"
 
+        override val parents by lazy { listOf(ParentRef<Payment>(Invoices) { it.invoiceId.value }) }
+
         override fun identify(entity: Payment) = entity.id.value
 
         override fun studioOf(entity: Payment) = entity.studioId.value
@@ -489,6 +527,8 @@ sealed interface SyncedEntity<T> {
     object CrewMembers : SyncedEntity<CrewMember> {
         override val table = "crew_member"
 
+        override val parents by lazy { listOf(ParentRef<CrewMember>(Sessions) { it.sessionId.value }) }
+
         override fun identify(entity: CrewMember) = entity.id.value
 
         override fun studioOf(entity: CrewMember) = entity.studioId.value
@@ -555,6 +595,8 @@ sealed interface SyncedEntity<T> {
     /** What the client is owed, and whether it has gone. A child of the project. */
     object Deliverables : SyncedEntity<Deliverable> {
         override val table = "deliverable"
+
+        override val parents by lazy { listOf(ParentRef<Deliverable>(Projects) { it.projectId.value }) }
 
         override fun identify(entity: Deliverable) = entity.id.value
 
@@ -631,6 +673,8 @@ sealed interface SyncedEntity<T> {
 
     object Projects : SyncedEntity<Project> {
         override val table = "project"
+
+        override val parents by lazy { listOf(ParentRef<Project>(Clients) { it.clientId.value }) }
 
         override fun identify(entity: Project) = entity.id.value
 
@@ -714,6 +758,8 @@ sealed interface SyncedEntity<T> {
 
     object Sessions : SyncedEntity<Session> {
         override val table = "session"
+
+        override val parents by lazy { listOf(ParentRef<Session>(Projects) { it.projectId.value }) }
 
         override fun identify(entity: Session) = entity.id.value
 
@@ -863,18 +909,26 @@ sealed interface SyncedEntity<T> {
          * `server_seq` because an edit bumps that — a client updated after its own link was
          * created sorts *after* it — and the ordering that matters is structural, not
          * chronological.
+         *
+         * Lazy, not eager. These objects are nested in the interface that owns this
+         * companion, so touching one initialises the interface, which builds this list,
+         * which touches the object still being initialised — and the entry lands as null.
+         * Deferring to first use lets every object finish first.
          */
-        val all: List<SyncedEntity<*>> =
+        val all: List<SyncedEntity<*>> by lazy {
             listOf(
                 Clients,
                 Contacts,
                 ClientContactLinks,
                 Projects,
                 Sessions,
+                CrewMembers,
+                Deliverables,
                 Invoices,
                 Payments,
                 Conflicts,
             )
+        }
     }
 }
 

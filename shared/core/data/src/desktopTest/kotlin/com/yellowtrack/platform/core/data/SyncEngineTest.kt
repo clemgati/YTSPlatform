@@ -22,6 +22,9 @@ import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
@@ -33,6 +36,10 @@ import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.session.SessionId
+import com.yellowtrack.platform.core.model.session.SessionKind
+import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
@@ -680,6 +687,52 @@ class SyncEngineTest {
             )
         }
 
+    /**
+     * A child can arrive a page before its parent, and the apply order cannot help.
+     *
+     * `SyncedEntity.all` orders parents before children *within* a page. Across pages there
+     * is nothing to order: the server pages by `server_seq`, and an edit bumps it, so a
+     * session created before its crew but edited afterwards sorts *after* its own crew
+     * member. A device syncing from scratch then receives the child first.
+     *
+     * The server therefore closes each page over its parents — see `a page carries the
+     * parents of everything in it` — and this pins the contract from the other side: a page
+     * that does not is one the device cannot apply, and cannot ever apply, because the
+     * cursor only advances once a page has been written.
+     */
+    @Test
+    fun `a page missing a parent cannot be applied, which is why the server sends them`() =
+        runTest {
+            val device = world()
+
+            device.transport.pages =
+                mutableListOf(
+                    // Page one: the crew member, whose session has been edited since and so
+                    // carries a higher server_seq.
+                    SyncPullResponse(
+                        cursor = 11,
+                        hasMore = true,
+                        crewMembers = listOf(crewMember("crew-1", "session-1")),
+                    ),
+                    // Page two: everything it hangs off.
+                    SyncPullResponse(
+                        cursor = 50,
+                        hasMore = false,
+                        clients = listOf(client("client-1", "Okafor")),
+                        projects = listOf(project("project-1", "client-1")),
+                        sessions = listOf(session("session-1", "project-1")),
+                    ),
+                )
+
+            val failure = runCatching { device.engine.sync() }.exceptionOrNull()
+
+            assertNotNull(failure, "a page whose parent is absent should not apply quietly")
+            assertTrue(
+                failure.message.orEmpty().contains("FOREIGN KEY", ignoreCase = true),
+                "expected a foreign key failure, got: ${failure.message}",
+            )
+        }
+
     private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.
@@ -711,6 +764,34 @@ class SyncEngineTest {
         name = "Okafor — Wedding",
         serviceLine = ServiceLine.Wedding,
         status = ProjectStatus.Booked,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun session(
+        id: String,
+        projectId: String,
+    ) = Session(
+        id = SessionId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        title = "Ceremony",
+        kind = SessionKind.Shoot,
+        status = SessionStatus.Scheduled,
+        startsAt = NOW,
+        endsAt = NOW,
+        timeZoneId = "Europe/London",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun crewMember(
+        id: String,
+        sessionId: String,
+    ) = CrewMember(
+        id = CrewMemberId(id),
+        studioId = STUDIO,
+        sessionId = SessionId(sessionId),
+        name = "Rosa Iyer",
+        role = CrewRole.SecondShooter,
         audit = AuditMetadata.createdAt(NOW),
     )
 
