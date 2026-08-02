@@ -23,6 +23,12 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableKind
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.gear.GearCategory
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.GearStatus
+import com.yellowtrack.platform.core.model.gear.PackingEntry
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
@@ -30,6 +36,12 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.MediaCopyId
+import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -40,6 +52,7 @@ import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.server.TestDatabase
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -277,6 +290,87 @@ class SyncFieldCoverageTest {
         )
     }
 
+    @Test
+    fun `every field of a GearItem crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.GearItems,
+            fixture =
+                GearItem(
+                    id = GearItemId(GEAR),
+                    studioId = StudioId(STUDIO),
+                    name = "Summilux 35mm",
+                    category = GearCategory.Lens,
+                    status = GearStatus.InService,
+                    serialNumber = "4412-889",
+                    purchasePrice = Money(minorUnits = 380_000, currency = CurrencyCode.GBP),
+                    purchasedOn = LocalDate.parse("2024-03-11"),
+                    lastServicedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    notes = "Focus ring stiff below ten degrees.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a PackingEntry crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.PackingEntries,
+            fixture =
+                PackingEntry(
+                    id = PackingEntryId("cccccccc-cccc-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    sessionId = SessionId(SESSION),
+                    gearItemId = GearItemId(GEAR),
+                    isPacked = true,
+                    isReturned = true,
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a StorageVolume crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.StorageVolumes,
+            fixture =
+                StorageVolume(
+                    id = StorageVolumeId(VOLUME),
+                    studioId = StudioId(STUDIO),
+                    label = "Shuttle 1",
+                    kind = StorageKind.Computer,
+                    status = VolumeStatus.InUse,
+                    isOffsite = true,
+                    lastCheckedAt = Instant.fromEpochMilliseconds(1_781_400_000_000),
+                    notes = "Kept at the studio manager's house.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a MediaCopy crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.MediaCopies,
+            fixture =
+                MediaCopy(
+                    id = MediaCopyId("dddddddd-dddd-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    sessionId = SessionId(SESSION),
+                    volumeId = StorageVolumeId(VOLUME),
+                    volumeName = "Shuttle 1",
+                    kind = StorageKind.Computer,
+                    isOffsite = true,
+                    path = "/Volumes/Shuttle1/2026/okafor",
+                    copiedAt = Instant.fromEpochMilliseconds(1_781_300_000_000),
+                    verifiedAt = Instant.fromEpochMilliseconds(1_781_310_000_000),
+                    verifiedFileCount = 2_418,
+                    verifiedBytes = 918_273_645L,
+                    notes = "Checksums matched on both copies.",
+                    audit = audit(),
+                ),
+        )
+    }
+
     // -- The mechanism -----------------------------------------------------------------------
 
     private fun <T> assertEveryFieldCrosses(
@@ -436,6 +530,29 @@ class SyncFieldCoverageTest {
             version = 1,
         )
 
+        SyncedEntity.GearItems.upsert(
+            db,
+            GearItem(
+                id = GearItemId(GEAR),
+                studioId = StudioId(STUDIO),
+                name = "Summilux 35mm",
+                audit = audit(),
+            ),
+            version = 1,
+        )
+
+        SyncedEntity.StorageVolumes.upsert(
+            db,
+            StorageVolume(
+                id = StorageVolumeId(VOLUME),
+                studioId = StudioId(STUDIO),
+                label = "Shuttle 1",
+                kind = StorageKind.Computer,
+                audit = audit(),
+            ),
+            version = 1,
+        )
+
         SyncedEntity.Invoices.upsert(
             db,
             Invoice(
@@ -465,5 +582,7 @@ class SyncFieldCoverageTest {
         const val CONTACT = "66666666-6666-7000-8000-000000000001"
         const val INVOICE = "88888888-8888-7000-8000-000000000001"
         const val SESSION = "44444444-4444-7000-8000-000000000002"
+        const val GEAR = "eeeeeeee-eeee-7000-8000-000000000001"
+        const val VOLUME = "ffffffff-ffff-7000-8000-000000000001"
     }
 }

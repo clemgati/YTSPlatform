@@ -57,4 +57,8 @@ internal object SyncTables {
     const val PAYMENT = "payment"
     const val CREW_MEMBER = "crew_member"
     const val DELIVERABLE = "deliverable"
+    const val GEAR_ITEM = "gear_item"
+    const val PACKING_ENTRY = "packing_entry"
+    const val STORAGE_VOLUME = "storage_volume"
+    const val MEDIA_COPY = "media_copy"
 }

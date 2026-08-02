@@ -7,11 +7,25 @@ import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.InvoiceRepository
+import com.yellowtrack.platform.core.data.internal.OutboxOperation
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
+import com.yellowtrack.platform.core.data.internal.SyncTables
+import com.yellowtrack.platform.core.data.internal.enqueueForSync
 import com.yellowtrack.platform.core.data.sync.SyncEngine
+import com.yellowtrack.platform.core.data.sync.applyClient
+import com.yellowtrack.platform.core.data.sync.applyCrewMember
+import com.yellowtrack.platform.core.data.sync.applyDeliverable
+import com.yellowtrack.platform.core.data.sync.applyGearItem
+import com.yellowtrack.platform.core.data.sync.applyInvoice
+import com.yellowtrack.platform.core.data.sync.applyMediaCopy
+import com.yellowtrack.platform.core.data.sync.applyPackingEntry
+import com.yellowtrack.platform.core.data.sync.applyPayment
+import com.yellowtrack.platform.core.data.sync.applyProject
+import com.yellowtrack.platform.core.data.sync.applySession
+import com.yellowtrack.platform.core.data.sync.applyStorageVolume
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContact
@@ -25,6 +39,12 @@ import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.PackingEntry
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
@@ -32,6 +52,11 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.MediaCopyId
+import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -733,6 +758,83 @@ class SyncEngineTest {
             )
         }
 
+    /**
+     * Every table the outbox can carry is actually read when the outbox is drained.
+     *
+     * Four entities shipped without this: invoices, payments, crew and deliverables were
+     * declared, wired into the apply loop and into `identities`, and never read into the
+     * push request. A queued row was therefore counted as one that no longer existed, and
+     * its outbox entry was deleted with nothing sent. **They had never uploaded.**
+     *
+     * The two lists disagreeing is the failure, so this asserts against the outcome instead:
+     * queue one row of every kind, sync, and something must have been sent for each.
+     */
+    @Test
+    fun `every table the outbox carries is uploaded`() =
+        runTest {
+            val world = world()
+            val db = world.database
+            val studio = STUDIO.value
+
+            // Written straight to the tables, in dependency order, so this test says nothing
+            // about the repositories — only about what the engine reads back.
+            db.applyClient(client("c1", "Okafor"))
+            db.applyProject(project("p1", "c1"))
+            db.applySession(session("s1", "p1"))
+            db.applyInvoice(invoice("i1", "p1"))
+            db.applyPayment(payment("pay1", "i1", 1_000))
+            db.applyCrewMember(crewMember("cr1", "s1"))
+            db.applyDeliverable(deliverable("d1", "p1"))
+            db.applyGearItem(gearItem("g1"))
+            db.applyPackingEntry(packingEntry("pk1", "s1", "g1"))
+            db.applyStorageVolume(storageVolume("v1"))
+            db.applyMediaCopy(mediaCopy("m1", "s1", "v1"))
+
+            val queued =
+                listOf(
+                    SyncTables.CLIENT to "c1",
+                    SyncTables.PROJECT to "p1",
+                    SyncTables.SESSION to "s1",
+                    SyncTables.INVOICE to "i1",
+                    SyncTables.PAYMENT to "pay1",
+                    SyncTables.CREW_MEMBER to "cr1",
+                    SyncTables.DELIVERABLE to "d1",
+                    SyncTables.GEAR_ITEM to "g1",
+                    SyncTables.PACKING_ENTRY to "pk1",
+                    SyncTables.STORAGE_VOLUME to "v1",
+                    SyncTables.MEDIA_COPY to "m1",
+                )
+
+            queued.forEach { (table, id) ->
+                db.enqueueForSync(studio, table, id, OutboxOperation.Upsert, NOW.toEpochMilliseconds())
+            }
+
+            world.engine.sync()
+
+            val sent = world.transport.pushed.single()
+            val missing =
+                buildList {
+                    if (sent.clients.isEmpty()) add(SyncTables.CLIENT)
+                    if (sent.projects.isEmpty()) add(SyncTables.PROJECT)
+                    if (sent.sessions.isEmpty()) add(SyncTables.SESSION)
+                    if (sent.invoices.isEmpty()) add(SyncTables.INVOICE)
+                    if (sent.payments.isEmpty()) add(SyncTables.PAYMENT)
+                    if (sent.crewMembers.isEmpty()) add(SyncTables.CREW_MEMBER)
+                    if (sent.deliverables.isEmpty()) add(SyncTables.DELIVERABLE)
+                    if (sent.gearItems.isEmpty()) add(SyncTables.GEAR_ITEM)
+                    if (sent.packingEntries.isEmpty()) add(SyncTables.PACKING_ENTRY)
+                    if (sent.storageVolumes.isEmpty()) add(SyncTables.STORAGE_VOLUME)
+                    if (sent.mediaCopies.isEmpty()) add(SyncTables.MEDIA_COPY)
+                }
+
+            assertEquals(
+                emptyList(),
+                missing,
+                "these were queued and never sent. The outbox entry is then dropped as a row that " +
+                    "no longer exists, so the studio's work is discarded and the sync reports success",
+            )
+        }
+
     private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.
@@ -764,6 +866,60 @@ class SyncEngineTest {
         name = "Okafor — Wedding",
         serviceLine = ServiceLine.Wedding,
         status = ProjectStatus.Booked,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun deliverable(
+        id: String,
+        projectId: String,
+    ) = Deliverable(
+        id = DeliverableId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        name = "Full gallery",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun gearItem(id: String) =
+        GearItem(
+            id = GearItemId(id),
+            studioId = STUDIO,
+            name = "35mm",
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun packingEntry(
+        id: String,
+        sessionId: String,
+        gearItemId: String,
+    ) = PackingEntry(
+        id = PackingEntryId(id),
+        studioId = STUDIO,
+        sessionId = SessionId(sessionId),
+        gearItemId = GearItemId(gearItemId),
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun storageVolume(id: String) =
+        StorageVolume(
+            id = StorageVolumeId(id),
+            studioId = STUDIO,
+            label = "Shuttle 1",
+            kind = StorageKind.CameraCard,
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun mediaCopy(
+        id: String,
+        sessionId: String,
+        volumeId: String,
+    ) = MediaCopy(
+        id = MediaCopyId(id),
+        studioId = STUDIO,
+        sessionId = SessionId(sessionId),
+        volumeId = StorageVolumeId(volumeId),
+        volumeName = "Shuttle 1",
+        kind = StorageKind.CameraCard,
         audit = AuditMetadata.createdAt(NOW),
     )
 

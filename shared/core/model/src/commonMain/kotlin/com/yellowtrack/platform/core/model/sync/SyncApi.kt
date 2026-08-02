@@ -5,8 +5,12 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import kotlinx.serialization.Serializable
@@ -58,6 +62,11 @@ data class SyncPullResponse(
     /** Children of a session and of a project respectively, and rows in their own right. */
     val crewMembers: List<CrewMember> = emptyList(),
     val deliverables: List<Deliverable> = emptyList(),
+    /** Kit and storage, and what was taken or copied where. */
+    val gearItems: List<GearItem> = emptyList(),
+    val packingEntries: List<PackingEntry> = emptyList(),
+    val storageVolumes: List<StorageVolume> = emptyList(),
+    val mediaCopies: List<MediaCopy> = emptyList(),
     /**
      * Work reconciliation discarded, travelling down only.
      *
@@ -79,6 +88,10 @@ data class SyncPushRequest(
     val payments: List<Payment> = emptyList(),
     val crewMembers: List<CrewMember> = emptyList(),
     val deliverables: List<Deliverable> = emptyList(),
+    val gearItems: List<GearItem> = emptyList(),
+    val packingEntries: List<PackingEntry> = emptyList(),
+    val storageVolumes: List<StorageVolume> = emptyList(),
+    val mediaCopies: List<MediaCopy> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
@@ -90,7 +103,11 @@ data class SyncPushRequest(
                 invoices.isEmpty() &&
                 payments.isEmpty() &&
                 crewMembers.isEmpty() &&
-                deliverables.isEmpty()
+                deliverables.isEmpty() &&
+                gearItems.isEmpty() &&
+                packingEntries.isEmpty() &&
+                storageVolumes.isEmpty() &&
+                mediaCopies.isEmpty()
 }
 
 /** What became of one pushed row. */

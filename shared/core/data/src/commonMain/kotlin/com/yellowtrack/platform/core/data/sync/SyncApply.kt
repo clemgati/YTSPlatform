@@ -6,8 +6,12 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.sync.SyncConflict
@@ -362,5 +366,139 @@ internal suspend fun YellowTrackDatabase.applyDeliverable(deliverable: Deliverab
         deletedAt = deliverable.audit.deletedAt?.toEpochMilliseconds(),
         version = deliverable.audit.version.toLong(),
         id = deliverable.id.value,
+    )
+}
+
+/** Kit the studio owns. No parent, so it can be written in any order. */
+internal suspend fun YellowTrackDatabase.applyGearItem(item: GearItem) {
+    gearQueries.insertGearOrIgnore(
+        id = item.id.value,
+        studio_id = item.studioId.value,
+        name = item.name,
+        category = item.category.name,
+        status = item.status.name,
+        serial_number = item.serialNumber,
+        purchase_price_minor = item.purchasePrice?.minorUnits,
+        purchase_currency = item.purchasePrice?.currency?.code,
+        purchased_on = item.purchasedOn?.toString(),
+        last_serviced_at = item.lastServicedAt?.toEpochMilliseconds(),
+        notes = item.notes,
+        created_at = item.audit.createdAt.toEpochMilliseconds(),
+        updated_at = item.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = item.audit.deletedAt?.toEpochMilliseconds(),
+        version = item.audit.version.toLong(),
+    )
+
+    gearQueries.updateGear(
+        name = item.name,
+        category = item.category.name,
+        status = item.status.name,
+        serialNumber = item.serialNumber,
+        purchasePriceMinor = item.purchasePrice?.minorUnits,
+        purchaseCurrency = item.purchasePrice?.currency?.code,
+        purchasedOn = item.purchasedOn?.toString(),
+        lastServicedAt = item.lastServicedAt?.toEpochMilliseconds(),
+        notes = item.notes,
+        updatedAt = item.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = item.audit.deletedAt?.toEpochMilliseconds(),
+        version = item.audit.version.toLong(),
+        id = item.id.value,
+    )
+}
+
+/** What went in the bag. Written after its session and its gear item. */
+internal suspend fun YellowTrackDatabase.applyPackingEntry(entry: PackingEntry) {
+    gearQueries.insertPackingOrIgnore(
+        id = entry.id.value,
+        studio_id = entry.studioId.value,
+        session_id = entry.sessionId.value,
+        gear_item_id = entry.gearItemId.value,
+        is_packed = if (entry.isPacked) 1L else 0L,
+        is_returned = if (entry.isReturned) 1L else 0L,
+        created_at = entry.audit.createdAt.toEpochMilliseconds(),
+        updated_at = entry.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = entry.audit.deletedAt?.toEpochMilliseconds(),
+        version = entry.audit.version.toLong(),
+    )
+
+    gearQueries.updatePacking(
+        isPacked = if (entry.isPacked) 1L else 0L,
+        isReturned = if (entry.isReturned) 1L else 0L,
+        updatedAt = entry.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = entry.audit.deletedAt?.toEpochMilliseconds(),
+        version = entry.audit.version.toLong(),
+        id = entry.id.value,
+    )
+}
+
+/** A disk or card. No parent. */
+internal suspend fun YellowTrackDatabase.applyStorageVolume(volume: StorageVolume) {
+    storageVolumeQueries.insertOrIgnore(
+        id = volume.id.value,
+        studio_id = volume.studioId.value,
+        label = volume.label,
+        kind = volume.kind.name,
+        status = volume.status.name,
+        is_offsite = if (volume.isOffsite) 1L else 0L,
+        last_checked_at = volume.lastCheckedAt?.toEpochMilliseconds(),
+        notes = volume.notes,
+        created_at = volume.audit.createdAt.toEpochMilliseconds(),
+        updated_at = volume.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = volume.audit.deletedAt?.toEpochMilliseconds(),
+        version = volume.audit.version.toLong(),
+    )
+
+    storageVolumeQueries.update(
+        label = volume.label,
+        kind = volume.kind.name,
+        status = volume.status.name,
+        isOffsite = if (volume.isOffsite) 1L else 0L,
+        lastCheckedAt = volume.lastCheckedAt?.toEpochMilliseconds(),
+        notes = volume.notes,
+        updatedAt = volume.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = volume.audit.deletedAt?.toEpochMilliseconds(),
+        version = volume.audit.version.toLong(),
+        id = volume.id.value,
+    )
+}
+
+/** Where the footage went. Written after its session, and after its volume when it names one. */
+internal suspend fun YellowTrackDatabase.applyMediaCopy(copy: MediaCopy) {
+    mediaCopyQueries.insertOrIgnore(
+        id = copy.id.value,
+        studio_id = copy.studioId.value,
+        session_id = copy.sessionId.value,
+        volume_name = copy.volumeName,
+        kind = copy.kind.name,
+        is_offsite = if (copy.isOffsite) 1L else 0L,
+        copied_at = copy.copiedAt?.toEpochMilliseconds(),
+        verified_at = copy.verifiedAt?.toEpochMilliseconds(),
+        notes = copy.notes,
+        created_at = copy.audit.createdAt.toEpochMilliseconds(),
+        updated_at = copy.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = copy.audit.deletedAt?.toEpochMilliseconds(),
+        version = copy.audit.version.toLong(),
+        volume_id = copy.volumeId?.value,
+        path = copy.path,
+        verified_file_count = copy.verifiedFileCount?.toLong(),
+        verified_bytes = copy.verifiedBytes,
+    )
+
+    mediaCopyQueries.update(
+        sessionId = copy.sessionId.value,
+        volumeId = copy.volumeId?.value,
+        volumeName = copy.volumeName,
+        kind = copy.kind.name,
+        isOffsite = if (copy.isOffsite) 1L else 0L,
+        copiedAt = copy.copiedAt?.toEpochMilliseconds(),
+        verifiedAt = copy.verifiedAt?.toEpochMilliseconds(),
+        path = copy.path,
+        verifiedFileCount = copy.verifiedFileCount?.toLong(),
+        verifiedBytes = copy.verifiedBytes,
+        notes = copy.notes,
+        updatedAt = copy.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = copy.audit.deletedAt?.toEpochMilliseconds(),
+        version = copy.audit.version.toLong(),
+        id = copy.id.value,
     )
 }

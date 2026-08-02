@@ -22,6 +22,12 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableKind
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.gear.GearCategory
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.GearStatus
+import com.yellowtrack.platform.core.model.gear.PackingEntry
+import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
@@ -29,6 +35,12 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.MediaCopyId
+import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -40,6 +52,7 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import java.sql.Connection
 import java.sql.PreparedStatement
@@ -671,6 +684,316 @@ sealed interface SyncedEntity<T> {
         }
     }
 
+    /** Kit the studio owns. No parent; packing entries hang off it. */
+    object GearItems : SyncedEntity<GearItem> {
+        override val table = "gear_item"
+
+        override fun identify(entity: GearItem) = entity.id.value
+
+        override fun studioOf(entity: GearItem) = entity.studioId.value
+
+        override fun versionOf(entity: GearItem) = entity.audit.version
+
+        override fun deletedAtOf(entity: GearItem) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): GearItem =
+            GearItem(
+                id = GearItemId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                name = rows.getString("name"),
+                category = enumOrDefault(rows.getString("category"), GearCategory.Other),
+                status = enumOrDefault(rows.getString("status"), GearStatus.InService),
+                serialNumber = rows.getString("serial_number"),
+                purchasePrice =
+                    moneyOf(rows.getNullableLong("purchase_price_minor"), rows.getString("purchase_currency")),
+                purchasedOn = rows.getString("purchased_on")?.let { LocalDate.parse(it) },
+                lastServicedAt = rows.getNullableLong("last_serviced_at")?.let { Instant.fromEpochMilliseconds(it) },
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: GearItem) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: GearItem,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO gear_item(id, studio_id, name, category, status, serial_number,
+                                          purchase_price_minor, purchase_currency, purchased_on,
+                                          last_serviced_at, notes,
+                                          created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name                 = EXCLUDED.name,
+                        category             = EXCLUDED.category,
+                        status               = EXCLUDED.status,
+                        serial_number        = EXCLUDED.serial_number,
+                        purchase_price_minor = EXCLUDED.purchase_price_minor,
+                        purchase_currency    = EXCLUDED.purchase_currency,
+                        purchased_on         = EXCLUDED.purchased_on,
+                        last_serviced_at     = EXCLUDED.last_serviced_at,
+                        notes                = EXCLUDED.notes,
+                        updated_at           = EXCLUDED.updated_at,
+                        deleted_at           = EXCLUDED.deleted_at,
+                        version              = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.name)
+                    statement.setString(4, entity.category.name)
+                    statement.setString(5, entity.status.name)
+                    statement.setString(6, entity.serialNumber)
+                    statement.setNullableLong(7, entity.purchasePrice?.minorUnits)
+                    statement.setString(8, entity.purchasePrice?.currency?.code)
+                    statement.setString(9, entity.purchasedOn?.toString())
+                    statement.setNullableLong(10, entity.lastServicedAt?.toEpochMilliseconds())
+                    statement.setString(11, entity.notes)
+                    statement.setLong(12, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(15, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** What went in the bag for a shoot, and what came back. */
+    object PackingEntries : SyncedEntity<PackingEntry> {
+        override val table = "packing_entry"
+
+        override val parents by lazy {
+            listOf(
+                ParentRef<PackingEntry>(Sessions) { it.sessionId.value },
+                ParentRef<PackingEntry>(GearItems) { it.gearItemId.value },
+            )
+        }
+
+        override fun identify(entity: PackingEntry) = entity.id.value
+
+        override fun studioOf(entity: PackingEntry) = entity.studioId.value
+
+        override fun versionOf(entity: PackingEntry) = entity.audit.version
+
+        override fun deletedAtOf(entity: PackingEntry) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): PackingEntry =
+            PackingEntry(
+                id = PackingEntryId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                sessionId = SessionId(rows.getString("session_id")),
+                gearItemId = GearItemId(rows.getString("gear_item_id")),
+                isPacked = rows.getBoolean("is_packed"),
+                isReturned = rows.getBoolean("is_returned"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: PackingEntry) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: PackingEntry,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO packing_entry(id, studio_id, session_id, gear_item_id, is_packed,
+                                              is_returned, created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        session_id   = EXCLUDED.session_id,
+                        gear_item_id = EXCLUDED.gear_item_id,
+                        is_packed    = EXCLUDED.is_packed,
+                        is_returned  = EXCLUDED.is_returned,
+                        updated_at   = EXCLUDED.updated_at,
+                        deleted_at   = EXCLUDED.deleted_at,
+                        version      = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.sessionId.value)
+                    statement.setString(4, entity.gearItemId.value)
+                    statement.setBoolean(5, entity.isPacked)
+                    statement.setBoolean(6, entity.isReturned)
+                    statement.setLong(7, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(8, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(9, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(10, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** A disk or card the studio keeps footage on. No parent. */
+    object StorageVolumes : SyncedEntity<StorageVolume> {
+        override val table = "storage_volume"
+
+        override fun identify(entity: StorageVolume) = entity.id.value
+
+        override fun studioOf(entity: StorageVolume) = entity.studioId.value
+
+        override fun versionOf(entity: StorageVolume) = entity.audit.version
+
+        override fun deletedAtOf(entity: StorageVolume) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): StorageVolume =
+            StorageVolume(
+                id = StorageVolumeId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                label = rows.getString("label"),
+                kind = enumOrDefault(rows.getString("kind"), StorageKind.CameraCard),
+                status = enumOrDefault(rows.getString("status"), VolumeStatus.InUse),
+                isOffsite = rows.getBoolean("is_offsite"),
+                lastCheckedAt = rows.getNullableLong("last_checked_at")?.let { Instant.fromEpochMilliseconds(it) },
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: StorageVolume) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: StorageVolume,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO storage_volume(id, studio_id, label, kind, status, is_offsite,
+                                               last_checked_at, notes,
+                                               created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        label           = EXCLUDED.label,
+                        kind            = EXCLUDED.kind,
+                        status          = EXCLUDED.status,
+                        is_offsite      = EXCLUDED.is_offsite,
+                        last_checked_at = EXCLUDED.last_checked_at,
+                        notes           = EXCLUDED.notes,
+                        updated_at      = EXCLUDED.updated_at,
+                        deleted_at      = EXCLUDED.deleted_at,
+                        version         = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.label)
+                    statement.setString(4, entity.kind.name)
+                    statement.setString(5, entity.status.name)
+                    statement.setBoolean(6, entity.isOffsite)
+                    statement.setNullableLong(7, entity.lastCheckedAt?.toEpochMilliseconds())
+                    statement.setString(8, entity.notes)
+                    statement.setLong(9, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(10, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(11, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(12, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /**
+     * Where a shoot's footage was copied to, and whether that copy was checked.
+     *
+     * `volumeId` is optional — a copy can name a volume the studio has not catalogued — so
+     * the parent reference returns null rather than a missing row, and nothing is fetched.
+     */
+    object MediaCopies : SyncedEntity<MediaCopy> {
+        override val table = "media_copy"
+
+        override val parents by lazy {
+            listOf(
+                ParentRef<MediaCopy>(Sessions) { it.sessionId.value },
+                ParentRef<MediaCopy>(StorageVolumes) { it.volumeId?.value },
+            )
+        }
+
+        override fun identify(entity: MediaCopy) = entity.id.value
+
+        override fun studioOf(entity: MediaCopy) = entity.studioId.value
+
+        override fun versionOf(entity: MediaCopy) = entity.audit.version
+
+        override fun deletedAtOf(entity: MediaCopy) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): MediaCopy =
+            MediaCopy(
+                id = MediaCopyId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                sessionId = SessionId(rows.getString("session_id")),
+                volumeId = rows.getString("volume_id")?.let { StorageVolumeId(it) },
+                volumeName = rows.getString("volume_name"),
+                kind = enumOrDefault(rows.getString("kind"), StorageKind.CameraCard),
+                isOffsite = rows.getBoolean("is_offsite"),
+                path = rows.getString("path"),
+                copiedAt = rows.getNullableLong("copied_at")?.let { Instant.fromEpochMilliseconds(it) },
+                verifiedAt = rows.getNullableLong("verified_at")?.let { Instant.fromEpochMilliseconds(it) },
+                verifiedFileCount = rows.getNullableLong("verified_file_count")?.toInt(),
+                verifiedBytes = rows.getNullableLong("verified_bytes"),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: MediaCopy) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: MediaCopy,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO media_copy(id, studio_id, session_id, volume_id, volume_name, kind,
+                                           is_offsite, path, copied_at, verified_at,
+                                           verified_file_count, verified_bytes, notes,
+                                           created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        session_id          = EXCLUDED.session_id,
+                        volume_id           = EXCLUDED.volume_id,
+                        volume_name         = EXCLUDED.volume_name,
+                        kind                = EXCLUDED.kind,
+                        is_offsite          = EXCLUDED.is_offsite,
+                        path                = EXCLUDED.path,
+                        copied_at           = EXCLUDED.copied_at,
+                        verified_at         = EXCLUDED.verified_at,
+                        verified_file_count = EXCLUDED.verified_file_count,
+                        verified_bytes      = EXCLUDED.verified_bytes,
+                        notes               = EXCLUDED.notes,
+                        updated_at          = EXCLUDED.updated_at,
+                        deleted_at          = EXCLUDED.deleted_at,
+                        version             = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.sessionId.value)
+                    statement.setString(4, entity.volumeId?.value)
+                    statement.setString(5, entity.volumeName)
+                    statement.setString(6, entity.kind.name)
+                    statement.setBoolean(7, entity.isOffsite)
+                    statement.setString(8, entity.path)
+                    statement.setNullableLong(9, entity.copiedAt?.toEpochMilliseconds())
+                    statement.setNullableLong(10, entity.verifiedAt?.toEpochMilliseconds())
+                    statement.setNullableLong(11, entity.verifiedFileCount?.toLong())
+                    statement.setNullableLong(12, entity.verifiedBytes)
+                    statement.setString(13, entity.notes)
+                    statement.setLong(14, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(15, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(16, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(17, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
     object Projects : SyncedEntity<Project> {
         override val table = "project"
 
@@ -922,6 +1245,10 @@ sealed interface SyncedEntity<T> {
                 ClientContactLinks,
                 Projects,
                 Sessions,
+                GearItems,
+                PackingEntries,
+                StorageVolumes,
+                MediaCopies,
                 CrewMembers,
                 Deliverables,
                 Invoices,

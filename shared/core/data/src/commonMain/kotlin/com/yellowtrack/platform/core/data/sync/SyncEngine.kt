@@ -138,6 +138,62 @@ class SyncEngine(
                             .awaitAsOneOrNull()
                             ?.toDomain()
                     },
+                invoices =
+                    wanted.forTable(SyncTables.INVOICE).mapNotNull {
+                        database.invoiceQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain(emptyList())
+                    },
+                payments =
+                    wanted.forTable(SyncTables.PAYMENT).mapNotNull {
+                        database.invoiceQueries
+                            .selectPaymentByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                crewMembers =
+                    wanted.forTable(SyncTables.CREW_MEMBER).mapNotNull {
+                        database.crewMemberQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                deliverables =
+                    wanted.forTable(SyncTables.DELIVERABLE).mapNotNull {
+                        database.deliverableQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                gearItems =
+                    wanted.forTable(SyncTables.GEAR_ITEM).mapNotNull {
+                        database.gearQueries
+                            .selectGearByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                packingEntries =
+                    wanted.forTable(SyncTables.PACKING_ENTRY).mapNotNull {
+                        database.gearQueries
+                            .selectPackingByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                storageVolumes =
+                    wanted.forTable(SyncTables.STORAGE_VOLUME).mapNotNull {
+                        database.storageVolumeQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                mediaCopies =
+                    wanted.forTable(SyncTables.MEDIA_COPY).mapNotNull {
+                        database.mediaCopyQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
             )
 
         // A queued row that no longer exists at all — never uploaded, then hard-deleted —
@@ -214,7 +270,9 @@ class SyncEngine(
                 page.clients.size + page.contacts.size + page.clientContactLinks.size +
                     page.projects.size + page.sessions.size +
                     page.invoices.size + page.payments.size +
-                    page.crewMembers.size + page.deliverables.size + page.conflicts.size
+                    page.crewMembers.size + page.deliverables.size +
+                    page.gearItems.size + page.packingEntries.size +
+                    page.storageVolumes.size + page.mediaCopies.size + page.conflicts.size
 
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
@@ -229,6 +287,10 @@ class SyncEngine(
                 page.payments.forEach { database.applyPayment(it) }
                 page.crewMembers.forEach { database.applyCrewMember(it) }
                 page.deliverables.forEach { database.applyDeliverable(it) }
+                page.gearItems.forEach { database.applyGearItem(it) }
+                page.storageVolumes.forEach { database.applyStorageVolume(it) }
+                page.packingEntries.forEach { database.applyPackingEntry(it) }
+                page.mediaCopies.forEach { database.applyMediaCopy(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -264,6 +326,10 @@ class SyncEngine(
             payments.forEach { add(SyncTables.PAYMENT to it.id.value) }
             crewMembers.forEach { add(SyncTables.CREW_MEMBER to it.id.value) }
             deliverables.forEach { add(SyncTables.DELIVERABLE to it.id.value) }
+            gearItems.forEach { add(SyncTables.GEAR_ITEM to it.id.value) }
+            packingEntries.forEach { add(SyncTables.PACKING_ENTRY to it.id.value) }
+            storageVolumes.forEach { add(SyncTables.STORAGE_VOLUME to it.id.value) }
+            mediaCopies.forEach { add(SyncTables.MEDIA_COPY to it.id.value) }
         }
 
     private companion object {

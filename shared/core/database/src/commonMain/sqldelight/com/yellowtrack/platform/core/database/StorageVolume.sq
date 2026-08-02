@@ -51,3 +51,9 @@ softDelete:
 UPDATE storage_volume
 SET deleted_at = :deletedAt
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectByIdForSync:
+SELECT *
+FROM storage_volume
+WHERE id = :id;

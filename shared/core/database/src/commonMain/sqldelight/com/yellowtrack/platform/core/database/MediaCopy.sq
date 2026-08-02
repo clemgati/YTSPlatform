@@ -84,3 +84,9 @@ SELECT volume_id AS volumeId, COUNT(*) AS copyCount
 FROM media_copy
 WHERE volume_id IS NOT NULL AND deleted_at IS NULL
 GROUP BY volume_id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectByIdForSync:
+SELECT *
+FROM media_copy
+WHERE id = :id;

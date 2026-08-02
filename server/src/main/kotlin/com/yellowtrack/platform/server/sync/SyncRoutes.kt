@@ -6,8 +6,12 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.media.MediaCopy
+import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.sync.SyncConflict
@@ -73,6 +77,14 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                             changes.rows[SyncedEntity.CrewMembers.table].orEmpty().filterIsInstance<CrewMember>(),
                         deliverables =
                             changes.rows[SyncedEntity.Deliverables.table].orEmpty().filterIsInstance<Deliverable>(),
+                        gearItems =
+                            changes.rows[SyncedEntity.GearItems.table].orEmpty().filterIsInstance<GearItem>(),
+                        packingEntries =
+                            changes.rows[SyncedEntity.PackingEntries.table].orEmpty().filterIsInstance<PackingEntry>(),
+                        storageVolumes =
+                            changes.rows[SyncedEntity.StorageVolumes.table].orEmpty().filterIsInstance<StorageVolume>(),
+                        mediaCopies =
+                            changes.rows[SyncedEntity.MediaCopies.table].orEmpty().filterIsInstance<MediaCopy>(),
                         conflicts =
                             changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
@@ -100,6 +112,14 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         request.invoices.forEach { add(reconciler.push(studioId, SyncedEntity.Invoices, it)) }
                         request.crewMembers.forEach { add(reconciler.push(studioId, SyncedEntity.CrewMembers, it)) }
                         request.deliverables.forEach { add(reconciler.push(studioId, SyncedEntity.Deliverables, it)) }
+                        request.gearItems.forEach { add(reconciler.push(studioId, SyncedEntity.GearItems, it)) }
+                        request.storageVolumes.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.StorageVolumes, it))
+                        }
+                        request.packingEntries.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.PackingEntries, it))
+                        }
+                        request.mediaCopies.forEach { add(reconciler.push(studioId, SyncedEntity.MediaCopies, it)) }
                         request.payments.forEach { add(reconciler.push(studioId, SyncedEntity.Payments, it)) }
                     }
 
