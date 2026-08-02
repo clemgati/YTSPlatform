@@ -40,6 +40,12 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlinx.coroutines.test)
+
+            // A stand-in engine, so the classification of failures can be tested without a
+            // socket. What is worth pinning here is which failure a studio is told about.
+            implementation(libs.ktor.client.mock)
+            implementation(libs.ktor.client.contentNegotiation)
+            implementation(libs.ktor.serialization.json)
         }
     }
 }

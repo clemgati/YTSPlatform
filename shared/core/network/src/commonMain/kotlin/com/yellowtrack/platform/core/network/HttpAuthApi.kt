@@ -19,6 +19,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 
 /**
  * Signing in, over HTTP.
@@ -110,7 +111,16 @@ class HttpAuthApi(
         val response =
             try {
                 request()
-            } catch (_: Exception) {
+            } catch (cancellation: CancellationException) {
+                // Not a failure. Swallowing it reported "could not reach the server" to
+                // somebody who had simply navigated away, and left the coroutine looking
+                // as though it had finished normally.
+                throw cancellation
+            } catch (_: Throwable) {
+                // Throwable rather than Exception: a browser refusing a request for its own
+                // reasons does not always surface as one, and what escaped instead was
+                // reported as "something went wrong here rather than at the server" — which
+                // is precisely the opposite of what had happened.
                 throw AuthFailure.Unreachable
             }
 
@@ -130,8 +140,28 @@ class HttpAuthApi(
         runCatching { body<ErrorResponse>().error }
             .getOrElse { "That request could not be completed." }
 
+    /**
+     * Reading a successful answer, which can still fail.
+     *
+     * A body this application cannot parse is usually version skew — a server older than
+     * the client, answering in a shape it no longer knows. That is worth saying, because
+     * the alternative is a studio told that something went wrong on their own device when
+     * the fix is a deployment.
+     */
+    private suspend fun <T> readable(read: suspend () -> T): T =
+        try {
+            read()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            throw AuthFailure.Rejected(
+                "The server answered in a way this app could not read. It may be running an " +
+                    "older version.",
+            )
+        }
+
     private suspend fun HttpResponse.toSession(): StoredSession =
-        body<SessionResponse>().let { response ->
+        readable { body<SessionResponse>() }.let { response ->
             StoredSession(
                 token = response.token,
                 expiresAt = response.expiresAt,
