@@ -10,15 +10,19 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
 import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
@@ -96,6 +100,19 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         quotes = changes.rows[SyncedEntity.Quotes.table].orEmpty().filterIsInstance<Quote>(),
                         contracts =
                             changes.rows[SyncedEntity.Contracts.table].orEmpty().filterIsInstance<Contract>(),
+                        shots = changes.rows[SyncedEntity.Shots.table].orEmpty().filterIsInstance<Shot>(),
+                        postTasks =
+                            changes.rows[SyncedEntity.PostProductionTasks.table]
+                                .orEmpty()
+                                .filterIsInstance<PostProductionTask>(),
+                        talentReleases =
+                            changes.rows[SyncedEntity.TalentReleases.table]
+                                .orEmpty()
+                                .filterIsInstance<TalentRelease>(),
+                        lightingRecipes =
+                            changes.rows[SyncedEntity.LightingRecipes.table]
+                                .orEmpty()
+                                .filterIsInstance<LightingRecipe>(),
                         conflicts =
                             changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
@@ -136,6 +153,16 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         request.mileages.forEach { add(reconciler.push(studioId, SyncedEntity.Mileages, it)) }
                         request.quotes.forEach { add(reconciler.push(studioId, SyncedEntity.Quotes, it)) }
                         request.contracts.forEach { add(reconciler.push(studioId, SyncedEntity.Contracts, it)) }
+                        request.shots.forEach { add(reconciler.push(studioId, SyncedEntity.Shots, it)) }
+                        request.postTasks.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.PostProductionTasks, it))
+                        }
+                        request.talentReleases.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.TalentReleases, it))
+                        }
+                        request.lightingRecipes.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.LightingRecipes, it))
+                        }
                         request.payments.forEach { add(reconciler.push(studioId, SyncedEntity.Payments, it)) }
                     }
 

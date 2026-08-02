@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.TalentReleaseRepository
 import com.yellowtrack.platform.core.database.DatabaseProvider
@@ -76,14 +77,34 @@ internal class SqlDelightTalentReleaseRepository(
                 version = release.audit.version.toLong(),
                 id = release.id.value,
             )
+
+            db.enqueueForSync(
+                release.studioId.value,
+                SyncTables.TALENT_RELEASE,
+                release.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 
     override suspend fun deleteRelease(releaseId: TalentReleaseId) {
-        database().talentReleaseQueries.softDelete(
-            deletedAt = clock.now().toEpochMillis(),
-            id = releaseId.value,
-        )
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.talentReleaseQueries
+                .selectByIdForSync(releaseId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.talentReleaseQueries.softDelete(deletedAt = now, id = releaseId.value)
+
+            db.enqueueForSync(studio, SyncTables.TALENT_RELEASE, releaseId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<ReleaseRow>>.mapRows(): Flow<List<TalentRelease>> = map { rows -> rows.map { it.toDomain() } }

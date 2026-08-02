@@ -9,15 +9,19 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.shot.Shot
 import kotlinx.serialization.Serializable
 
 /**
@@ -79,6 +83,11 @@ data class SyncPullResponse(
     /** What was offered, and what was agreed. */
     val quotes: List<Quote> = emptyList(),
     val contracts: List<Contract> = emptyList(),
+    /** The shoot list, the work after it, the permissions, and the lighting. */
+    val shots: List<Shot> = emptyList(),
+    val postTasks: List<PostProductionTask> = emptyList(),
+    val talentReleases: List<TalentRelease> = emptyList(),
+    val lightingRecipes: List<LightingRecipe> = emptyList(),
     /**
      * Work reconciliation discarded, travelling down only.
      *
@@ -109,6 +118,10 @@ data class SyncPushRequest(
     val mileages: List<Mileage> = emptyList(),
     val quotes: List<Quote> = emptyList(),
     val contracts: List<Contract> = emptyList(),
+    val shots: List<Shot> = emptyList(),
+    val postTasks: List<PostProductionTask> = emptyList(),
+    val talentReleases: List<TalentRelease> = emptyList(),
+    val lightingRecipes: List<LightingRecipe> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
@@ -129,7 +142,11 @@ data class SyncPushRequest(
                 expenses.isEmpty() &&
                 mileages.isEmpty() &&
                 quotes.isEmpty() &&
-                contracts.isEmpty()
+                contracts.isEmpty() &&
+                shots.isEmpty() &&
+                postTasks.isEmpty() &&
+                talentReleases.isEmpty() &&
+                lightingRecipes.isEmpty()
 }
 
 /** What became of one pushed row. */

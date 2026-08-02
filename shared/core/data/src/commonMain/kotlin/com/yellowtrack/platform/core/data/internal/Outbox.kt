@@ -66,4 +66,8 @@ internal object SyncTables {
     const val MILEAGE = "mileage"
     const val QUOTE = "quote"
     const val CONTRACT = "contract"
+    const val SHOT = "shot"
+    const val POST_TASK = "post_task"
+    const val TALENT_RELEASE = "talent_release"
+    const val LIGHTING_RECIPE = "lighting_recipe"
 }

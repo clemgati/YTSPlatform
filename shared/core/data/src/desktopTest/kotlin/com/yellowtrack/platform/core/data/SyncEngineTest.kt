@@ -23,14 +23,18 @@ import com.yellowtrack.platform.core.data.sync.applyExpense
 import com.yellowtrack.platform.core.data.sync.applyGearItem
 import com.yellowtrack.platform.core.data.sync.applyInvoice
 import com.yellowtrack.platform.core.data.sync.applyLead
+import com.yellowtrack.platform.core.data.sync.applyLightingRecipe
 import com.yellowtrack.platform.core.data.sync.applyMediaCopy
 import com.yellowtrack.platform.core.data.sync.applyMileage
 import com.yellowtrack.platform.core.data.sync.applyPackingEntry
 import com.yellowtrack.platform.core.data.sync.applyPayment
+import com.yellowtrack.platform.core.data.sync.applyPostTask
 import com.yellowtrack.platform.core.data.sync.applyProject
 import com.yellowtrack.platform.core.data.sync.applyQuote
 import com.yellowtrack.platform.core.data.sync.applySession
+import com.yellowtrack.platform.core.data.sync.applyShot
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
+import com.yellowtrack.platform.core.data.sync.applyTalentRelease
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContact
@@ -57,6 +61,8 @@ import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
+import com.yellowtrack.platform.core.model.gear.LightingRecipeId
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.invoice.Invoice
@@ -75,17 +81,23 @@ import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.post.PostProductionTask
+import com.yellowtrack.platform.core.model.post.PostProductionTaskId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.model.quote.QuoteStatus
+import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
@@ -816,6 +828,10 @@ class SyncEngineTest {
             db.applyMileage(mileage("mi1"))
             db.applyQuote(quote("q1", "p1"))
             db.applyContract(contract("co1", "p1"))
+            db.applyShot(shot("sh1", "s1"))
+            db.applyPostTask(postTask("pt1", "p1"))
+            db.applyTalentRelease(talentRelease("tr1", "s1"))
+            db.applyLightingRecipe(lightingRecipe("lr1"))
 
             val queued =
                 listOf(
@@ -835,6 +851,10 @@ class SyncEngineTest {
                     SyncTables.MILEAGE to "mi1",
                     SyncTables.QUOTE to "q1",
                     SyncTables.CONTRACT to "co1",
+                    SyncTables.SHOT to "sh1",
+                    SyncTables.POST_TASK to "pt1",
+                    SyncTables.TALENT_RELEASE to "tr1",
+                    SyncTables.LIGHTING_RECIPE to "lr1",
                 )
 
             queued.forEach { (table, id) ->
@@ -862,6 +882,10 @@ class SyncEngineTest {
                     if (sent.mileages.isEmpty()) add(SyncTables.MILEAGE)
                     if (sent.quotes.isEmpty()) add(SyncTables.QUOTE)
                     if (sent.contracts.isEmpty()) add(SyncTables.CONTRACT)
+                    if (sent.shots.isEmpty()) add(SyncTables.SHOT)
+                    if (sent.postTasks.isEmpty()) add(SyncTables.POST_TASK)
+                    if (sent.talentReleases.isEmpty()) add(SyncTables.TALENT_RELEASE)
+                    if (sent.lightingRecipes.isEmpty()) add(SyncTables.LIGHTING_RECIPE)
                 }
 
             assertEquals(
@@ -905,6 +929,47 @@ class SyncEngineTest {
         status = ProjectStatus.Booked,
         audit = AuditMetadata.createdAt(NOW),
     )
+
+    private fun shot(
+        id: String,
+        sessionId: String,
+    ) = Shot(
+        id = ShotId(id),
+        studioId = STUDIO,
+        sessionId = SessionId(sessionId),
+        description = "Rings on the windowsill",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun postTask(
+        id: String,
+        projectId: String,
+    ) = PostProductionTask(
+        id = PostProductionTaskId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        name = "Cull",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun talentRelease(
+        id: String,
+        sessionId: String,
+    ) = TalentRelease(
+        id = TalentReleaseId(id),
+        studioId = STUDIO,
+        sessionId = SessionId(sessionId),
+        personName = "Rosa Iyer",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun lightingRecipe(id: String) =
+        LightingRecipe(
+            id = LightingRecipeId(id),
+            studioId = STUDIO,
+            name = "Two-light clamshell",
+            audit = AuditMetadata.createdAt(NOW),
+        )
 
     private fun quote(
         id: String,

@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.PostProductionRepository
 import com.yellowtrack.platform.core.data.StudioContext
@@ -80,11 +81,28 @@ internal class SqlDelightPostProductionRepository(
                 version = task.audit.version.toLong(),
                 id = task.id.value,
             )
+
+            db.enqueueForSync(task.studioId.value, SyncTables.POST_TASK, task.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteTask(taskId: PostProductionTaskId) {
-        database().postTaskQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = taskId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.postTaskQueries
+                .selectByIdForSync(taskId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.postTaskQueries.softDelete(deletedAt = now, id = taskId.value)
+
+            db.enqueueForSync(studio, SyncTables.POST_TASK, taskId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<PostTaskRow>>.mapRows(): Flow<List<PostProductionTask>> =

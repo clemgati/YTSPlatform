@@ -10,15 +10,19 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import kotlinx.serialization.json.Json
 
@@ -732,5 +736,137 @@ internal suspend fun YellowTrackDatabase.applyContract(contract: Contract) {
         deletedAt = contract.audit.deletedAt?.toEpochMilliseconds(),
         version = contract.audit.version.toLong(),
         id = contract.id.value,
+    )
+}
+
+/** One frame on the list. Written after its session. */
+internal suspend fun YellowTrackDatabase.applyShot(shot: Shot) {
+    shotQueries.insertOrIgnore(
+        id = shot.id.value,
+        studio_id = shot.studioId.value,
+        session_id = shot.sessionId.value,
+        description = shot.description,
+        group_name = shot.group,
+        people = shot.people,
+        position = shot.position.toLong(),
+        is_captured = if (shot.isCaptured) 1L else 0L,
+        captured_at = shot.capturedAt?.toEpochMilliseconds(),
+        notes = shot.notes,
+        created_at = shot.audit.createdAt.toEpochMilliseconds(),
+        updated_at = shot.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = shot.audit.deletedAt?.toEpochMilliseconds(),
+        version = shot.audit.version.toLong(),
+    )
+
+    shotQueries.update(
+        sessionId = shot.sessionId.value,
+        description = shot.description,
+        groupName = shot.group,
+        people = shot.people,
+        position = shot.position.toLong(),
+        isCaptured = if (shot.isCaptured) 1L else 0L,
+        capturedAt = shot.capturedAt?.toEpochMilliseconds(),
+        notes = shot.notes,
+        updatedAt = shot.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = shot.audit.deletedAt?.toEpochMilliseconds(),
+        version = shot.audit.version.toLong(),
+        id = shot.id.value,
+    )
+}
+
+/** Work after the shoot. Written after its project. */
+internal suspend fun YellowTrackDatabase.applyPostTask(task: PostProductionTask) {
+    postTaskQueries.insertOrIgnore(
+        id = task.id.value,
+        studio_id = task.studioId.value,
+        project_id = task.projectId.value,
+        name = task.name,
+        kind = task.kind.name,
+        status = task.status.name,
+        estimated_hours = task.estimatedHours,
+        actual_hours = task.actualHours,
+        completed_at = task.completedAt?.toEpochMilliseconds(),
+        notes = task.notes,
+        created_at = task.audit.createdAt.toEpochMilliseconds(),
+        updated_at = task.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = task.audit.deletedAt?.toEpochMilliseconds(),
+        version = task.audit.version.toLong(),
+    )
+
+    postTaskQueries.update(
+        projectId = task.projectId.value,
+        name = task.name,
+        kind = task.kind.name,
+        status = task.status.name,
+        estimatedHours = task.estimatedHours,
+        actualHours = task.actualHours,
+        completedAt = task.completedAt?.toEpochMilliseconds(),
+        notes = task.notes,
+        updatedAt = task.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = task.audit.deletedAt?.toEpochMilliseconds(),
+        version = task.audit.version.toLong(),
+        id = task.id.value,
+    )
+}
+
+/** Permission from the person photographed. Written after its session. */
+internal suspend fun YellowTrackDatabase.applyTalentRelease(release: TalentRelease) {
+    talentReleaseQueries.insertOrIgnore(
+        id = release.id.value,
+        studio_id = release.studioId.value,
+        session_id = release.sessionId.value,
+        person_name = release.personName,
+        kind = release.kind.name,
+        status = release.status.name,
+        signed_at = release.signedAt?.toEpochMilliseconds(),
+        guardian_name = release.guardianName,
+        email = release.email,
+        document_reference = release.documentReference,
+        notes = release.notes,
+        created_at = release.audit.createdAt.toEpochMilliseconds(),
+        updated_at = release.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = release.audit.deletedAt?.toEpochMilliseconds(),
+        version = release.audit.version.toLong(),
+    )
+
+    talentReleaseQueries.update(
+        sessionId = release.sessionId.value,
+        personName = release.personName,
+        kind = release.kind.name,
+        status = release.status.name,
+        signedAt = release.signedAt?.toEpochMilliseconds(),
+        guardianName = release.guardianName,
+        email = release.email,
+        documentReference = release.documentReference,
+        notes = release.notes,
+        updatedAt = release.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = release.audit.deletedAt?.toEpochMilliseconds(),
+        version = release.audit.version.toLong(),
+        id = release.id.value,
+    )
+}
+
+/** A remembered set-up. Its lights are a document in one column. */
+internal suspend fun YellowTrackDatabase.applyLightingRecipe(recipe: LightingRecipe) {
+    gearQueries.insertRecipeOrIgnore(
+        id = recipe.id.value,
+        studio_id = recipe.studioId.value,
+        name = recipe.name,
+        lights = syncJson.encodeToString(recipe.lights),
+        notes = recipe.notes,
+        created_at = recipe.audit.createdAt.toEpochMilliseconds(),
+        updated_at = recipe.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = recipe.audit.deletedAt?.toEpochMilliseconds(),
+        version = recipe.audit.version.toLong(),
+    )
+
+    gearQueries.updateRecipe(
+        name = recipe.name,
+        lights = syncJson.encodeToString(recipe.lights),
+        notes = recipe.notes,
+        updatedAt = recipe.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = recipe.audit.deletedAt?.toEpochMilliseconds(),
+        version = recipe.audit.version.toLong(),
+        id = recipe.id.value,
     )
 }

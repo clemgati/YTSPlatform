@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ShotRepository
 import com.yellowtrack.platform.core.data.StudioContext
@@ -76,11 +77,28 @@ internal class SqlDelightShotRepository(
                 version = shot.audit.version.toLong(),
                 id = shot.id.value,
             )
+
+            db.enqueueForSync(shot.studioId.value, SyncTables.SHOT, shot.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteShot(shotId: ShotId) {
-        database().shotQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = shotId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.shotQueries
+                .selectByIdForSync(shotId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.shotQueries.softDelete(deletedAt = now, id = shotId.value)
+
+            db.enqueueForSync(studio, SyncTables.SHOT, shotId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<ShotRow>>.mapRows(): Flow<List<Shot>> = map { rows -> rows.map { it.toDomain() } }

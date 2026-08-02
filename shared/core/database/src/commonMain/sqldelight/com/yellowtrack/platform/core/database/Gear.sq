@@ -164,3 +164,8 @@ selectPackingByIdForSync:
 SELECT *
 FROM packing_entry
 WHERE id = :id;
+
+selectRecipeByIdForSync:
+SELECT *
+FROM lighting_recipe
+WHERE id = :id;

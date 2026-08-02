@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.GearRepository
 import com.yellowtrack.platform.core.data.LightingRecipeRepository
@@ -79,11 +80,28 @@ internal class SqlDelightGearRepository(
                 version = item.audit.version.toLong(),
                 id = item.id.value,
             )
+
+            db.enqueueForSync(item.studioId.value, SyncTables.GEAR_ITEM, item.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteGearItem(gearItemId: GearItemId) {
-        database().gearQueries.softDeleteGear(deletedAt = clock.now().toEpochMillis(), id = gearItemId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.gearQueries
+                .selectGearByIdForSync(gearItemId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.gearQueries.softDeleteGear(deletedAt = now, id = gearItemId.value)
+
+            db.enqueueForSync(studio, SyncTables.GEAR_ITEM, gearItemId.value, OutboxOperation.Delete, now)
+        }
     }
 }
 
@@ -136,11 +154,34 @@ internal class SqlDelightPackingRepository(
                 version = entry.audit.version.toLong(),
                 id = entry.id.value,
             )
+
+            db.enqueueForSync(
+                entry.studioId.value,
+                SyncTables.PACKING_ENTRY,
+                entry.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 
     override suspend fun deletePackingEntry(entryId: PackingEntryId) {
-        database().gearQueries.softDeletePacking(deletedAt = clock.now().toEpochMillis(), id = entryId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.gearQueries
+                .selectPackingByIdForSync(entryId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.gearQueries.softDeletePacking(deletedAt = now, id = entryId.value)
+
+            db.enqueueForSync(studio, SyncTables.PACKING_ENTRY, entryId.value, OutboxOperation.Delete, now)
+        }
     }
 }
 
@@ -193,10 +234,33 @@ internal class SqlDelightLightingRecipeRepository(
                 version = recipe.audit.version.toLong(),
                 id = recipe.id.value,
             )
+
+            db.enqueueForSync(
+                recipe.studioId.value,
+                SyncTables.LIGHTING_RECIPE,
+                recipe.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 
     override suspend fun deleteRecipe(recipeId: LightingRecipeId) {
-        database().gearQueries.softDeleteRecipe(deletedAt = clock.now().toEpochMillis(), id = recipeId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.gearQueries
+                .selectRecipeByIdForSync(recipeId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.gearQueries.softDeleteRecipe(deletedAt = now, id = recipeId.value)
+
+            db.enqueueForSync(studio, SyncTables.LIGHTING_RECIPE, recipeId.value, OutboxOperation.Delete, now)
+        }
     }
 }
