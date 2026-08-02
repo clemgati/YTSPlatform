@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.CrewRepository
 import com.yellowtrack.platform.core.database.DatabaseProvider
@@ -70,14 +71,33 @@ internal class SqlDelightCrewRepository(
                 version = crewMember.audit.version.toLong(),
                 id = crewMember.id.value,
             )
+
+            db.enqueueForSync(
+                crewMember.studioId.value,
+                SyncTables.CREW_MEMBER,
+                crewMember.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 
     override suspend fun deleteCrewMember(crewMemberId: CrewMemberId) {
-        database().crewMemberQueries.softDelete(
-            deletedAt = clock.now().toEpochMillis(),
-            id = crewMemberId.value,
-        )
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // The studio comes from the row rather than from a context: these are reached
+        // through their parent, which is already scoped, so this repository never held one.
+        val studio =
+            db.crewMemberQueries
+                .selectByIdForSync(crewMemberId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.crewMemberQueries.softDelete(deletedAt = now, id = crewMemberId.value)
+            db.enqueueForSync(studio, SyncTables.CREW_MEMBER, crewMemberId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<CrewRow>>.mapRows(): Flow<List<CrewMember>> = map { rows -> rows.map { it.toDomain() } }

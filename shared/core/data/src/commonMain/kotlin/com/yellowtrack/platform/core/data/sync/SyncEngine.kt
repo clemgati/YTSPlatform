@@ -213,7 +213,8 @@ class SyncEngine(
             val arrived =
                 page.clients.size + page.contacts.size + page.clientContactLinks.size +
                     page.projects.size + page.sessions.size +
-                    page.invoices.size + page.payments.size + page.conflicts.size
+                    page.invoices.size + page.payments.size +
+                    page.crewMembers.size + page.deliverables.size + page.conflicts.size
 
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
@@ -226,6 +227,8 @@ class SyncEngine(
                 page.sessions.forEach { database.applySession(it) }
                 page.invoices.forEach { database.applyInvoice(it) }
                 page.payments.forEach { database.applyPayment(it) }
+                page.crewMembers.forEach { database.applyCrewMember(it) }
+                page.deliverables.forEach { database.applyDeliverable(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -259,6 +262,8 @@ class SyncEngine(
             sessions.forEach { add(SyncTables.SESSION to it.id.value) }
             invoices.forEach { add(SyncTables.INVOICE to it.id.value) }
             payments.forEach { add(SyncTables.PAYMENT to it.id.value) }
+            crewMembers.forEach { add(SyncTables.CREW_MEMBER to it.id.value) }
+            deliverables.forEach { add(SyncTables.DELIVERABLE to it.id.value) }
         }
 
     private companion object {

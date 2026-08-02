@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.DeliverableRepository
 import com.yellowtrack.platform.core.database.DatabaseProvider
@@ -76,14 +77,33 @@ internal class SqlDelightDeliverableRepository(
                 version = deliverable.audit.version.toLong(),
                 id = deliverable.id.value,
             )
+
+            db.enqueueForSync(
+                deliverable.studioId.value,
+                SyncTables.DELIVERABLE,
+                deliverable.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 
     override suspend fun deleteDeliverable(deliverableId: DeliverableId) {
-        database().deliverableQueries.softDelete(
-            deletedAt = clock.now().toEpochMillis(),
-            id = deliverableId.value,
-        )
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // The studio comes from the row rather than from a context: these are reached
+        // through their parent, which is already scoped, so this repository never held one.
+        val studio =
+            db.deliverableQueries
+                .selectByIdForSync(deliverableId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.deliverableQueries.softDelete(deletedAt = now, id = deliverableId.value)
+            db.enqueueForSync(studio, SyncTables.DELIVERABLE, deliverableId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<DeliverableRow>>.mapRows(): Flow<List<Deliverable>> =

@@ -16,6 +16,13 @@ import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.delivery.DeliverableKind
+import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
@@ -229,6 +236,47 @@ class SyncFieldCoverageTest {
         )
     }
 
+    @Test
+    fun `every field of a CrewMember crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.CrewMembers,
+            fixture =
+                CrewMember(
+                    id = CrewMemberId("aaaaaaaa-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    sessionId = SessionId(SESSION),
+                    name = "Rosa Iyer",
+                    role = CrewRole.SecondShooter,
+                    phone = "07700 900456",
+                    callTime = Instant.fromEpochMilliseconds(1_781_199_000_000),
+                    notes = "Bringing her own 35mm.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Deliverable crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Deliverables,
+            fixture =
+                Deliverable(
+                    id = DeliverableId("bbbbbbbb-bbbb-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    name = "Full gallery",
+                    kind = DeliverableKind.Gallery,
+                    status = DeliverableStatus.InProgress,
+                    dueAt = Instant.fromEpochMilliseconds(1_781_900_000_000),
+                    deliveredAt = Instant.fromEpochMilliseconds(1_781_950_000_000),
+                    approvedAt = Instant.fromEpochMilliseconds(1_781_960_000_000),
+                    revisionsUsed = 2,
+                    notes = "Two rounds used; a third is chargeable.",
+                    audit = audit(),
+                ),
+        )
+    }
+
     // -- The mechanism -----------------------------------------------------------------------
 
     private fun <T> assertEveryFieldCrosses(
@@ -371,6 +419,23 @@ class SyncFieldCoverageTest {
             version = 1,
         )
 
+        SyncedEntity.Sessions.upsert(
+            db,
+            Session(
+                id = SessionId(SESSION),
+                studioId = StudioId(STUDIO),
+                projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                title = "Ceremony",
+                kind = SessionKind.Shoot,
+                status = SessionStatus.Scheduled,
+                startsAt = Instant.fromEpochMilliseconds(1_781_200_000_000),
+                endsAt = Instant.fromEpochMilliseconds(1_781_210_000_000),
+                timeZoneId = "Europe/London",
+                audit = audit(),
+            ),
+            version = 1,
+        )
+
         SyncedEntity.Invoices.upsert(
             db,
             Invoice(
@@ -399,5 +464,6 @@ class SyncFieldCoverageTest {
         const val STUDIO = "99999999-9999-7000-8000-000000000001"
         const val CONTACT = "66666666-6666-7000-8000-000000000001"
         const val INVOICE = "88888888-8888-7000-8000-000000000001"
+        const val SESSION = "44444444-4444-7000-8000-000000000002"
     }
 }

@@ -3,6 +3,8 @@ package com.yellowtrack.platform.core.model.sync
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.project.Project
@@ -53,6 +55,9 @@ data class SyncPullResponse(
      */
     val invoices: List<Invoice> = emptyList(),
     val payments: List<Payment> = emptyList(),
+    /** Children of a session and of a project respectively, and rows in their own right. */
+    val crewMembers: List<CrewMember> = emptyList(),
+    val deliverables: List<Deliverable> = emptyList(),
     /**
      * Work reconciliation discarded, travelling down only.
      *
@@ -72,6 +77,8 @@ data class SyncPushRequest(
     val sessions: List<Session> = emptyList(),
     val invoices: List<Invoice> = emptyList(),
     val payments: List<Payment> = emptyList(),
+    val crewMembers: List<CrewMember> = emptyList(),
+    val deliverables: List<Deliverable> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
@@ -81,7 +88,9 @@ data class SyncPushRequest(
                 projects.isEmpty() &&
                 sessions.isEmpty() &&
                 invoices.isEmpty() &&
-                payments.isEmpty()
+                payments.isEmpty() &&
+                crewMembers.isEmpty() &&
+                deliverables.isEmpty()
 }
 
 /** What became of one pushed row. */

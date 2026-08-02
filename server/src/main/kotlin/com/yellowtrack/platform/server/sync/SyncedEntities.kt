@@ -15,6 +15,13 @@ import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.delivery.DeliverableKind
+import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
@@ -473,6 +480,150 @@ sealed interface SyncedEntity<T> {
                     statement.setLong(11, entity.audit.updatedAt.toEpochMilliseconds())
                     statement.setNullableLong(12, entity.audit.deletedAt?.toEpochMilliseconds())
                     statement.setInt(13, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** Who is on a shoot day. A child of the session, and its own row. */
+    object CrewMembers : SyncedEntity<CrewMember> {
+        override val table = "crew_member"
+
+        override fun identify(entity: CrewMember) = entity.id.value
+
+        override fun studioOf(entity: CrewMember) = entity.studioId.value
+
+        override fun versionOf(entity: CrewMember) = entity.audit.version
+
+        override fun deletedAtOf(entity: CrewMember) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): CrewMember =
+            CrewMember(
+                id = CrewMemberId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                sessionId = SessionId(rows.getString("session_id")),
+                name = rows.getString("name"),
+                role = enumOrDefault(rows.getString("role"), CrewRole.SecondShooter),
+                phone = rows.getString("phone"),
+                callTime = rows.getNullableLong("call_time")?.let { Instant.fromEpochMilliseconds(it) },
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: CrewMember) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: CrewMember,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO crew_member(id, studio_id, session_id, name, role, phone, call_time,
+                                            notes, created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        session_id = EXCLUDED.session_id,
+                        name       = EXCLUDED.name,
+                        role       = EXCLUDED.role,
+                        phone      = EXCLUDED.phone,
+                        call_time  = EXCLUDED.call_time,
+                        notes      = EXCLUDED.notes,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.sessionId.value)
+                    statement.setString(4, entity.name)
+                    statement.setString(5, entity.role.name)
+                    statement.setString(6, entity.phone)
+                    statement.setNullableLong(7, entity.callTime?.toEpochMilliseconds())
+                    statement.setString(8, entity.notes)
+                    statement.setLong(9, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(10, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(11, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(12, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** What the client is owed, and whether it has gone. A child of the project. */
+    object Deliverables : SyncedEntity<Deliverable> {
+        override val table = "deliverable"
+
+        override fun identify(entity: Deliverable) = entity.id.value
+
+        override fun studioOf(entity: Deliverable) = entity.studioId.value
+
+        override fun versionOf(entity: Deliverable) = entity.audit.version
+
+        override fun deletedAtOf(entity: Deliverable) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Deliverable =
+            Deliverable(
+                id = DeliverableId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                projectId = ProjectId(rows.getString("project_id")),
+                name = rows.getString("name"),
+                kind = enumOrDefault(rows.getString("kind"), DeliverableKind.Gallery),
+                status = enumOrDefault(rows.getString("status"), DeliverableStatus.NotStarted),
+                dueAt = rows.getNullableLong("due_at")?.let { Instant.fromEpochMilliseconds(it) },
+                deliveredAt = rows.getNullableLong("delivered_at")?.let { Instant.fromEpochMilliseconds(it) },
+                approvedAt = rows.getNullableLong("approved_at")?.let { Instant.fromEpochMilliseconds(it) },
+                revisionsUsed = rows.getInt("revisions_used"),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Deliverable) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Deliverable,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO deliverable(id, studio_id, project_id, name, kind, status, due_at,
+                                            delivered_at, approved_at, revisions_used, notes,
+                                            created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        project_id     = EXCLUDED.project_id,
+                        name           = EXCLUDED.name,
+                        kind           = EXCLUDED.kind,
+                        status         = EXCLUDED.status,
+                        due_at         = EXCLUDED.due_at,
+                        delivered_at   = EXCLUDED.delivered_at,
+                        approved_at    = EXCLUDED.approved_at,
+                        revisions_used = EXCLUDED.revisions_used,
+                        notes          = EXCLUDED.notes,
+                        updated_at     = EXCLUDED.updated_at,
+                        deleted_at     = EXCLUDED.deleted_at,
+                        version        = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.projectId.value)
+                    statement.setString(4, entity.name)
+                    statement.setString(5, entity.kind.name)
+                    statement.setString(6, entity.status.name)
+                    statement.setNullableLong(7, entity.dueAt?.toEpochMilliseconds())
+                    statement.setNullableLong(8, entity.deliveredAt?.toEpochMilliseconds())
+                    statement.setNullableLong(9, entity.approvedAt?.toEpochMilliseconds())
+                    statement.setLong(10, entity.revisionsUsed.toLong())
+                    statement.setString(11, entity.notes)
+                    statement.setLong(12, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(15, version)
                     statement.executeUpdate()
                 }
         }

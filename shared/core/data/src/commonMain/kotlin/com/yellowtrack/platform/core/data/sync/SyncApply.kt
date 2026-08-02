@@ -4,6 +4,8 @@ import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.project.Project
@@ -292,5 +294,73 @@ internal suspend fun YellowTrackDatabase.applyPayment(payment: Payment) {
         deletedAt = payment.audit.deletedAt?.toEpochMilliseconds(),
         version = payment.audit.version.toLong(),
         id = payment.id.value,
+    )
+}
+
+/** Crew on a shoot day. Written after its session. */
+internal suspend fun YellowTrackDatabase.applyCrewMember(member: CrewMember) {
+    crewMemberQueries.insertOrIgnore(
+        id = member.id.value,
+        studio_id = member.studioId.value,
+        session_id = member.sessionId.value,
+        name = member.name,
+        role = member.role.name,
+        phone = member.phone,
+        call_time = member.callTime?.toEpochMilliseconds(),
+        notes = member.notes,
+        created_at = member.audit.createdAt.toEpochMilliseconds(),
+        updated_at = member.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = member.audit.deletedAt?.toEpochMilliseconds(),
+        version = member.audit.version.toLong(),
+    )
+
+    crewMemberQueries.update(
+        sessionId = member.sessionId.value,
+        name = member.name,
+        role = member.role.name,
+        phone = member.phone,
+        callTime = member.callTime?.toEpochMilliseconds(),
+        notes = member.notes,
+        updatedAt = member.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = member.audit.deletedAt?.toEpochMilliseconds(),
+        version = member.audit.version.toLong(),
+        id = member.id.value,
+    )
+}
+
+/** What a client is owed. Written after its project. */
+internal suspend fun YellowTrackDatabase.applyDeliverable(deliverable: Deliverable) {
+    deliverableQueries.insertOrIgnore(
+        id = deliverable.id.value,
+        studio_id = deliverable.studioId.value,
+        project_id = deliverable.projectId.value,
+        name = deliverable.name,
+        kind = deliverable.kind.name,
+        status = deliverable.status.name,
+        due_at = deliverable.dueAt?.toEpochMilliseconds(),
+        delivered_at = deliverable.deliveredAt?.toEpochMilliseconds(),
+        approved_at = deliverable.approvedAt?.toEpochMilliseconds(),
+        revisions_used = deliverable.revisionsUsed.toLong(),
+        notes = deliverable.notes,
+        created_at = deliverable.audit.createdAt.toEpochMilliseconds(),
+        updated_at = deliverable.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = deliverable.audit.deletedAt?.toEpochMilliseconds(),
+        version = deliverable.audit.version.toLong(),
+    )
+
+    deliverableQueries.update(
+        projectId = deliverable.projectId.value,
+        name = deliverable.name,
+        kind = deliverable.kind.name,
+        status = deliverable.status.name,
+        dueAt = deliverable.dueAt?.toEpochMilliseconds(),
+        deliveredAt = deliverable.deliveredAt?.toEpochMilliseconds(),
+        approvedAt = deliverable.approvedAt?.toEpochMilliseconds(),
+        revisionsUsed = deliverable.revisionsUsed.toLong(),
+        notes = deliverable.notes,
+        updatedAt = deliverable.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = deliverable.audit.deletedAt?.toEpochMilliseconds(),
+        version = deliverable.audit.version.toLong(),
+        id = deliverable.id.value,
     )
 }
