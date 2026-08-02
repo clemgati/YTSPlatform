@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.ledger.presentation.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,8 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 internal fun ExpenseSection(
     summary: ExpenseSummary,
     onAddExpense: () -> Unit,
+    /** Called for a cost the studio can correct; journeys pass nothing, having no form. */
+    onCorrectCost: (RecordedCost) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -68,7 +71,12 @@ internal fun ExpenseSection(
                     color = YTTheme.colors.onSurface,
                 )
 
-                summary.items.forEach { cost -> RecordedCostRow(cost) }
+                summary.items.forEach { cost ->
+                    RecordedCostRow(
+                        cost = cost,
+                        onCorrect = cost.editable?.let { { onCorrectCost(cost) } },
+                    )
+                }
             }
 
             TextButton(onClick = onAddExpense) {
@@ -91,9 +99,17 @@ internal fun ExpenseSection(
  * decides whether the money came out of one booking or off every job.
  */
 @Composable
-private fun RecordedCostRow(cost: RecordedCost) {
+private fun RecordedCostRow(
+    cost: RecordedCost,
+    onCorrect: (() -> Unit)?,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                // Only rows there is something to open. A journey cannot be corrected
+                // because nothing in the application can record one to begin with.
+                .then(onCorrect?.let { Modifier.clickable(onClick = it) } ?: Modifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {

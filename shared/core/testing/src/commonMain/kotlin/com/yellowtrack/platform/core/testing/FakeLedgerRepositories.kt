@@ -176,6 +176,8 @@ class FakeExpenseRepository(
             rows.filter { it.isOverhead && it.incurredOn >= fromInclusive && it.incurredOn < toExclusive }
         }
 
+    override suspend fun getExpense(expenseId: ExpenseId): Expense? = expenses.value.firstOrNull { it.id == expenseId }
+
     override suspend fun saveExpense(expense: Expense) {
         expenses.value = expenses.value.filterNot { it.id == expense.id } + expense
     }

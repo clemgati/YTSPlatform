@@ -64,7 +64,7 @@ class LedgerScreenRenderTest {
                             uiState = LedgerUiState(content = UiState.Success(sampleContent())),
                             onRetry = {},
                             onSavePricingBasis = { _, _, _ -> },
-                            onAddExpense = {},
+                            onSaveExpense = { _, _ -> },
                             onRecordPayment = {},
                             onAddQuote = {},
                             onAddInvoice = {},

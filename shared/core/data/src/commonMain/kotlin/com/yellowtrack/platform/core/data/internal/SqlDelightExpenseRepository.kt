@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ExpenseRepository
 import com.yellowtrack.platform.core.data.StudioContext
@@ -56,6 +57,13 @@ internal class SqlDelightExpenseRepository(
                 ).asListFlow(dispatcher)
                 .mapRows()
         }
+
+    override suspend fun getExpense(expenseId: ExpenseId): Expense? =
+        database()
+            .expenseQueries
+            .selectById(expenseId.value)
+            .awaitAsOneOrNull()
+            ?.toDomain()
 
     override suspend fun saveExpense(expense: Expense) {
         val db = database()

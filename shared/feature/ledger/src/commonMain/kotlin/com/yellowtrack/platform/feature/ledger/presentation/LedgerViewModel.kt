@@ -422,16 +422,29 @@ internal class LedgerViewModel(
         }
     }
 
-    fun addExpense(expense: NewExpense) {
+    /**
+     * Records a cost, or corrects one already recorded.
+     *
+     * One path for both, because a correction is the same fact stated better rather than a
+     * different kind of event. [existingId] carries the row through: with it the audit is
+     * touched so the version rises and the change reaches other devices; without it the
+     * cost is new.
+     */
+    fun saveExpense(
+        expense: NewExpense,
+        existingId: String? = null,
+    ) {
         viewModelScope.launch {
             val currency = studioProfileRepository.currency()
             val amount = parseMoney(expense.amount, currency)?.takeIf { it.isPositive } ?: return@launch
             val incurredOn = runCatching { LocalDate.parse(expense.incurredOn) }.getOrNull() ?: return@launch
             val now = clock.now()
 
+            val existing = existingId?.let { id -> expenseRepository.getExpense(ExpenseId(id)) }
+
             expenseRepository.saveExpense(
                 Expense(
-                    id = ExpenseId.new(),
+                    id = existing?.id ?: ExpenseId.new(),
                     studioId = studioContext.studioId,
                     category = expense.category,
                     description = expense.description,
@@ -440,7 +453,9 @@ internal class LedgerViewModel(
                     projectId = expense.projectId,
                     vendor = expense.vendor,
                     isTaxDeductible = expense.isTaxDeductible,
-                    audit = AuditMetadata.createdAt(now),
+                    // Kept, not restamped: when the money left is a fact about the cost, not
+                    // about when somebody noticed the amount was wrong.
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }

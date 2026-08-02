@@ -2,6 +2,7 @@ package com.yellowtrack.platform.feature.ledger.presentation.mapper
 
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
+import com.yellowtrack.platform.core.common.money.editableAmount
 import com.yellowtrack.platform.core.common.money.formatted
 import com.yellowtrack.platform.core.common.money.sum
 import com.yellowtrack.platform.core.common.time.DateFormats
@@ -19,6 +20,7 @@ import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
@@ -267,6 +269,18 @@ internal fun buildExpenseSummary(
                             description = expense.description,
                             amount = expense.amount.display(),
                             allocation = allocation(expense.projectId),
+                            // Seeded from the cost as recorded, so opening it shows what was
+                            // entered rather than an empty form to type again.
+                            editable =
+                                NewExpense(
+                                    description = expense.description,
+                                    amount = expense.amount.editableAmount(),
+                                    category = expense.category,
+                                    incurredOn = expense.incurredOn.toString(),
+                                    projectId = expense.projectId,
+                                    vendor = expense.vendor,
+                                    isTaxDeductible = expense.isTaxDeductible,
+                                ),
                         )
                 } +
                     mileage.filter { it.ratePerUnit.currency == currency }.map { journey ->

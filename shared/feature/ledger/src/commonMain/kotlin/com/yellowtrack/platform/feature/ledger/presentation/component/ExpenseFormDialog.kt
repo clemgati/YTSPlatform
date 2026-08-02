@@ -40,17 +40,22 @@ internal fun ExpenseFormDialog(
     projects: List<ProjectOption>,
     onSave: (NewExpense) -> Unit,
     onDismiss: () -> Unit,
+    /** The cost being corrected, or null when this is a new one. */
+    initial: NewExpense? = null,
 ) {
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(ExpenseCategory.Software) }
-    var incurredOn by remember { mutableStateOf(today.toString()) }
-    var vendor by remember { mutableStateOf("") }
-    var deductible by remember { mutableStateOf(true) }
+    var description by remember { mutableStateOf(initial?.description.orEmpty()) }
+    var amount by remember { mutableStateOf(initial?.amount.orEmpty()) }
+    var category by remember { mutableStateOf(initial?.category ?: ExpenseCategory.Software) }
+    var incurredOn by remember { mutableStateOf(initial?.incurredOn ?: today.toString()) }
+    var vendor by remember { mutableStateOf(initial?.vendor.orEmpty()) }
+    var deductible by remember { mutableStateOf(initial?.isTaxDeductible ?: true) }
 
     val overhead = ProjectOption(id = null, label = "Overhead — not a specific job")
     val options = remember(projects) { listOf(overhead) + projects }
-    var selectedProject by remember(projects) { mutableStateOf(overhead) }
+    var selectedProject by
+        remember(projects) {
+            mutableStateOf(options.firstOrNull { it.id == initial?.projectId } ?: overhead)
+        }
 
     // Changing category re-suggests overhead or job cost, without locking the choice.
     val suggestedByCategory =
@@ -60,8 +65,8 @@ internal fun ExpenseFormDialog(
     val dateValid = runCatching { LocalDate.parse(incurredOn) }.isSuccess
 
     YTFormDialog(
-        title = "Record a cost",
-        confirmLabel = "Save",
+        title = if (initial == null) "Record a cost" else "Correct this cost",
+        confirmLabel = if (initial == null) "Save" else "Save changes",
         confirmEnabled = description.isNotBlank() && amountValid && dateValid,
         onConfirm = {
             onSave(

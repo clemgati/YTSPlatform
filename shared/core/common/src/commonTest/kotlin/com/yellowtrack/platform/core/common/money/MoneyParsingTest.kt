@@ -7,6 +7,37 @@ import kotlin.test.assertNull
 class MoneyParsingTest {
     private val usd = CurrencyCode.USD
 
+    // -- editableAmount: what a form holds -----------------------------------------------
+
+    @Test
+    fun `an amount survives a round trip through the form`() {
+        // The property that matters: reopening a saved cost must show the amount that was
+        // recorded, and saving it again without touching the field must not change it.
+        listOf(0L, 7L, 45L, 1_200L, 240_000L, 4_500_00L, -1_250L).forEach { minorUnits ->
+            val original = Money(minorUnits, usd)
+
+            assertEquals(
+                original,
+                parseMoney(original.editableAmount(), usd),
+                "$minorUnits did not come back as itself",
+            )
+        }
+    }
+
+    @Test
+    fun `a form holds digits rather than punctuation`() {
+        // Not display(): a form opening on "$1,240.00" makes somebody delete punctuation
+        // before they can change a digit.
+        assertEquals("1240.00", Money(1_240_00, usd).editableAmount())
+        assertEquals("0.07", Money(7, usd).editableAmount())
+        assertEquals("-12.50", Money(-1_250, usd).editableAmount())
+    }
+
+    @Test
+    fun `a currency with no fractional part keeps none`() {
+        assertEquals("1240", Money(1_240, usd).editableAmount(fractionDigits = 0))
+    }
+
     @Test
     fun `parses whole and fractional amounts exactly`() {
         assertEquals(Money(4_500_00, usd), parseMoney("4500", usd))

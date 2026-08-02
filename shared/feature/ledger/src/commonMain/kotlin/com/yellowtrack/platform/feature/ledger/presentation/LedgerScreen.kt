@@ -37,13 +37,15 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 
 @Composable
 internal fun LedgerScreen(
     uiState: LedgerUiState,
     onRetry: () -> Unit,
     onSavePricingBasis: (salary: String, billableDays: String, taxRate: String) -> Unit,
-    onAddExpense: (NewExpense) -> Unit,
+    /** The second argument is the cost being corrected, or null when recording a new one. */
+    onSaveExpense: (NewExpense, String?) -> Unit,
     onRecordPayment: (NewPayment) -> Unit,
     onAddQuote: (NewQuote) -> Unit,
     onAddInvoice: (NewInvoice) -> Unit,
@@ -61,6 +63,7 @@ internal fun LedgerScreen(
     modifier: Modifier = Modifier,
 ) {
     var showExpenseForm by remember { mutableStateOf(false) }
+    var correctingCost by remember { mutableStateOf<RecordedCost?>(null) }
     var showQuoteForm by remember { mutableStateOf(false) }
     var showInvoiceForm by remember { mutableStateOf(false) }
     var showContractForm by remember { mutableStateOf(false) }
@@ -78,10 +81,24 @@ internal fun LedgerScreen(
                 currency = content.currency,
                 projects = content.projects,
                 onSave = {
-                    onAddExpense(it)
+                    onSaveExpense(it, null)
                     showExpenseForm = false
                 },
                 onDismiss = { showExpenseForm = false },
+            )
+        }
+
+        correctingCost?.let { cost ->
+            ExpenseFormDialog(
+                today = content.today,
+                currency = content.currency,
+                projects = content.projects,
+                onSave = {
+                    onSaveExpense(it, cost.id)
+                    correctingCost = null
+                },
+                onDismiss = { correctingCost = null },
+                initial = cost.editable,
             )
         }
 
@@ -206,6 +223,7 @@ internal fun LedgerScreen(
             ExpenseSection(
                 summary = content.expenses,
                 onAddExpense = { showExpenseForm = true },
+                onCorrectCost = { correctingCost = it },
             )
         }
     }
