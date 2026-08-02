@@ -510,6 +510,21 @@ internal class LedgerViewModel(
     }
 
     /**
+     * Removes a payment that should not have been recorded.
+     *
+     * A payment against the wrong invoice is not a correction to make in place: the money
+     * arrived, it was attributed wrongly, and the honest repair is to take it off this
+     * invoice and record it against the right one. So this removes rather than reassigns.
+     *
+     * The invoice's state follows on its own — it is computed from its payments rather than
+     * stored — so an invoice that looked settled goes back to owing the moment this lands,
+     * on every device.
+     */
+    fun removePayment(paymentId: PaymentId) {
+        viewModelScope.launch { invoiceRepository.deletePayment(paymentId) }
+    }
+
+    /**
      * Raises a quote and sends it in one step.
      *
      * There is no draft state in the form because a quote nobody has seen is not yet a

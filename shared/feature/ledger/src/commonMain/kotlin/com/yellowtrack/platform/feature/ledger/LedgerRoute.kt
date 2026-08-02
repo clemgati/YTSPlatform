@@ -23,6 +23,7 @@ fun LedgerRoute(modifier: Modifier = Modifier) {
         onSavePricingBasis = viewModel::savePricingBasis,
         onSaveExpense = viewModel::saveExpense,
         onSaveMileage = viewModel::saveMileage,
+        onRemovePayment = viewModel::removePayment,
         onRecordPayment = viewModel::recordPayment,
         onAddQuote = viewModel::addQuote,
         onAddInvoice = viewModel::addInvoice,

@@ -26,6 +26,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.ReceivedPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 import kotlinx.datetime.TimeZone
 import kotlin.time.Instant
@@ -159,6 +160,29 @@ internal fun buildMoneyOwed(
         overdueCount = overdueInvoices.size,
         invoices = items,
         drafts = drafts,
+        // From every invoice, not only the outstanding ones. A payment put against the
+        // wrong invoice settles it, and a settled invoice is not in `items` — so listing
+        // only those would hide exactly the payment somebody is looking for.
+        received =
+            invoices
+                .flatMap { invoice -> invoice.payments.map { invoice to it } }
+                .sortedByDescending { (_, payment) -> payment.paidAt }
+                .map { (invoice, payment) ->
+                    ReceivedPayment(
+                        id = payment.id,
+                        date = DateFormats.fullDate(payment.paidAt, TimeZone.currentSystemDefault()),
+                        amount = payment.amount.display(),
+                        against =
+                            "Invoice ${invoice.number} — " +
+                                (
+                                    projectsById[invoice.projectId]
+                                        ?.let { clientsById[it.clientId]?.accountName }
+                                        ?: "unknown client"
+                                ),
+                        method = payment.method.name,
+                        reference = payment.reference,
+                    )
+                },
     )
 }
 

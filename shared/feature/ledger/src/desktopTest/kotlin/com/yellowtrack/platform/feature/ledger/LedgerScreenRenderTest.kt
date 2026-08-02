@@ -71,6 +71,7 @@ class LedgerScreenRenderTest {
                             onSavePricingBasis = { _, _, _ -> },
                             onSaveExpense = { _, _ -> },
                             onSaveMileage = { _, _ -> },
+                            onRemovePayment = {},
                             onRecordPayment = {},
                             onAddQuote = {},
                             onAddInvoice = {},

@@ -17,6 +17,7 @@ import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.ledger.presentation.component.ContractFormDialog
@@ -50,6 +51,7 @@ internal fun LedgerScreen(
     /** The second argument is the row being corrected, or null when recording a new one. */
     onSaveExpense: (NewExpense, String?) -> Unit,
     onSaveMileage: (NewMileage, String?) -> Unit,
+    onRemovePayment: (PaymentId) -> Unit,
     onRecordPayment: (NewPayment) -> Unit,
     onAddQuote: (NewQuote) -> Unit,
     onAddInvoice: (NewInvoice) -> Unit,
@@ -226,6 +228,7 @@ internal fun LedgerScreen(
                 onSendDraft = { onSendInvoice(it.id) },
                 onDeleteDraft = { onDeleteInvoice(it.id) },
                 onSaveInvoice = { onSaveInvoice(it.id) },
+                onRemovePayment = { onRemovePayment(it.id) },
             )
 
             ProposalsSection(
