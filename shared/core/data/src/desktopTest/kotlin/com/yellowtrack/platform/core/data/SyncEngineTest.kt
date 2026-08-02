@@ -10,8 +10,14 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
+import com.yellowtrack.platform.core.model.client.ClientContact
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
+import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
@@ -22,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -467,6 +474,138 @@ class SyncEngineTest {
             assertTrue(
                 sent.any { it.id.value == "probe-1" && it.audit.deletedAt != null },
                 "a delete queued to the outbox never reached the server",
+            )
+        }
+
+    /**
+     * A contact added on one device reaches another — which nothing proved until now.
+     *
+     * Contacts were not in the synchronised slice at all: a client arrived on a second device
+     * with an empty contact list and no indication anything was missing. This drives device A
+     * through a real save and push, hands what it uploaded to device B as a pull, and asks B
+     * whether it can see the person.
+     */
+    @Test
+    fun `a contact added on one device arrives attached on another`() =
+        runTest {
+            val deviceA = world()
+            val deviceB = world()
+
+            val ada =
+                Contact(
+                    id = ContactId("contact-1"),
+                    studioId = STUDIO,
+                    firstName = "Ada",
+                    lastName = "Okafor",
+                    audit = AuditMetadata.createdAt(NOW),
+                )
+
+            deviceA.clients.saveClient(
+                client("client-1", "Okafor").copy(
+                    contacts = listOf(ClientContact(contact = ada, role = ClientContactRole.Primary)),
+                ),
+            )
+            deviceA.engine.sync()
+
+            val uploaded = deviceA.transport.pushed.single()
+            assertTrue(uploaded.contacts.isNotEmpty(), "the contact itself never left the device")
+            assertTrue(uploaded.clientContactLinks.isNotEmpty(), "the attachment never left the device")
+
+            // What the server would hand back, in the order it hands it back.
+            deviceB.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 10,
+                        hasMore = false,
+                        clients = uploaded.clients,
+                        contacts = uploaded.contacts,
+                        clientContactLinks = uploaded.clientContactLinks,
+                    ),
+                )
+
+            deviceB.engine.sync()
+
+            val arrived = deviceB.clients.getClient(ClientId("client-1"))
+            assertNotNull(arrived, "the client did not arrive at all")
+            assertEquals(
+                listOf("Ada"),
+                arrived.contacts.map { it.contact.firstName },
+                "the client arrived without the person attached to it, which is what a studio " +
+                    "would notice as a client with no way to contact them",
+            )
+        }
+
+    /**
+     * Two devices each attach a different person to the same client, and both survive.
+     *
+     * This is ADR 0008 decision 5. Had contacts travelled inside the client, the later save
+     * would have carried a contact list missing the other device's addition and silently
+     * discarded it — a lost planner on a wedding, found the week of the shoot.
+     */
+    @Test
+    fun `two devices each adding a contact keep both`() =
+        runTest {
+            val deviceB = world()
+
+            val ada =
+                Contact(
+                    id = ContactId("contact-1"),
+                    studioId = STUDIO,
+                    firstName = "Ada",
+                    lastName = "Okafor",
+                    audit = AuditMetadata.createdAt(NOW),
+                )
+            val planner =
+                Contact(
+                    id = ContactId("contact-2"),
+                    studioId = STUDIO,
+                    firstName = "Rosa",
+                    lastName = "Iyer",
+                    audit = AuditMetadata.createdAt(NOW),
+                )
+
+            // B's own work, done offline.
+            deviceB.clients.saveClient(
+                client("client-1", "Okafor").copy(
+                    contacts = listOf(ClientContact(contact = ada, role = ClientContactRole.Primary)),
+                ),
+            )
+
+            // A's work, arriving. A separate link row, because it has its own id.
+            deviceB.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 20,
+                        hasMore = false,
+                        contacts = listOf(planner),
+                        clientContactLinks =
+                            listOf(
+                                ClientContactLink(
+                                    id = ClientContactLinkId("link-from-a"),
+                                    studioId = STUDIO,
+                                    clientId = ClientId("client-1"),
+                                    contactId = ContactId("contact-2"),
+                                    role = ClientContactRole.Planner,
+                                    audit = AuditMetadata.createdAt(NOW),
+                                ),
+                            ),
+                    ),
+                )
+
+            deviceB.engine.sync()
+
+            val names =
+                deviceB.clients
+                    .getClient(ClientId("client-1"))
+                    ?.contacts
+                    ?.map { it.contact.firstName }
+                    ?.sorted()
+
+            assertEquals(
+                listOf("Ada", "Rosa"),
+                names,
+                "one device's contact displaced the other's, which is exactly what giving each " +
+                    "link its own id is supposed to prevent",
             )
         }
 

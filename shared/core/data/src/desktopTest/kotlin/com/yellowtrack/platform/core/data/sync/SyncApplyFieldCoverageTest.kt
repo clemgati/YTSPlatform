@@ -5,12 +5,21 @@ import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.data.InMemoryDatabaseDriverFactory
 import com.yellowtrack.platform.core.data.internal.toDomain
+import com.yellowtrack.platform.core.data.sync.applyClientContactLink
+import com.yellowtrack.platform.core.data.sync.applyContact
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
+import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.contact.ContactMethod
+import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -143,6 +152,60 @@ class SyncApplyFieldCoverageTest {
         }
 
     @Test
+    fun `every field of a Contact survives being applied`() =
+        runTest {
+            val fixture =
+                Contact(
+                    id = ContactId(CONTACT),
+                    studioId = StudioId(STUDIO),
+                    firstName = "Ada",
+                    lastName = "Okafor",
+                    company = "Harbourline",
+                    jobTitle = "Producer",
+                    emails = listOf(ContactMethod(value = "ada@harbourline.test", label = ContactMethodLabel.Work)),
+                    phones = listOf(ContactMethod(value = "07700 900123", label = ContactMethodLabel.Mobile)),
+                    notes = "Deaf in the left ear; stand on the right.",
+                    audit = audit(),
+                )
+
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyContact(fixture)
+
+            val row = assertNotNull(database.contactQueries.selectById(CONTACT).executeAsOneOrNull())
+
+            assertEveryFieldSurvived(Contact.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
+    fun `every field of a ClientContactLink survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyContact(parentContact())
+
+            val fixture =
+                ClientContactLink(
+                    id = ClientContactLinkId("55555555-5555-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    clientId = ClientId(CLIENT),
+                    contactId = ContactId(CONTACT),
+                    role = ClientContactRole.Planner,
+                    audit = audit(),
+                )
+
+            database.applyClientContactLink(fixture)
+
+            val row =
+                assertNotNull(
+                    database.clientQueries
+                        .selectClientContactLinkById("55555555-5555-7000-8000-000000000001")
+                        .executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(ClientContactLink.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
     fun `a tombstone arrives as a tombstone`() =
         runTest {
             val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
@@ -223,6 +286,15 @@ class SyncApplyFieldCoverageTest {
             audit = audit(),
         )
 
+    private fun parentContact() =
+        Contact(
+            id = ContactId(CONTACT),
+            studioId = StudioId(STUDIO),
+            firstName = "Ada",
+            lastName = "Okafor",
+            audit = audit(),
+        )
+
     private fun parentProject() =
         Project(
             id = ProjectId(PROJECT),
@@ -251,6 +323,7 @@ class SyncApplyFieldCoverageTest {
         const val STUDIO = "99999999-9999-7000-8000-000000000001"
         const val CLIENT = "11111111-1111-7000-8000-000000000001"
         const val PROJECT = "22222222-2222-7000-8000-000000000001"
+        const val CONTACT = "66666666-6666-7000-8000-000000000001"
 
         val json = Json { encodeDefaults = true }
     }

@@ -5,9 +5,16 @@ import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
+import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.contact.ContactMethod
+import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -74,6 +81,42 @@ class SyncFieldCoverageTest {
             // recorded elsewhere. `Clients.read` returns them empty on purpose, and a push
             // carrying them is refused rather than quietly stripped.
             notCarried = mapOf("contacts" to "child rows, synchronised separately"),
+        )
+    }
+
+    @Test
+    fun `every field of a Contact crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Contacts,
+            fixture =
+                Contact(
+                    id = ContactId(CONTACT),
+                    studioId = StudioId(STUDIO),
+                    firstName = "Ada",
+                    lastName = "Okafor",
+                    company = "Harbourline",
+                    jobTitle = "Producer",
+                    emails = listOf(ContactMethod(value = "ada@harbourline.test", label = ContactMethodLabel.Work)),
+                    phones = listOf(ContactMethod(value = "07700 900123", label = ContactMethodLabel.Mobile)),
+                    notes = "Deaf in the left ear; stand on the right.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a ClientContactLink crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.ClientContactLinks,
+            fixture =
+                ClientContactLink(
+                    id = ClientContactLinkId("55555555-5555-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    clientId = ClientId("11111111-1111-7000-8000-000000000001"),
+                    contactId = ContactId(CONTACT),
+                    role = ClientContactRole.Planner,
+                    audit = audit(),
+                ),
         )
     }
 
@@ -240,6 +283,18 @@ class SyncFieldCoverageTest {
             version = 1,
         )
 
+        SyncedEntity.Contacts.upsert(
+            db,
+            Contact(
+                id = ContactId(CONTACT),
+                studioId = StudioId(STUDIO),
+                firstName = "Ada",
+                lastName = "Okafor",
+                audit = audit(),
+            ),
+            version = 1,
+        )
+
         SyncedEntity.Projects.upsert(
             db,
             Project(
@@ -265,5 +320,6 @@ class SyncFieldCoverageTest {
 
     private companion object {
         const val STUDIO = "99999999-9999-7000-8000-000000000001"
+        const val CONTACT = "66666666-6666-7000-8000-000000000001"
     }
 }
