@@ -6,10 +6,13 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
@@ -500,5 +503,134 @@ internal suspend fun YellowTrackDatabase.applyMediaCopy(copy: MediaCopy) {
         deletedAt = copy.audit.deletedAt?.toEpochMilliseconds(),
         version = copy.audit.version.toLong(),
         id = copy.id.value,
+    )
+}
+
+/** An enquiry. Its converted project and client, when it has them, are written before it. */
+internal suspend fun YellowTrackDatabase.applyLead(lead: Lead) {
+    leadQueries.insertOrIgnore(
+        id = lead.id.value,
+        studio_id = lead.studioId.value,
+        name = lead.name,
+        source = lead.source.name,
+        status = lead.status.name,
+        received_at = lead.receivedAt.toEpochMilliseconds(),
+        email = lead.email,
+        phone = lead.phone,
+        first_response_at = lead.firstResponseAt?.toEpochMilliseconds(),
+        service_line = lead.serviceLine?.name,
+        desired_date = lead.desiredDate?.toString(),
+        budget_low_minor = lead.budgetLow?.minorUnits,
+        budget_high_minor = lead.budgetHigh?.minorUnits,
+        budget_currency = (lead.budgetLow ?: lead.budgetHigh)?.currency?.code,
+        referred_by = lead.referredBy,
+        lost_reason = lead.lostReason,
+        converted_project_id = lead.convertedProjectId?.value,
+        converted_client_id = lead.convertedClientId?.value,
+        notes = lead.notes,
+        created_at = lead.audit.createdAt.toEpochMilliseconds(),
+        updated_at = lead.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = lead.audit.deletedAt?.toEpochMilliseconds(),
+        version = lead.audit.version.toLong(),
+    )
+
+    leadQueries.update(
+        name = lead.name,
+        source = lead.source.name,
+        status = lead.status.name,
+        receivedAt = lead.receivedAt.toEpochMilliseconds(),
+        email = lead.email,
+        phone = lead.phone,
+        firstResponseAt = lead.firstResponseAt?.toEpochMilliseconds(),
+        serviceLine = lead.serviceLine?.name,
+        desiredDate = lead.desiredDate?.toString(),
+        budgetLowMinor = lead.budgetLow?.minorUnits,
+        budgetHighMinor = lead.budgetHigh?.minorUnits,
+        budgetCurrency = (lead.budgetLow ?: lead.budgetHigh)?.currency?.code,
+        referredBy = lead.referredBy,
+        lostReason = lead.lostReason,
+        convertedProjectId = lead.convertedProjectId?.value,
+        convertedClientId = lead.convertedClientId?.value,
+        notes = lead.notes,
+        updatedAt = lead.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = lead.audit.deletedAt?.toEpochMilliseconds(),
+        version = lead.audit.version.toLong(),
+        id = lead.id.value,
+    )
+}
+
+/** Money out. */
+internal suspend fun YellowTrackDatabase.applyExpense(expense: Expense) {
+    expenseQueries.insertOrIgnore(
+        id = expense.id.value,
+        studio_id = expense.studioId.value,
+        category = expense.category.name,
+        description = expense.description,
+        amount_minor = expense.amount.minorUnits,
+        amount_currency = expense.amount.currency.code,
+        incurred_on = expense.incurredOn.toString(),
+        project_id = expense.projectId?.value,
+        vendor = expense.vendor,
+        is_tax_deductible = if (expense.isTaxDeductible) 1L else 0L,
+        receipt_reference = expense.receiptReference,
+        notes = expense.notes,
+        created_at = expense.audit.createdAt.toEpochMilliseconds(),
+        updated_at = expense.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = expense.audit.deletedAt?.toEpochMilliseconds(),
+        version = expense.audit.version.toLong(),
+    )
+
+    expenseQueries.update(
+        category = expense.category.name,
+        description = expense.description,
+        amountMinor = expense.amount.minorUnits,
+        amountCurrency = expense.amount.currency.code,
+        incurredOn = expense.incurredOn.toString(),
+        projectId = expense.projectId?.value,
+        vendor = expense.vendor,
+        isTaxDeductible = if (expense.isTaxDeductible) 1L else 0L,
+        receiptReference = expense.receiptReference,
+        notes = expense.notes,
+        updatedAt = expense.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = expense.audit.deletedAt?.toEpochMilliseconds(),
+        version = expense.audit.version.toLong(),
+        id = expense.id.value,
+    )
+}
+
+/** Miles driven. */
+internal suspend fun YellowTrackDatabase.applyMileage(mileage: Mileage) {
+    expenseQueries.insertOrIgnoreMileage(
+        id = mileage.id.value,
+        studio_id = mileage.studioId.value,
+        travelled_on = mileage.travelledOn.toString(),
+        distance = mileage.distance,
+        unit = mileage.unit.name,
+        rate_minor = mileage.ratePerUnit.minorUnits,
+        rate_currency = mileage.ratePerUnit.currency.code,
+        project_id = mileage.projectId?.value,
+        purpose = mileage.purpose,
+        from_location = mileage.fromLocation,
+        to_location = mileage.toLocation,
+        created_at = mileage.audit.createdAt.toEpochMilliseconds(),
+        updated_at = mileage.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = mileage.audit.deletedAt?.toEpochMilliseconds(),
+        version = mileage.audit.version.toLong(),
+    )
+
+    expenseQueries.updateMileage(
+        travelledOn = mileage.travelledOn.toString(),
+        distance = mileage.distance,
+        unit = mileage.unit.name,
+        rateMinor = mileage.ratePerUnit.minorUnits,
+        rateCurrency = mileage.ratePerUnit.currency.code,
+        projectId = mileage.projectId?.value,
+        purpose = mileage.purpose,
+        fromLocation = mileage.fromLocation,
+        toLocation = mileage.toLocation,
+        updatedAt = mileage.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = mileage.audit.deletedAt?.toEpochMilliseconds(),
+        version = mileage.audit.version.toLong(),
+        id = mileage.id.value,
     )
 }

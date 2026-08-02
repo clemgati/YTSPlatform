@@ -194,6 +194,27 @@ class SyncEngine(
                             .awaitAsOneOrNull()
                             ?.toDomain()
                     },
+                leads =
+                    wanted.forTable(SyncTables.LEAD).mapNotNull {
+                        database.leadQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                expenses =
+                    wanted.forTable(SyncTables.EXPENSE).mapNotNull {
+                        database.expenseQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                mileages =
+                    wanted.forTable(SyncTables.MILEAGE).mapNotNull {
+                        database.expenseQueries
+                            .selectMileageByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
             )
 
         // A queued row that no longer exists at all — never uploaded, then hard-deleted —
@@ -272,7 +293,8 @@ class SyncEngine(
                     page.invoices.size + page.payments.size +
                     page.crewMembers.size + page.deliverables.size +
                     page.gearItems.size + page.packingEntries.size +
-                    page.storageVolumes.size + page.mediaCopies.size + page.conflicts.size
+                    page.storageVolumes.size + page.mediaCopies.size +
+                    page.leads.size + page.expenses.size + page.mileages.size + page.conflicts.size
 
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
@@ -291,6 +313,9 @@ class SyncEngine(
                 page.storageVolumes.forEach { database.applyStorageVolume(it) }
                 page.packingEntries.forEach { database.applyPackingEntry(it) }
                 page.mediaCopies.forEach { database.applyMediaCopy(it) }
+                page.leads.forEach { database.applyLead(it) }
+                page.expenses.forEach { database.applyExpense(it) }
+                page.mileages.forEach { database.applyMileage(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -330,6 +355,9 @@ class SyncEngine(
             packingEntries.forEach { add(SyncTables.PACKING_ENTRY to it.id.value) }
             storageVolumes.forEach { add(SyncTables.STORAGE_VOLUME to it.id.value) }
             mediaCopies.forEach { add(SyncTables.MEDIA_COPY to it.id.value) }
+            leads.forEach { add(SyncTables.LEAD to it.id.value) }
+            expenses.forEach { add(SyncTables.EXPENSE to it.id.value) }
+            mileages.forEach { add(SyncTables.MILEAGE to it.id.value) }
         }
 
     private companion object {

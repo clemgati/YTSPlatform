@@ -22,6 +22,12 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableKind
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.ExpenseCategory
+import com.yellowtrack.platform.core.model.expense.ExpenseId
+import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.gear.GearCategory
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
@@ -35,6 +41,10 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.lead.Lead
+import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.lead.LeadSource
+import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.media.StorageKind
@@ -994,6 +1004,284 @@ sealed interface SyncedEntity<T> {
         }
     }
 
+    /**
+     * An enquiry, before it is a client.
+     *
+     * Its project and client references are optional and point *forward*: a lead acquires
+     * them when it converts. They are declared as parents so a page carrying a converted
+     * lead also carries what it converted into.
+     */
+    object Leads : SyncedEntity<Lead> {
+        override val table = "lead"
+
+        override val parents by lazy {
+            listOf(
+                ParentRef<Lead>(Clients) { it.convertedClientId?.value },
+                ParentRef<Lead>(Projects) { it.convertedProjectId?.value },
+            )
+        }
+
+        override fun identify(entity: Lead) = entity.id.value
+
+        override fun studioOf(entity: Lead) = entity.studioId.value
+
+        override fun versionOf(entity: Lead) = entity.audit.version
+
+        override fun deletedAtOf(entity: Lead) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Lead =
+            Lead(
+                id = LeadId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                name = rows.getString("name"),
+                source = enumOrDefault(rows.getString("source"), LeadSource.ClientReferral),
+                status = enumOrDefault(rows.getString("status"), LeadStatus.New),
+                receivedAt = Instant.fromEpochMilliseconds(rows.getLong("received_at")),
+                email = rows.getString("email"),
+                phone = rows.getString("phone"),
+                firstResponseAt = rows.getNullableLong("first_response_at")?.let { Instant.fromEpochMilliseconds(it) },
+                serviceLine =
+                    rows.getString("service_line")?.let { name ->
+                        ServiceLine.entries.firstOrNull { it.name == name }
+                    },
+                desiredDate = rows.getString("desired_date")?.let { LocalDate.parse(it) },
+                budgetLow = moneyOf(rows.getNullableLong("budget_low_minor"), rows.getString("budget_currency")),
+                budgetHigh = moneyOf(rows.getNullableLong("budget_high_minor"), rows.getString("budget_currency")),
+                referredBy = rows.getString("referred_by"),
+                lostReason = rows.getString("lost_reason"),
+                convertedProjectId = rows.getString("converted_project_id")?.let { ProjectId(it) },
+                convertedClientId = rows.getString("converted_client_id")?.let { ClientId(it) },
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Lead) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Lead,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO lead(id, studio_id, name, source, status, received_at, email, phone,
+                                     first_response_at, service_line, desired_date, budget_low_minor,
+                                     budget_high_minor, budget_currency, referred_by, lost_reason,
+                                     converted_project_id, converted_client_id, notes,
+                                     created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name                 = EXCLUDED.name,
+                        source               = EXCLUDED.source,
+                        status               = EXCLUDED.status,
+                        received_at          = EXCLUDED.received_at,
+                        email                = EXCLUDED.email,
+                        phone                = EXCLUDED.phone,
+                        first_response_at    = EXCLUDED.first_response_at,
+                        service_line         = EXCLUDED.service_line,
+                        desired_date         = EXCLUDED.desired_date,
+                        budget_low_minor     = EXCLUDED.budget_low_minor,
+                        budget_high_minor    = EXCLUDED.budget_high_minor,
+                        budget_currency      = EXCLUDED.budget_currency,
+                        referred_by          = EXCLUDED.referred_by,
+                        lost_reason          = EXCLUDED.lost_reason,
+                        converted_project_id = EXCLUDED.converted_project_id,
+                        converted_client_id  = EXCLUDED.converted_client_id,
+                        notes                = EXCLUDED.notes,
+                        updated_at           = EXCLUDED.updated_at,
+                        deleted_at           = EXCLUDED.deleted_at,
+                        version              = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.name)
+                    statement.setString(4, entity.source.name)
+                    statement.setString(5, entity.status.name)
+                    statement.setLong(6, entity.receivedAt.toEpochMilliseconds())
+                    statement.setString(7, entity.email)
+                    statement.setString(8, entity.phone)
+                    statement.setNullableLong(9, entity.firstResponseAt?.toEpochMilliseconds())
+                    statement.setString(10, entity.serviceLine?.name)
+                    statement.setString(11, entity.desiredDate?.toString())
+                    statement.setNullableLong(12, entity.budgetLow?.minorUnits)
+                    statement.setNullableLong(13, entity.budgetHigh?.minorUnits)
+                    statement.setString(14, (entity.budgetLow ?: entity.budgetHigh)?.currency?.code)
+                    statement.setString(15, entity.referredBy)
+                    statement.setString(16, entity.lostReason)
+                    statement.setString(17, entity.convertedProjectId?.value)
+                    statement.setString(18, entity.convertedClientId?.value)
+                    statement.setString(19, entity.notes)
+                    statement.setLong(20, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(21, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(22, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(23, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** Money out. Attached to a project when it belongs to one, and to the studio otherwise. */
+    object Expenses : SyncedEntity<Expense> {
+        override val table = "expense"
+
+        override val parents by lazy { listOf(ParentRef<Expense>(Projects) { it.projectId?.value }) }
+
+        override fun identify(entity: Expense) = entity.id.value
+
+        override fun studioOf(entity: Expense) = entity.studioId.value
+
+        override fun versionOf(entity: Expense) = entity.audit.version
+
+        override fun deletedAtOf(entity: Expense) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Expense =
+            Expense(
+                id = ExpenseId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                category = enumOrDefault(rows.getString("category"), ExpenseCategory.Other),
+                description = rows.getString("description"),
+                amount = Money(rows.getLong("amount_minor"), CurrencyCode(rows.getString("amount_currency"))),
+                incurredOn = LocalDate.parse(rows.getString("incurred_on")),
+                projectId = rows.getString("project_id")?.let { ProjectId(it) },
+                vendor = rows.getString("vendor"),
+                isTaxDeductible = rows.getBoolean("is_tax_deductible"),
+                receiptReference = rows.getString("receipt_reference"),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Expense) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Expense,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO expense(id, studio_id, category, description, amount_minor,
+                                        amount_currency, incurred_on, project_id, vendor,
+                                        is_tax_deductible, receipt_reference, notes,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        category          = EXCLUDED.category,
+                        description       = EXCLUDED.description,
+                        amount_minor      = EXCLUDED.amount_minor,
+                        amount_currency   = EXCLUDED.amount_currency,
+                        incurred_on       = EXCLUDED.incurred_on,
+                        project_id        = EXCLUDED.project_id,
+                        vendor            = EXCLUDED.vendor,
+                        is_tax_deductible = EXCLUDED.is_tax_deductible,
+                        receipt_reference = EXCLUDED.receipt_reference,
+                        notes             = EXCLUDED.notes,
+                        updated_at        = EXCLUDED.updated_at,
+                        deleted_at        = EXCLUDED.deleted_at,
+                        version           = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.category.name)
+                    statement.setString(4, entity.description)
+                    statement.setLong(5, entity.amount.minorUnits)
+                    statement.setString(6, entity.amount.currency.code)
+                    statement.setString(7, entity.incurredOn.toString())
+                    statement.setString(8, entity.projectId?.value)
+                    statement.setString(9, entity.vendor)
+                    statement.setBoolean(10, entity.isTaxDeductible)
+                    statement.setString(11, entity.receiptReference)
+                    statement.setString(12, entity.notes)
+                    statement.setLong(13, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(14, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(15, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(16, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** Miles driven, which are money out by another name at tax time. */
+    object Mileages : SyncedEntity<Mileage> {
+        override val table = "mileage"
+
+        override val parents by lazy { listOf(ParentRef<Mileage>(Projects) { it.projectId?.value }) }
+
+        override fun identify(entity: Mileage) = entity.id.value
+
+        override fun studioOf(entity: Mileage) = entity.studioId.value
+
+        override fun versionOf(entity: Mileage) = entity.audit.version
+
+        override fun deletedAtOf(entity: Mileage) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Mileage =
+            Mileage(
+                id = MileageId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                travelledOn = LocalDate.parse(rows.getString("travelled_on")),
+                distance = rows.getDouble("distance"),
+                unit = enumOrDefault(rows.getString("unit"), DistanceUnit.Miles),
+                ratePerUnit = Money(rows.getLong("rate_minor"), CurrencyCode(rows.getString("rate_currency"))),
+                projectId = rows.getString("project_id")?.let { ProjectId(it) },
+                purpose = rows.getString("purpose"),
+                fromLocation = rows.getString("from_location"),
+                toLocation = rows.getString("to_location"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Mileage) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Mileage,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO mileage(id, studio_id, travelled_on, distance, unit, rate_minor,
+                                        rate_currency, project_id, purpose, from_location, to_location,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        travelled_on  = EXCLUDED.travelled_on,
+                        distance      = EXCLUDED.distance,
+                        unit          = EXCLUDED.unit,
+                        rate_minor    = EXCLUDED.rate_minor,
+                        rate_currency = EXCLUDED.rate_currency,
+                        project_id    = EXCLUDED.project_id,
+                        purpose       = EXCLUDED.purpose,
+                        from_location = EXCLUDED.from_location,
+                        to_location   = EXCLUDED.to_location,
+                        updated_at    = EXCLUDED.updated_at,
+                        deleted_at    = EXCLUDED.deleted_at,
+                        version       = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.travelledOn.toString())
+                    statement.setDouble(4, entity.distance)
+                    statement.setString(5, entity.unit.name)
+                    statement.setLong(6, entity.ratePerUnit.minorUnits)
+                    statement.setString(7, entity.ratePerUnit.currency.code)
+                    statement.setString(8, entity.projectId?.value)
+                    statement.setString(9, entity.purpose)
+                    statement.setString(10, entity.fromLocation)
+                    statement.setString(11, entity.toLocation)
+                    statement.setLong(12, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(15, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
     object Projects : SyncedEntity<Project> {
         override val table = "project"
 
@@ -1250,6 +1538,9 @@ sealed interface SyncedEntity<T> {
                 StorageVolumes,
                 MediaCopies,
                 CrewMembers,
+                Leads,
+                Expenses,
+                Mileages,
                 Deliverables,
                 Invoices,
                 Payments,

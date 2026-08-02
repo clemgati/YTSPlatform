@@ -9,9 +9,12 @@ import com.yellowtrack.platform.core.data.sync.applyClientContactLink
 import com.yellowtrack.platform.core.data.sync.applyContact
 import com.yellowtrack.platform.core.data.sync.applyCrewMember
 import com.yellowtrack.platform.core.data.sync.applyDeliverable
+import com.yellowtrack.platform.core.data.sync.applyExpense
 import com.yellowtrack.platform.core.data.sync.applyGearItem
 import com.yellowtrack.platform.core.data.sync.applyInvoice
+import com.yellowtrack.platform.core.data.sync.applyLead
 import com.yellowtrack.platform.core.data.sync.applyMediaCopy
+import com.yellowtrack.platform.core.data.sync.applyMileage
 import com.yellowtrack.platform.core.data.sync.applyPackingEntry
 import com.yellowtrack.platform.core.data.sync.applyPayment
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
@@ -36,6 +39,12 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableKind
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.ExpenseCategory
+import com.yellowtrack.platform.core.model.expense.ExpenseId
+import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.gear.GearCategory
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
@@ -49,6 +58,10 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.lead.Lead
+import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.lead.LeadSource
+import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.media.StorageKind
@@ -507,6 +520,115 @@ class SyncApplyFieldCoverageTest {
                 )
 
             assertEveryFieldSurvived(MediaCopy.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
+    fun `every field of a Lead survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyProject(parentProject())
+
+            val fixture =
+                Lead(
+                    id = LeadId("11111111-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    name = "Ada Okafor",
+                    source = LeadSource.ClientReferral,
+                    status = LeadStatus.New,
+                    receivedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    email = "ada@harbourline.test",
+                    phone = "07700 900123",
+                    firstResponseAt = Instant.fromEpochMilliseconds(1_781_010_000_000),
+                    serviceLine = ServiceLine.Wedding,
+                    desiredDate = LocalDate.parse("2027-06-12"),
+                    budgetLow = Money(minorUnits = 150_000, currency = CurrencyCode.GBP),
+                    budgetHigh = Money(minorUnits = 250_000, currency = CurrencyCode.GBP),
+                    referredBy = "Rosa Iyer",
+                    lostReason = "Went with a cheaper quote",
+                    convertedProjectId = ProjectId(PROJECT),
+                    convertedClientId = ClientId(CLIENT),
+                    notes = "Wants film, not digital.",
+                    audit = audit(),
+                )
+
+            database.applyLead(fixture)
+
+            val row =
+                assertNotNull(
+                    database.leadQueries.selectByIdForSync("11111111-aaaa-7000-8000-000000000001").executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(Lead.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
+    fun `every field of an Expense survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyProject(parentProject())
+
+            val fixture =
+                Expense(
+                    id = ExpenseId("22222222-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    category = ExpenseCategory.Travel,
+                    description = "Parking at the venue",
+                    amount = Money(minorUnits = 1_200, currency = CurrencyCode.GBP),
+                    incurredOn = LocalDate.parse("2026-08-01"),
+                    projectId = ProjectId(PROJECT),
+                    vendor = "Trebah Garden",
+                    isTaxDeductible = true,
+                    receiptReference = "R-4412",
+                    notes = "All day, paid on arrival.",
+                    audit = audit(),
+                )
+
+            database.applyExpense(fixture)
+
+            val row =
+                assertNotNull(
+                    database.expenseQueries
+                        .selectByIdForSync("22222222-aaaa-7000-8000-000000000001")
+                        .executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(Expense.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
+    fun `every field of a Mileage survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyProject(parentProject())
+
+            val fixture =
+                Mileage(
+                    id = MileageId("33333333-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    travelledOn = LocalDate.parse("2026-08-01"),
+                    distance = 42.5,
+                    unit = DistanceUnit.Miles,
+                    ratePerUnit = Money(minorUnits = 45, currency = CurrencyCode.GBP),
+                    projectId = ProjectId(PROJECT),
+                    purpose = "Venue recce",
+                    fromLocation = "Falmouth",
+                    toLocation = "Mawnan Smith",
+                    audit = audit(),
+                )
+
+            database.applyMileage(fixture)
+
+            val row =
+                assertNotNull(
+                    database.expenseQueries
+                        .selectMileageByIdForSync("33333333-aaaa-7000-8000-000000000001")
+                        .executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(Mileage.serializer(), fixture, row.toDomain())
         }
 
     @Test

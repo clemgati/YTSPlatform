@@ -23,6 +23,12 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableKind
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.ExpenseCategory
+import com.yellowtrack.platform.core.model.expense.ExpenseId
+import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.gear.GearCategory
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
@@ -36,6 +42,10 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.lead.Lead
+import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.lead.LeadSource
+import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.media.StorageKind
@@ -366,6 +376,78 @@ class SyncFieldCoverageTest {
                     verifiedFileCount = 2_418,
                     verifiedBytes = 918_273_645L,
                     notes = "Checksums matched on both copies.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Lead crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Leads,
+            fixture =
+                Lead(
+                    id = LeadId("11111111-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    name = "Ada Okafor",
+                    source = LeadSource.ClientReferral,
+                    status = LeadStatus.New,
+                    receivedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    email = "ada@harbourline.test",
+                    phone = "07700 900123",
+                    firstResponseAt = Instant.fromEpochMilliseconds(1_781_010_000_000),
+                    serviceLine = ServiceLine.Wedding,
+                    desiredDate = LocalDate.parse("2027-06-12"),
+                    budgetLow = Money(minorUnits = 150_000, currency = CurrencyCode.GBP),
+                    budgetHigh = Money(minorUnits = 250_000, currency = CurrencyCode.GBP),
+                    referredBy = "Rosa Iyer",
+                    lostReason = "Went with a cheaper quote",
+                    convertedProjectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    convertedClientId = ClientId("11111111-1111-7000-8000-000000000001"),
+                    notes = "Wants film, not digital.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of an Expense crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Expenses,
+            fixture =
+                Expense(
+                    id = ExpenseId("22222222-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    category = ExpenseCategory.Travel,
+                    description = "Parking at the venue",
+                    amount = Money(minorUnits = 1_200, currency = CurrencyCode.GBP),
+                    incurredOn = LocalDate.parse("2026-08-01"),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    vendor = "Trebah Garden",
+                    isTaxDeductible = true,
+                    receiptReference = "R-4412",
+                    notes = "All day, paid on arrival.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Mileage crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Mileages,
+            fixture =
+                Mileage(
+                    id = ExpenseId("33333333-aaaa-7000-8000-000000000001").let { MileageId(it.value) },
+                    studioId = StudioId(STUDIO),
+                    travelledOn = LocalDate.parse("2026-08-01"),
+                    distance = 42.5,
+                    unit = DistanceUnit.Miles,
+                    ratePerUnit = Money(minorUnits = 45, currency = CurrencyCode.GBP),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    purpose = "Venue recce",
+                    fromLocation = "Falmouth",
+                    toLocation = "Mawnan Smith",
                     audit = audit(),
                 ),
         )

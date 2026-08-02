@@ -5,10 +5,13 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
@@ -67,6 +70,10 @@ data class SyncPullResponse(
     val packingEntries: List<PackingEntry> = emptyList(),
     val storageVolumes: List<StorageVolume> = emptyList(),
     val mediaCopies: List<MediaCopy> = emptyList(),
+    /** Enquiries in, and money out. */
+    val leads: List<Lead> = emptyList(),
+    val expenses: List<Expense> = emptyList(),
+    val mileages: List<Mileage> = emptyList(),
     /**
      * Work reconciliation discarded, travelling down only.
      *
@@ -92,6 +99,9 @@ data class SyncPushRequest(
     val packingEntries: List<PackingEntry> = emptyList(),
     val storageVolumes: List<StorageVolume> = emptyList(),
     val mediaCopies: List<MediaCopy> = emptyList(),
+    val leads: List<Lead> = emptyList(),
+    val expenses: List<Expense> = emptyList(),
+    val mileages: List<Mileage> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
@@ -107,7 +117,10 @@ data class SyncPushRequest(
                 gearItems.isEmpty() &&
                 packingEntries.isEmpty() &&
                 storageVolumes.isEmpty() &&
-                mediaCopies.isEmpty()
+                mediaCopies.isEmpty() &&
+                leads.isEmpty() &&
+                expenses.isEmpty() &&
+                mileages.isEmpty()
 }
 
 /** What became of one pushed row. */

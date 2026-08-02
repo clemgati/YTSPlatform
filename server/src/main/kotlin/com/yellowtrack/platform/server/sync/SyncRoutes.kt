@@ -6,10 +6,13 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
@@ -85,6 +88,9 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                             changes.rows[SyncedEntity.StorageVolumes.table].orEmpty().filterIsInstance<StorageVolume>(),
                         mediaCopies =
                             changes.rows[SyncedEntity.MediaCopies.table].orEmpty().filterIsInstance<MediaCopy>(),
+                        leads = changes.rows[SyncedEntity.Leads.table].orEmpty().filterIsInstance<Lead>(),
+                        expenses = changes.rows[SyncedEntity.Expenses.table].orEmpty().filterIsInstance<Expense>(),
+                        mileages = changes.rows[SyncedEntity.Mileages.table].orEmpty().filterIsInstance<Mileage>(),
                         conflicts =
                             changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
@@ -120,6 +126,9 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                             add(reconciler.push(studioId, SyncedEntity.PackingEntries, it))
                         }
                         request.mediaCopies.forEach { add(reconciler.push(studioId, SyncedEntity.MediaCopies, it)) }
+                        request.leads.forEach { add(reconciler.push(studioId, SyncedEntity.Leads, it)) }
+                        request.expenses.forEach { add(reconciler.push(studioId, SyncedEntity.Expenses, it)) }
+                        request.mileages.forEach { add(reconciler.push(studioId, SyncedEntity.Mileages, it)) }
                         request.payments.forEach { add(reconciler.push(studioId, SyncedEntity.Payments, it)) }
                     }
 

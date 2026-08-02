@@ -18,9 +18,12 @@ import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.data.sync.applyClient
 import com.yellowtrack.platform.core.data.sync.applyCrewMember
 import com.yellowtrack.platform.core.data.sync.applyDeliverable
+import com.yellowtrack.platform.core.data.sync.applyExpense
 import com.yellowtrack.platform.core.data.sync.applyGearItem
 import com.yellowtrack.platform.core.data.sync.applyInvoice
+import com.yellowtrack.platform.core.data.sync.applyLead
 import com.yellowtrack.platform.core.data.sync.applyMediaCopy
+import com.yellowtrack.platform.core.data.sync.applyMileage
 import com.yellowtrack.platform.core.data.sync.applyPackingEntry
 import com.yellowtrack.platform.core.data.sync.applyPayment
 import com.yellowtrack.platform.core.data.sync.applyProject
@@ -41,6 +44,12 @@ import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.ExpenseCategory
+import com.yellowtrack.platform.core.model.expense.ExpenseId
+import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
 import com.yellowtrack.platform.core.model.gear.PackingEntry
@@ -52,6 +61,10 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.lead.Lead
+import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.lead.LeadSource
+import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.media.StorageKind
@@ -73,6 +86,7 @@ import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import com.yellowtrack.platform.core.model.sync.SyncPushResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -789,6 +803,9 @@ class SyncEngineTest {
             db.applyPackingEntry(packingEntry("pk1", "s1", "g1"))
             db.applyStorageVolume(storageVolume("v1"))
             db.applyMediaCopy(mediaCopy("m1", "s1", "v1"))
+            db.applyLead(lead("l1"))
+            db.applyExpense(expense("e1"))
+            db.applyMileage(mileage("mi1"))
 
             val queued =
                 listOf(
@@ -803,6 +820,9 @@ class SyncEngineTest {
                     SyncTables.PACKING_ENTRY to "pk1",
                     SyncTables.STORAGE_VOLUME to "v1",
                     SyncTables.MEDIA_COPY to "m1",
+                    SyncTables.LEAD to "l1",
+                    SyncTables.EXPENSE to "e1",
+                    SyncTables.MILEAGE to "mi1",
                 )
 
             queued.forEach { (table, id) ->
@@ -825,6 +845,9 @@ class SyncEngineTest {
                     if (sent.packingEntries.isEmpty()) add(SyncTables.PACKING_ENTRY)
                     if (sent.storageVolumes.isEmpty()) add(SyncTables.STORAGE_VOLUME)
                     if (sent.mediaCopies.isEmpty()) add(SyncTables.MEDIA_COPY)
+                    if (sent.leads.isEmpty()) add(SyncTables.LEAD)
+                    if (sent.expenses.isEmpty()) add(SyncTables.EXPENSE)
+                    if (sent.mileages.isEmpty()) add(SyncTables.MILEAGE)
                 }
 
             assertEquals(
@@ -868,6 +891,39 @@ class SyncEngineTest {
         status = ProjectStatus.Booked,
         audit = AuditMetadata.createdAt(NOW),
     )
+
+    private fun lead(id: String) =
+        Lead(
+            id = LeadId(id),
+            studioId = STUDIO,
+            name = "Ada Okafor",
+            source = LeadSource.ClientReferral,
+            status = LeadStatus.New,
+            receivedAt = NOW,
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun expense(id: String) =
+        Expense(
+            id = ExpenseId(id),
+            studioId = STUDIO,
+            category = ExpenseCategory.Other,
+            description = "Parking at the venue",
+            amount = Money(minorUnits = 1_200, currency = CurrencyCode.GBP),
+            incurredOn = LocalDate.parse("2026-08-01"),
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun mileage(id: String) =
+        Mileage(
+            id = MileageId(id),
+            studioId = STUDIO,
+            travelledOn = LocalDate.parse("2026-08-01"),
+            distance = 42.0,
+            unit = DistanceUnit.Miles,
+            ratePerUnit = Money(minorUnits = 45, currency = CurrencyCode.GBP),
+            audit = AuditMetadata.createdAt(NOW),
+        )
 
     private fun deliverable(
         id: String,
