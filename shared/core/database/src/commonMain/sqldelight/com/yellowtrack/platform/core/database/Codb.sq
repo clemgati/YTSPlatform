@@ -45,3 +45,9 @@ SET currency                   = :currency,
     deleted_at                 = :deletedAt,
     version                    = :version
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectByIdForSync:
+SELECT *
+FROM codb_profile
+WHERE id = :id;

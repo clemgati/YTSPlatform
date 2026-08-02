@@ -86,6 +86,14 @@ internal class SqlDelightCodbRepository(
                 version = profile.audit.version.toLong(),
                 id = profile.id.value,
             )
+
+            db.enqueueForSync(
+                profile.studioId.value,
+                SyncTables.CODB_PROFILE,
+                profile.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 

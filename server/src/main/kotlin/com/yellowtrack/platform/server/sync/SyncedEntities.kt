@@ -10,6 +10,8 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.client.ClientContactLinkId
 import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.codb.CodbProfile
+import com.yellowtrack.platform.core.model.codb.CodbProfileId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.contact.Contact
@@ -80,6 +82,8 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
+import com.yellowtrack.platform.core.model.studio.StudioProfile
+import com.yellowtrack.platform.core.model.studio.StudioProfileId
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import kotlinx.datetime.LocalDate
@@ -1792,6 +1796,161 @@ sealed interface SyncedEntity<T> {
         }
     }
 
+    /**
+     * Who the studio is, on paper. Exactly one row per studio.
+     *
+     * Its id *is* the studio's, which is what makes it synchronisable at all: both databases
+     * carry a unique index on `studio_id`, so two devices each generating an id would give
+     * the server two rows it cannot hold. See migration 15.
+     */
+    object StudioProfiles : SyncedEntity<StudioProfile> {
+        override val table = "studio_profile"
+
+        override fun identify(entity: StudioProfile) = entity.id.value
+
+        override fun studioOf(entity: StudioProfile) = entity.studioId.value
+
+        override fun versionOf(entity: StudioProfile) = entity.audit.version
+
+        override fun deletedAtOf(entity: StudioProfile) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): StudioProfile =
+            StudioProfile(
+                id = StudioProfileId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                name = rows.getString("name"),
+                address = rows.getString("address"),
+                email = rows.getString("email"),
+                phone = rows.getString("phone"),
+                website = rows.getString("website"),
+                taxNumber = rows.getString("tax_number"),
+                paymentInstructions = rows.getString("payment_instructions"),
+                documentFooter = rows.getString("document_footer"),
+                currency = CurrencyCode(rows.getString("currency")),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: StudioProfile) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: StudioProfile,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO studio_profile(id, studio_id, name, address, email, phone, website,
+                                               tax_number, payment_instructions, document_footer,
+                                               currency, created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name                 = EXCLUDED.name,
+                        address              = EXCLUDED.address,
+                        email                = EXCLUDED.email,
+                        phone                = EXCLUDED.phone,
+                        website              = EXCLUDED.website,
+                        tax_number           = EXCLUDED.tax_number,
+                        payment_instructions = EXCLUDED.payment_instructions,
+                        document_footer      = EXCLUDED.document_footer,
+                        currency             = EXCLUDED.currency,
+                        updated_at           = EXCLUDED.updated_at,
+                        deleted_at           = EXCLUDED.deleted_at,
+                        version              = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.name)
+                    statement.setString(4, entity.address)
+                    statement.setString(5, entity.email)
+                    statement.setString(6, entity.phone)
+                    statement.setString(7, entity.website)
+                    statement.setString(8, entity.taxNumber)
+                    statement.setString(9, entity.paymentInstructions)
+                    statement.setString(10, entity.documentFooter)
+                    statement.setString(11, entity.currency.code)
+                    statement.setLong(12, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(15, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** What a day has to earn. One row per studio, keyed the same way. */
+    object CodbProfiles : SyncedEntity<CodbProfile> {
+        override val table = "codb_profile"
+
+        override fun identify(entity: CodbProfile) = entity.id.value
+
+        override fun studioOf(entity: CodbProfile) = entity.studioId.value
+
+        override fun versionOf(entity: CodbProfile) = entity.audit.version
+
+        override fun deletedAtOf(entity: CodbProfile) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): CodbProfile {
+            val currency = CurrencyCode(rows.getString("currency"))
+
+            return CodbProfile(
+                id = CodbProfileId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                currency = currency,
+                targetAnnualSalary = Money(rows.getLong("target_annual_salary_minor"), currency),
+                billableDaysPerYear = rows.getInt("billable_days_per_year"),
+                taxRateBasisPoints = rows.getInt("tax_rate_basis_points"),
+                annualOverheadOverride = rows.getNullableLong("annual_overhead_minor")?.let { Money(it, currency) },
+                desiredProfitMarginBasisPoints = rows.getInt("profit_margin_basis_points"),
+                audit = rows.audit(),
+            )
+        }
+
+        override fun encode(entity: CodbProfile) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: CodbProfile,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO codb_profile(id, studio_id, currency, target_annual_salary_minor,
+                                             billable_days_per_year, tax_rate_basis_points,
+                                             annual_overhead_minor, profit_margin_basis_points,
+                                             created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        currency                   = EXCLUDED.currency,
+                        target_annual_salary_minor = EXCLUDED.target_annual_salary_minor,
+                        billable_days_per_year     = EXCLUDED.billable_days_per_year,
+                        tax_rate_basis_points      = EXCLUDED.tax_rate_basis_points,
+                        annual_overhead_minor      = EXCLUDED.annual_overhead_minor,
+                        profit_margin_basis_points = EXCLUDED.profit_margin_basis_points,
+                        updated_at                 = EXCLUDED.updated_at,
+                        deleted_at                 = EXCLUDED.deleted_at,
+                        version                    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.currency.code)
+                    statement.setLong(4, entity.targetAnnualSalary.minorUnits)
+                    statement.setLong(5, entity.billableDaysPerYear.toLong())
+                    statement.setLong(6, entity.taxRateBasisPoints.toLong())
+                    statement.setNullableLong(7, entity.annualOverheadOverride?.minorUnits)
+                    statement.setLong(8, entity.desiredProfitMarginBasisPoints.toLong())
+                    statement.setLong(9, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(10, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(11, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(12, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
     object Projects : SyncedEntity<Project> {
         override val table = "project"
 
@@ -2057,6 +2216,8 @@ sealed interface SyncedEntity<T> {
                 PostProductionTasks,
                 TalentReleases,
                 LightingRecipes,
+                StudioProfiles,
+                CodbProfiles,
                 Deliverables,
                 Invoices,
                 Payments,

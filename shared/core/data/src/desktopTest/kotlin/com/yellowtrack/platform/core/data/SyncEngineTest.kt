@@ -16,6 +16,7 @@ import com.yellowtrack.platform.core.data.internal.SyncTables
 import com.yellowtrack.platform.core.data.internal.enqueueForSync
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.data.sync.applyClient
+import com.yellowtrack.platform.core.data.sync.applyCodbProfile
 import com.yellowtrack.platform.core.data.sync.applyContract
 import com.yellowtrack.platform.core.data.sync.applyCrewMember
 import com.yellowtrack.platform.core.data.sync.applyDeliverable
@@ -34,6 +35,7 @@ import com.yellowtrack.platform.core.data.sync.applyQuote
 import com.yellowtrack.platform.core.data.sync.applySession
 import com.yellowtrack.platform.core.data.sync.applyShot
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
+import com.yellowtrack.platform.core.data.sync.applyStudioProfile
 import com.yellowtrack.platform.core.data.sync.applyTalentRelease
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
@@ -42,6 +44,8 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.client.ClientContactLinkId
 import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.codb.CodbProfile
+import com.yellowtrack.platform.core.model.codb.CodbProfileId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
@@ -98,6 +102,8 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
+import com.yellowtrack.platform.core.model.studio.StudioProfile
+import com.yellowtrack.platform.core.model.studio.StudioProfileId
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
@@ -832,6 +838,8 @@ class SyncEngineTest {
             db.applyPostTask(postTask("pt1", "p1"))
             db.applyTalentRelease(talentRelease("tr1", "s1"))
             db.applyLightingRecipe(lightingRecipe("lr1"))
+            db.applyStudioProfile(studioProfile())
+            db.applyCodbProfile(codbProfile())
 
             val queued =
                 listOf(
@@ -855,6 +863,8 @@ class SyncEngineTest {
                     SyncTables.POST_TASK to "pt1",
                     SyncTables.TALENT_RELEASE to "tr1",
                     SyncTables.LIGHTING_RECIPE to "lr1",
+                    SyncTables.STUDIO_PROFILE to STUDIO.value,
+                    SyncTables.CODB_PROFILE to STUDIO.value,
                 )
 
             queued.forEach { (table, id) ->
@@ -886,6 +896,8 @@ class SyncEngineTest {
                     if (sent.postTasks.isEmpty()) add(SyncTables.POST_TASK)
                     if (sent.talentReleases.isEmpty()) add(SyncTables.TALENT_RELEASE)
                     if (sent.lightingRecipes.isEmpty()) add(SyncTables.LIGHTING_RECIPE)
+                    if (sent.studioProfiles.isEmpty()) add(SyncTables.STUDIO_PROFILE)
+                    if (sent.codbProfiles.isEmpty()) add(SyncTables.CODB_PROFILE)
                 }
 
             assertEquals(
@@ -929,6 +941,25 @@ class SyncEngineTest {
         status = ProjectStatus.Booked,
         audit = AuditMetadata.createdAt(NOW),
     )
+
+    /** Keyed by the studio, which is what makes one row of it rather than two. */
+    private fun studioProfile() =
+        StudioProfile(
+            id = StudioProfileId(STUDIO.value),
+            studioId = STUDIO,
+            name = "Harbourline Photography",
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun codbProfile() =
+        CodbProfile(
+            id = CodbProfileId(STUDIO.value),
+            studioId = STUDIO,
+            currency = CurrencyCode.GBP,
+            targetAnnualSalary = Money(minorUnits = 4_000_000, currency = CurrencyCode.GBP),
+            billableDaysPerYear = 120,
+            audit = AuditMetadata.createdAt(NOW),
+        )
 
     private fun shot(
         id: String,

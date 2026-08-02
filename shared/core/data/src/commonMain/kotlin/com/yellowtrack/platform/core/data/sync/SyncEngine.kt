@@ -257,6 +257,20 @@ class SyncEngine(
                             .awaitAsOneOrNull()
                             ?.toDomain()
                     },
+                studioProfiles =
+                    wanted.forTable(SyncTables.STUDIO_PROFILE).mapNotNull {
+                        database.studioProfileQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                codbProfiles =
+                    wanted.forTable(SyncTables.CODB_PROFILE).mapNotNull {
+                        database.codbQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
             )
 
         // A queued row that no longer exists at all — never uploaded, then hard-deleted —
@@ -339,7 +353,8 @@ class SyncEngine(
                     page.leads.size + page.expenses.size + page.mileages.size +
                     page.quotes.size + page.contracts.size +
                     page.shots.size + page.postTasks.size +
-                    page.talentReleases.size + page.lightingRecipes.size + page.conflicts.size
+                    page.talentReleases.size + page.lightingRecipes.size +
+                    page.studioProfiles.size + page.codbProfiles.size + page.conflicts.size
 
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
@@ -367,6 +382,8 @@ class SyncEngine(
                 page.postTasks.forEach { database.applyPostTask(it) }
                 page.talentReleases.forEach { database.applyTalentRelease(it) }
                 page.lightingRecipes.forEach { database.applyLightingRecipe(it) }
+                page.studioProfiles.forEach { database.applyStudioProfile(it) }
+                page.codbProfiles.forEach { database.applyCodbProfile(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -415,6 +432,8 @@ class SyncEngine(
             postTasks.forEach { add(SyncTables.POST_TASK to it.id.value) }
             talentReleases.forEach { add(SyncTables.TALENT_RELEASE to it.id.value) }
             lightingRecipes.forEach { add(SyncTables.LIGHTING_RECIPE to it.id.value) }
+            studioProfiles.forEach { add(SyncTables.STUDIO_PROFILE to it.id.value) }
+            codbProfiles.forEach { add(SyncTables.CODB_PROFILE to it.id.value) }
         }
 
     private companion object {

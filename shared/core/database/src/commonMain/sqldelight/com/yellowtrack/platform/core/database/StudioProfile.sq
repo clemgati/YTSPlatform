@@ -49,3 +49,9 @@ SET name                 = :name,
     deleted_at           = :deletedAt,
     version              = :version
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectByIdForSync:
+SELECT *
+FROM studio_profile
+WHERE id = :id;
