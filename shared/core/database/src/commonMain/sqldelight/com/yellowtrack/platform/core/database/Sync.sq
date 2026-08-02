@@ -1,0 +1,82 @@
+-- Where reconciliation keeps its state. See docs/adr/0008-synchronisation-semantics.md.
+
+-- How far this device has pulled.
+--
+-- The cursor is a server-assigned sequence, never a timestamp: two devices whose clocks
+-- disagree produce rows that fall behind a timestamp cursor that has already passed them,
+-- and those rows are never pulled again. The loss is silent and permanent, which is the
+-- failure ADR 0008 decision 1 exists to rule out.
+--
+-- One row per studio, and this table alone never leaves the device — a cursor is a fact
+-- about this phone, not about the studio.
+CREATE TABLE sync_state (
+    studio_id       TEXT    NOT NULL PRIMARY KEY,
+    last_server_seq INTEGER NOT NULL DEFAULT 0,
+    last_synced_at  INTEGER
+);
+
+-- Work that reconciliation discarded, kept so it can be got back.
+--
+-- Last-write-wins is chosen because it is simple, and it is only defensible when the
+-- discarded version survives somewhere the person who wrote it can find it. A studio that
+-- edited a booking on a laptop and a phone should be told so, and should be able to see
+-- what the other device said (ADR 0008 decision 3).
+--
+-- Both payloads are stored, not a diff: what a studio needs is to read the version it lost
+-- and retype the part that mattered, and a diff of two JSON documents is not that.
+--
+-- Written by the server and pulled down like any other row, so a conflict raised while the
+-- phone was in a bag is waiting when it comes out.
+CREATE TABLE sync_conflict (
+    id              TEXT    NOT NULL PRIMARY KEY,
+    studio_id       TEXT    NOT NULL,
+    entity_table    TEXT    NOT NULL,
+    entity_id       TEXT    NOT NULL,
+    losing_payload  TEXT    NOT NULL,
+    winning_payload TEXT    NOT NULL,
+    detected_at     INTEGER NOT NULL,
+    resolved_at     INTEGER,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    deleted_at      INTEGER,
+    version         INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX sync_conflict_studio_idx ON sync_conflict(studio_id, resolved_at);
+
+selectCursor:
+SELECT *
+FROM sync_state
+WHERE studio_id = :studioId;
+
+-- Upsert rather than update, because the first sync has no row to update.
+rememberCursor:
+INSERT OR REPLACE INTO sync_state(studio_id, last_server_seq, last_synced_at)
+VALUES (?, ?, ?);
+
+-- Oldest first: a studio working through what it lost should meet them in the order they
+-- happened.
+selectUnresolvedConflicts:
+SELECT *
+FROM sync_conflict
+WHERE studio_id = :studioId AND resolved_at IS NULL AND deleted_at IS NULL
+ORDER BY detected_at;
+
+countUnresolvedConflicts:
+SELECT COUNT(*)
+FROM sync_conflict
+WHERE studio_id = :studioId AND resolved_at IS NULL AND deleted_at IS NULL;
+
+insertOrIgnoreConflict:
+INSERT OR IGNORE INTO sync_conflict(
+    id, studio_id, entity_table, entity_id, losing_payload, winning_payload,
+    detected_at, resolved_at, created_at, updated_at, deleted_at, version
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Marks one as dealt with. The row stays: what was discarded is a fact about the studio's
+-- history, and a resolved conflict that vanishes is a question nobody can re-ask.
+markConflictResolved:
+UPDATE sync_conflict
+SET resolved_at = :resolvedAt, updated_at = :resolvedAt, version = version + 1
+WHERE id = :id;

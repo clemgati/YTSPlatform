@@ -162,8 +162,8 @@ The biggest gap in the original roadmap.
   hand the file to the system share sheet, saving it first so a sheet that fails to appear
   costs nothing — though **neither has been run**, only compiled, so treat the sheet itself
   as unproven until someone opens the app on a phone. Emailing a document without leaving
-  the application is still to come and needs a mail transport, which belongs with the
-  server in 0.7.0
+  the application is still to come; the mail transport it was waiting for now exists in the
+  server (ADR 0010), so this is wiring rather than a missing piece
 - ✓ Studio details, which every document carries — the Settings screen has claimed since
   0.1.0 that there was nothing to configure, and an invoice with no name on it is not an
   invoice
@@ -174,21 +174,100 @@ Scoped as a **vertical slice**: the whole path working end to end for `Client`, 
 and `Session` only. Sync is the one feature here whose bugs are invisible — they discard
 work on a device nobody is looking at — so it is proved against real conflicts on three
 entities before the remaining eighteen follow mechanically. Infrastructure is provisioned
-by nobody yet, so development runs against Postgres in Docker and deployment waits until
-there is something worth deploying.
+by nobody yet, so development runs against a local Postgres — Homebrew rather than Docker,
+so there is a database to leave running and point `psql` at, see `docs/CONTRIBUTING.md` —
+and deployment waits until there is something worth deploying.
 
-- Sync semantics decided before any of it is built — see
-  `docs/adr/0008-synchronisation-semantics.md`
-- Ktor server sharing `core:model`, behind Apache, over cloud Postgres
-- Postgres schema through Flyway, with a test that it has not drifted from SQLDelight's
-- Accounts, authentication, and Row Level Security on `studio_id`
-- Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
-  ready for it since 0.3.0
-- Object storage for media, via presigned URLs
+- ✓ Sync semantics decided before any of it is built — see
+  `docs/adr/0008-synchronisation-semantics.md`, accepted once the schema below was built on it
+- ◐ Ktor server sharing `core:model` — the module exists and the model is proved to cross
+  the wire, but it serves a health route and nothing else. Apache and a cloud Postgres wait
+  until there is something worth deploying
+- ✓ Postgres schema through Flyway, with a test that it has not drifted from SQLDelight's —
+  twenty-five tables mirrored, compared column by column against the committed SQLDelight
+  snapshot, and the three deliberate divergences asserted to be the only ones. `server_seq`
+  is assigned on insert *and* update, which was checked by breaking it. `sync_state` and
+  `sync_conflict` are not here: both need a matching client migration, so they land with the
+  synchronisation itself rather than ahead of it
+- ◐ Accounts, authentication, and Row Level Security on `studio_id` — see
+  `docs/adr/0009-accounts-authentication-and-tenant-isolation.md`. A studio signs up, signs
+  in with an Argon2id-hashed password, and gets a revocable token; every business table is
+  behind a Postgres policy that returns **nothing** when a request forgets to name its
+  studio, rather than returning everything. Proved by breaking it three ways. Still to come:
+  the client wiring, so the applications can actually sign in, and password reset, which
+  needs the mail transport 0.6.0 also wanted
+- ◐ Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
+  ready for it since 0.3.0. The server reconciles: a device pulls everything past its cursor
+  in one ordered pass across all three tables, pushes what it has, and gets back what became
+  of each row. Conflicts are detected on `version`, resolved by arrival, and **the losing
+  version is kept in full** so a studio can read back what reconciliation discarded;
+  tombstones beat concurrent edits, and the discarded edit is kept too. Checked by breaking
+  it three ways, including the one that matters most — a cursor stepping past rows nobody
+  would ever be sent again. The device half is in too: mutations queue to the `outbox` that
+  has been waiting unused since the first migration, the drain collapses three offline edits
+  into one upload and **re-reads** rather than sending what was queued, pulled rows are
+  applied without being queued straight back, and the cursor advances only after the page it
+  describes is written. Conflicts travel down, so the discarded version reaches the device.
+  Checked by breaking the ordering, the re-enqueue guard and the collapsing. **Settings now
+  shows what was discarded** — which entity, when, and the fields that actually moved, with
+  the losing value beside the one that was kept — so ADR 0008 decision 3's condition on
+  last-write-wins is finally being met rather than merely stored for, and the Dashboard
+  carries a banner so a studio finds out without going looking, which is the half of
+  decision 3 that decides whether the other half is worth having. `core:network` now carries
+  the real transport, and `SyncOverHttpTest` runs it against the real routes — the two halves
+  had never actually spoken before that. The wire contract lives in `core:model` and is
+  compiled into both sides, so it can no longer drift the way two hand-kept copies could.
+  Each platform now keeps its token where that platform keeps credentials — Keychain on
+  iOS, a keystore-wrapped preference file on Android, an owner-only file on desktop,
+  `localStorage` in a browser, which `isHardwareBacked` is honest about rather than
+  implying a protection browsers do not offer. Only the desktop one has been run; the other
+  three are compiled
+- ✓ Password reset, and the mail transport 0.6.0 also wanted — see
+  `docs/adr/0010-password-reset-by-emailed-code.md`. A code rather than a link, because
+  there is no web front end for a link to land on. Requesting one answers the same whether
+  or not the address has an account; a completed reset revokes every session. Proved against
+  a real SMTP server: two requests, identical answers, one email actually sent, the code
+  read out of the delivered message, old password refused, new password accepted, reuse
+  refused, two sessions revoked. The application has the screen too: "I have forgotten my
+  password" on the sign-in form, an address, then the code and a new password, with the
+  wording kept as non-committal as the server's answer. **Driven live, whole loop:** a
+  revoked token signed the device out by itself, the reset was asked for and the code read
+  out of the delivered email, the new password was set, every session was revoked, and
+  signing in with it came back to the Dashboard
+- ✓ **The conflict path has been watched working against a real server.** Two devices were
+  put on version 2 of the same client with different names; the server detected it, kept the
+  displaced version in full, and the device pulled it down. The Dashboard showed "1 change
+  was overwritten", Settings narrowed two whole payloads to the one field that moved —
+  Kept: *Renamed on the desktop*, Set aside: *Renamed on the laptop* — and dismissing it
+  did not reopen on the next sync. That is ADR 0008 decision 3, the condition the whole
+  last-write-wins choice rests on, holding outside a test for the first time
+- ✓ Synchronisation actually runs, and has been watched doing it. A client typed into the
+  desktop application reached Postgres under the signed-in studio, and a row inserted
+  server-side arrived in the application — both directions, against a real server. The
+  studio is now the signed-in one rather than the placeholder constant `StudioContext` had
+  returned since 0.3.0, without which every push would have been refused as another
+  studio's row
+- ✓ A way in. The application opens on sign-in until a session exists, one form for both
+  signing in and starting a studio, and it says plainly when the device cannot store the
+  session securely rather than implying it can
+- ◐ Deployment. `docs/DEPLOYMENT.md` covers one EC2 instance running Apache, Postgres and
+  the server, with SES for mail — written for that shape rather than generically, because
+  the three things that fail *silently* are all shape-specific: connecting as a superuser
+  makes every row level security policy inert, SES's sandbox makes password reset appear to
+  work and never arrive, and same-box Postgres means one lost instance is one lost business.
+  The code side is done: the server URL is generated from the build rather than hardcoded to
+  loopback, CORS is configurable for the browser build, and `/ready` reports whether the
+  database and mail are actually reachable. Provisioning is nobody's yet
+- **Moved to 0.8.0 — object storage for media, via presigned URLs.** Nothing consumes it:
+  no entity in the domain model holds an image or attachment, and `media_copy` records where
+  files sit on the studio's *own* drives, which 0.6.0 said would stay a card-reader job.
+  The thing that needs it is client proofing, and that is 0.8.0 — where the gallery will
+  decide the shape of it rather than a guess made a milestone early
 
 ## 0.8.0 — Collaboration
 
-- Client proofing, selections, and approvals
+- Client proofing, selections, and approvals — and the object storage they need, moved here
+  from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
 ## 0.9.0 — Release Candidate

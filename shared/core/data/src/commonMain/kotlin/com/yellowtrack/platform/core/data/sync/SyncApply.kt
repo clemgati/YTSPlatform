@@ -1,0 +1,158 @@
+package com.yellowtrack.platform.core.data.sync
+
+import com.yellowtrack.platform.core.database.YellowTrackDatabase
+import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.sync.SyncConflict
+import kotlinx.serialization.json.Json
+
+/**
+ * Writes a row that arrived from the server.
+ *
+ * Deliberately *not* routed through the repositories. Those enqueue to the outbox, and a
+ * pulled row queued straight back for upload would have two devices pushing the same row at
+ * each other for as long as both were running.
+ *
+ * Each of these is an insert-or-update rather than a merge. Reconciliation has already
+ * happened on the server, which is the only party that saw both versions; the device's job
+ * at this point is to agree, not to have a second opinion.
+ *
+ * Every one writes `deleted_at` as it arrived, so a tombstone lands as a tombstone. A
+ * delete that failed to travel is a row that comes back from the dead on the next sync.
+ */
+internal suspend fun YellowTrackDatabase.applyClient(client: Client) {
+    clientQueries.insertOrIgnore(
+        id = client.id.value,
+        studio_id = client.studioId.value,
+        account_name = client.accountName,
+        account_type = client.accountType.name,
+        notes = client.notes,
+        tags = syncJson.encodeToString(client.tags),
+        created_at = client.audit.createdAt.toEpochMilliseconds(),
+        updated_at = client.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = client.audit.deletedAt?.toEpochMilliseconds(),
+        version = client.audit.version.toLong(),
+    )
+
+    clientQueries.update(
+        accountName = client.accountName,
+        accountType = client.accountType.name,
+        notes = client.notes,
+        tags = syncJson.encodeToString(client.tags),
+        updatedAt = client.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = client.audit.deletedAt?.toEpochMilliseconds(),
+        version = client.audit.version.toLong(),
+        id = client.id.value,
+    )
+}
+
+internal suspend fun YellowTrackDatabase.applyProject(project: Project) {
+    projectQueries.insertOrIgnore(
+        id = project.id.value,
+        studio_id = project.studioId.value,
+        client_id = project.clientId.value,
+        name = project.name,
+        service_line = project.serviceLine.name,
+        status = project.status.name,
+        service_template_id = project.serviceTemplateId?.value,
+        contract_value_minor = project.contractValue?.minorUnits,
+        contract_currency = project.contractValue?.currency?.code,
+        enquired_at = project.enquiredAt?.toEpochMilliseconds(),
+        booked_at = project.bookedAt?.toEpochMilliseconds(),
+        notes = project.notes,
+        created_at = project.audit.createdAt.toEpochMilliseconds(),
+        updated_at = project.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = project.audit.deletedAt?.toEpochMilliseconds(),
+        version = project.audit.version.toLong(),
+    )
+
+    projectQueries.update(
+        clientId = project.clientId.value,
+        name = project.name,
+        serviceLine = project.serviceLine.name,
+        status = project.status.name,
+        serviceTemplateId = project.serviceTemplateId?.value,
+        contractValueMinor = project.contractValue?.minorUnits,
+        contractCurrency = project.contractValue?.currency?.code,
+        enquiredAt = project.enquiredAt?.toEpochMilliseconds(),
+        bookedAt = project.bookedAt?.toEpochMilliseconds(),
+        notes = project.notes,
+        updatedAt = project.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = project.audit.deletedAt?.toEpochMilliseconds(),
+        version = project.audit.version.toLong(),
+        id = project.id.value,
+    )
+}
+
+internal suspend fun YellowTrackDatabase.applySession(session: Session) {
+    sessionQueries.insertOrIgnore(
+        id = session.id.value,
+        studio_id = session.studioId.value,
+        project_id = session.projectId.value,
+        title = session.title,
+        kind = session.kind.name,
+        status = session.status.name,
+        starts_at = session.startsAt.toEpochMilliseconds(),
+        ends_at = session.endsAt.toEpochMilliseconds(),
+        time_zone_id = session.timeZoneId,
+        location_name = session.locationName,
+        location_address = session.locationAddress,
+        call_time = session.callTime?.toEpochMilliseconds(),
+        notes = session.notes,
+        created_at = session.audit.createdAt.toEpochMilliseconds(),
+        updated_at = session.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = session.audit.deletedAt?.toEpochMilliseconds(),
+        version = session.audit.version.toLong(),
+        latitude = session.coordinates?.latitude,
+        longitude = session.coordinates?.longitude,
+    )
+
+    sessionQueries.update(
+        projectId = session.projectId.value,
+        title = session.title,
+        kind = session.kind.name,
+        status = session.status.name,
+        startsAt = session.startsAt.toEpochMilliseconds(),
+        endsAt = session.endsAt.toEpochMilliseconds(),
+        timeZoneId = session.timeZoneId,
+        locationName = session.locationName,
+        locationAddress = session.locationAddress,
+        latitude = session.coordinates?.latitude,
+        longitude = session.coordinates?.longitude,
+        callTime = session.callTime?.toEpochMilliseconds(),
+        notes = session.notes,
+        updatedAt = session.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = session.audit.deletedAt?.toEpochMilliseconds(),
+        version = session.audit.version.toLong(),
+        id = session.id.value,
+    )
+}
+
+/**
+ * Records work reconciliation discarded.
+ *
+ * Insert-or-ignore rather than upsert: a conflict is a thing that happened at a moment,
+ * and the same one arriving twice is the same event rather than a newer version of it.
+ * Overwriting would also wipe a `resolved_at` set locally by somebody who had already dealt
+ * with it.
+ */
+internal suspend fun YellowTrackDatabase.applyConflict(conflict: SyncConflict) {
+    syncQueries.insertOrIgnoreConflict(
+        id = conflict.id.value,
+        studio_id = conflict.studioId.value,
+        entity_table = conflict.entityTable,
+        entity_id = conflict.entityId,
+        losing_payload = conflict.losingPayload,
+        winning_payload = conflict.winningPayload,
+        detected_at = conflict.detectedAt.toEpochMilliseconds(),
+        resolved_at = conflict.resolvedAt?.toEpochMilliseconds(),
+        created_at = conflict.audit.createdAt.toEpochMilliseconds(),
+        updated_at = conflict.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = conflict.audit.deletedAt?.toEpochMilliseconds(),
+        version = conflict.audit.version.toLong(),
+    )
+}
+
+/** Matches how the repositories already store list columns, so a synced row reads the same. */
+private val syncJson = Json

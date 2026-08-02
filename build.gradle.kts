@@ -27,3 +27,9 @@ subprojects {
         }
     }
 }
+// One place the version is declared, so the sidebar cannot go stale again. `AppInfo` was
+// typed by hand and read three milestones behind twice — the second time found by running
+// the application and looking at it. Generated from here now.
+allprojects {
+    version = "0.7.0"
+}

@@ -7,9 +7,11 @@ package com.yellowtrack.platform.app
  * "0.1.0" three releases after that was true, and a badge beside it still read "Genesis",
  * the codename of the very first milestone.
  *
- * Kept in step with `docs/CHANGELOG.md` by hand. It should be generated from the Gradle
- * version once one is declared there.
+ * Was typed by hand and read three milestones behind twice — "0.1.0" once, "0.4.0" again,
+ * the second found only by running the application and looking at the sidebar. Twice was
+ * the evidence, so it is generated from the Gradle version now and there is nothing left
+ * to forget to update.
  */
 object AppInfo {
-    const val VERSION: String = "0.4.0"
+    const val VERSION: String = BuildInfo.VERSION
 }

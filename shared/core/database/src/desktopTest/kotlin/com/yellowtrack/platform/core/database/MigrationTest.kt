@@ -51,6 +51,8 @@ class MigrationTest {
 
     private fun v13Database(): SqlDriver = snapshotDatabase(version = 13)
 
+    private fun v14Database(): SqlDriver = snapshotDatabase(version = 14)
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -1275,12 +1277,95 @@ class MigrationTest {
             driver.close()
         }
 
+    // --- Version fourteen to fifteen: where reconciliation keeps its state ---------------
+
+    @Test
+    fun `a version fourteen database keeps everything when the sync tables arrive`() =
+        runTest {
+            val driver = v14Database()
+
+            driver.exec(
+                """
+                INSERT INTO client(id, studio_id, account_name, account_type, tags,
+                                   created_at, updated_at, version)
+                VALUES ('client-1', 'studio-1', 'Harbourline Coffee', 'Company', '[]', 1000, 1000, 3);
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 14, newVersion = 15)
+
+            assertEquals(1L, driver.countOf("client"), "the studio's accounts must survive the upgrade")
+            assertEquals(
+                "3",
+                driver.scalar("SELECT CAST(version AS TEXT) FROM client"),
+                "and their version must not be reset — it is what conflicts are detected with",
+            )
+            assertEquals(0L, driver.countOf("sync_state"), "the new tables are there and empty")
+            assertEquals(0L, driver.countOf("sync_conflict"))
+
+            driver.close()
+        }
+
+    @Test
+    fun `a device that has never synced starts at the beginning rather than at nothing`() =
+        runTest {
+            val driver = v14Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 14, newVersion = 15)
+
+            driver.exec("INSERT INTO sync_state(studio_id) VALUES ('studio-1');")
+
+            assertEquals(
+                "0",
+                driver.scalar("SELECT CAST(last_server_seq AS TEXT) FROM sync_state"),
+                "a null cursor would have to be handled at every comparison; zero is before every row",
+            )
+            assertNull(
+                driver.scalar("SELECT last_synced_at FROM sync_state"),
+                "never synced is not the same as synced at time zero",
+            )
+
+            driver.close()
+        }
+
+    @Test
+    fun `a conflict keeps both versions, because keeping only the winner is the loss`() =
+        runTest {
+            val driver = v14Database()
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 14, newVersion = 15)
+
+            driver.exec(
+                """
+                INSERT INTO sync_conflict(id, studio_id, entity_table, entity_id,
+                                          losing_payload, winning_payload, detected_at,
+                                          created_at, updated_at, version)
+                VALUES ('conflict-1', 'studio-1', 'session', 'session-1',
+                        '{"title":"Ceremony — 2pm"}', '{"title":"Ceremony — 3pm"}',
+                        2000, 2000, 2000, 1);
+                """.trimIndent(),
+            )
+
+            assertEquals(
+                """{"title":"Ceremony — 2pm"}""",
+                driver.scalar("SELECT losing_payload FROM sync_conflict"),
+                "the discarded version is the whole point: last-write-wins is only defensible " +
+                    "while the work it threw away can still be read back",
+            )
+            assertNull(
+                driver.scalar("SELECT resolved_at FROM sync_conflict"),
+                "a conflict arrives unresolved rather than pre-dismissed",
+            )
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(14L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(15L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

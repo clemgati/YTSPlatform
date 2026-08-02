@@ -123,11 +123,20 @@ internal class SqlDelightSessionRepository(
                 version = session.audit.version.toLong(),
                 id = session.id.value,
             )
+
+            db.enqueueForSync(session.studioId.value, SyncTables.SESSION, session.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteSession(sessionId: SessionId) {
-        database().sessionQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = sessionId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Wrapped, so the tombstone and the note to upload it cannot be written apart.
+        db.transaction {
+            db.sessionQueries.softDelete(deletedAt = now, id = sessionId.value)
+            db.enqueueForSync(studioId, SyncTables.SESSION, sessionId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<SessionRow>>.mapRows(): Flow<List<Session>> = map { rows -> rows.map { it.toDomain() } }

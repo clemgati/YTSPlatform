@@ -2,6 +2,52 @@
 
 Yellow Track Platform is in early development. Contributions should preserve a stable, understandable, and reviewable codebase.
 
+## Local setup
+
+The client targets need only a JDK and the Android SDK. The `:server` module additionally
+needs a Postgres to test against, because `SchemaDriftTest` compares the server schema
+against the clients' and cannot do that without a database:
+
+```sh
+brew install postgresql@18
+brew services start postgresql@18
+createdb yellowtrack_dev
+createdb yellowtrack_test
+```
+
+That test fails rather than skips when there is no database. This is deliberate: a drift
+check that quietly does not run still reports green while the two schemas part company.
+
+The defaults assume Postgres on the loopback address owned by the account running the
+build, which is what the Homebrew formula produces. Override with `YELLOWTRACK_TEST_DB_URL`,
+`YELLOWTRACK_TEST_DB_USER` and `YELLOWTRACK_TEST_DB_PASSWORD`; the server itself reads
+`DATABASE_URL`, `DATABASE_USER` and `DATABASE_PASSWORD`.
+
+Note that the Homebrew role is a **superuser**, and superusers are exempt from every row
+level security policy in the schema. Nothing needs doing about that locally — every
+transaction drops to `yellowtrack_app` before it touches business data — but it is why that
+role exists, and why connecting the server as a superuser in production would silently
+disable the tenant boundary. The migration creates the role without `LOGIN`; deployment
+grants it separately, so no credential is implied by anything in this repository:
+
+```sql
+ALTER ROLE yellowtrack_app LOGIN PASSWORD '...';
+```
+
+For anything that sends mail — password reset today, documents later — the server needs an
+SMTP host. A capture server on your own machine is a real one, so the development path
+exercises the same code as production rather than a stub:
+
+```sh
+brew install mailpit
+mailpit                     # SMTP on :1025, an inbox to read at http://localhost:8025
+MAIL_HOST=localhost MAIL_PORT=1025 ./gradlew :server:run
+```
+
+With `MAIL_HOST` unset the server warns at boot and still issues reset codes — they simply
+are not delivered. That is survivable on a laptop and not in a deployment, which is why it
+is said once at startup rather than discovered at the first reset.
+
 ## Workflow
 
 1. Create or reference a GitHub issue.

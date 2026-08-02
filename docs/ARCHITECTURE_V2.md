@@ -50,11 +50,12 @@ shared/
         database/      implemented
         navigation/    implemented
         testing/       implemented
-        network/       planned — arrives with the Ktor server
+        network/       implemented — the client half of the sync wire
         preferences/   planned
 
     feature/
 
+        auth/
         dashboard/
         clients/
         sessions/
@@ -170,6 +171,14 @@ on one another.
 
 Reads are exposed as `Flow`, so a change made on one screen appears on every other.
 
+`auth/SessionStore` is the exception to "repositories over a database": the signed-in
+token is a credential rather than a business record, so it lives where each platform keeps
+credentials rather than in a table. The four implementations differ in *kind*, not merely
+in API — Keychain and a keystore-wrapped preference file are backed by keys the application
+cannot extract; a desktop file has only permissions; browser storage has nothing at all.
+`isHardwareBacked` exists so a screen can say which of those a studio is relying on instead
+of implying a guarantee the platform is not making.
+
 ---
 
 ### core:database
@@ -219,9 +228,161 @@ Two decisions worth knowing:
 
 ---
 
+### server
+
+The API in front of Postgres, deployed as a JAR behind Apache — see
+`docs/adr/0007-ktor-server-over-cloud-postgres.md`.
+
+Plain Kotlin/JVM rather than a Kotlin Multiplatform module: nothing here ships to a phone,
+and a single-target module keeps the server off the Apple half of CI entirely.
+
+Depends on `:shared:core:model` and nothing else from the client tree. That dependency is
+the whole argument for a Kotlin server over a Node one: one definition of every entity is
+compiled into both sides, so adding a field is a compile error rather than a runtime
+surprise. `SharedModelContractTest` proves the model actually crosses the wire — inline
+value classes, money as minor units, instants, and nulls that mean something.
+
+The JSON configuration is deliberate rather than default, because it decides what happens
+when the two ends are briefly *not* the same build: unknown keys are ignored so an older
+client survives a rolling deploy, defaults are written out so the reader cannot fill in a
+different one, and nulls stay explicit so a tombstone cannot vanish in transit.
+
+#### The schema, twice
+
+The Postgres schema lives in `src/main/resources/db/migration` and is applied by Flyway. It
+mirrors the SQLDelight schema the clients carry, which means the same twenty-five tables
+are written twice in two dialects.
+
+The compiler keeps `core:model` honest and can do nothing for this, so `SchemaDriftTest`
+does it instead: it reads the committed SQLDelight snapshot as an ordinary SQLite file,
+applies the real migrations to a real Postgres, and compares them column by column. It
+reads the *highest-numbered* snapshot, so a new client migration widens what is compared
+automatically and fails until the server catches up.
+
+Three divergences are deliberate, and the test asserts they are the only ones:
+
+- `outbox` is device-only. It is the queue of local mutations awaiting upload; the server
+  is what they are uploaded *to*.
+- Every synced table carries a `server_seq` no client has — the pull cursor of ADR 0008.
+- SQLite `INTEGER` becomes `bigint`, except `is_*` columns, which become `boolean`. SQLite
+  has no boolean type, so the prefix is what tells a flag from a count.
+
+`server_seq` is assigned by a trigger on insert **and update**, from one sequence shared by
+every table. Sharing it is what lets a client hold a single cursor across entities; firing
+on update is what stops an edited row from sitting behind a cursor that has already passed
+it, which is the silent loss ADR 0008 exists to prevent.
+
+Running the server tests needs a local Postgres — see `docs/CONTRIBUTING.md`. The drift
+test fails rather than skips without one, because a drift check that quietly does not run
+still looks green while the two schemas part company.
+
+#### Who a request is, and what it can see
+
+Authentication and the tenant boundary are separate mechanisms, and deliberately so — see
+`docs/adr/0009-accounts-authentication-and-tenant-isolation.md`.
+
+A `studio` is the tenant that `studio_id` has always meant. An `account` is a person, joined
+to studios through `studio_member`, which carries a role that is `Owner` for everyone until
+0.8.0. Passwords are Argon2id in the PHC string format, so the cost parameters travel with
+the hash and can be raised later without invalidating anyone's password. A session is an
+opaque random token stored only as its SHA-256, revocable because the application is
+offline-first and its sessions are therefore long-lived.
+
+The boundary itself is Postgres's, not the application's. Every business table has
+`ENABLE` **and** `FORCE ROW LEVEL SECURITY` with a policy comparing `studio_id` against
+`current_setting('app.studio_id', true)`. `Database.inStudio` sets it for the length of one
+transaction; `Database.unscoped` deliberately does not.
+
+Two properties are worth knowing before changing any of this:
+
+- **It is fail-closed.** The missing-ok `current_setting` yields NULL when unset, and
+  `studio_id = NULL` is NULL rather than true. A query that forgets its studio returns
+  nothing rather than everything, which turns the expensive mistake into a visible one.
+- **The role matters more than it looks.** Superusers and `BYPASSRLS` roles are exempt from
+  every policy, and a Homebrew Postgres makes the developer a superuser. So *every*
+  transaction issues `SET LOCAL ROLE yellowtrack_app` first, whatever it connected as.
+  Without that, all of this is inert on precisely the machines it is written on.
+
+`RowLevelSecurityTest` holds both, and was checked by breaking them.
+
+The authentication tables sit outside the mechanism, because a policy keyed on
+`app.studio_id` cannot guard the lookup that decides what `app.studio_id` should be. That
+hole is argued for in ADR 0009 decision 7; `Accounts.kt` is the only code inside it.
+
+#### Reconciliation
+
+`sync/` implements ADR 0008 for `Client`, `Project` and `Session`. Two endpoints, both
+acting as the studio the token was issued for and never as one named in the request.
+
+`GET /sync/changes?since=` returns everything past the cursor in **one ordered pass across
+all three tables**, because they share a single sequence. That is not an optimisation: page
+the tables separately, report the highest sequence seen, and the cursor steps past rows in
+the tables that were not paged — rows that are then never sent again, silently and
+permanently.
+
+`POST /sync/changes` applies rows and reports what became of each: `Applied`, `Conflicted`,
+or `Rejected`. It answers rather than throws, because a drain running after a day offline
+cannot stop and ask a photographer to resolve fourteen conflicts, and a rejection the device
+cannot act on becomes a stuck outbox.
+
+The rules, and what each is protecting against:
+
+| Situation | Outcome | Why |
+| --- | --- | --- |
+| No row yet | Applied | Nothing to displace |
+| Incoming version ahead | Applied | Includes several offline edits arriving as one |
+| Incoming version behind or level | Conflicted | The later arrival wins; the displaced version is written to `sync_conflict` in full |
+| Server row is a tombstone | Conflicted | The delete stands, and the edit it beat is kept too |
+| Incoming is a tombstone | Applied | A delete over a live row is an ordinary write |
+
+Two details that look arbitrary and are not. A settled conflict stores `max(both) + 1`,
+because leaving two devices on the same version would make every push between them conflict
+forever after. And a `Client` arriving with `contacts` is **rejected**, not stripped:
+contacts are their own rows with their own ids and reconcile by union (ADR 0008 decision 5),
+and quietly dropping them would leave a device believing it had uploaded something it had
+not.
+
+`sync_state` is the only table in the schema that is device-only rather than mirrored — a
+cursor is a fact about one phone, and two devices of the same studio are at different points
+in the sequence by definition.
+
+On the device, `core:data`'s `sync/` package holds the other half: mutations enqueue to the
+`outbox` in the same transaction as the write, `SyncEngine` drains it — collapsing repeated
+edits and re-reading rows rather than sending what was queued — then applies what it pulls
+straight to the tables, deliberately not through the repositories, which would queue every
+pulled row straight back for upload.
+
+Conflicts surface in two places, which decision 3 needs both of: the Dashboard says *that*
+something was discarded, and Settings shows *what*. Splitting them is the point — a count on
+the Dashboard is what a photographer meets without going looking, and unpicking which field
+was lost needs a screen with room to do it properly.
+
+`SyncConflict.differences()` narrows two whole payloads to
+the fields that actually moved, ignoring `version` and `updatedAt` because those differ on
+every write and would bury the one field the studio changed. A payload that cannot be parsed
+is still listed, saying so — a version that will not render is still a version that was
+thrown away, and hiding it is the failure the table exists to prevent.
+
+---
+
 ### core:network
 
-Networking.
+The device's side of the wire: a Ktor client implementing `core:data`'s `SyncTransport`.
+
+Thin on purpose. Everything that decides whether synchronisation is *correct* — ordering,
+conflict handling, when the cursor advances — lives in `SyncEngine` and is tested without a
+network. What is left here is what a network can get wrong: reaching the server, proving who
+is asking, and turning a failure into something the caller can act on. A pull that answered
+500 and was read as "nothing changed" would look like a quiet successful sync, so failures
+throw rather than return empty.
+
+One HTTP engine per target, because Ktor has none that runs on all four — OkHttp on Android
+and desktop, Darwin on iOS, JS on wasm. Each is the platform's own stack, so TLS and proxies
+behave the way the rest of the device does.
+
+**Where the token is kept is deliberately not decided here.** `SyncCredentials` is a
+function returning one; Keychain, EncryptedSharedPreferences and an OS keyring are different
+right answers and none of them belong in the thing that makes HTTP requests.
 
 Contains:
 

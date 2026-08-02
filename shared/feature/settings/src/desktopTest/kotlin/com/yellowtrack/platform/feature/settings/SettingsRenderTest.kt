@@ -6,13 +6,18 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
+import com.yellowtrack.platform.core.data.sync.ConflictDifference
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
+import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.ui.state.UiState
+import com.yellowtrack.platform.feature.settings.presentation.AccountSummary
+import com.yellowtrack.platform.feature.settings.presentation.ConflictSummary
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
 import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
 import com.yellowtrack.platform.feature.settings.presentation.SettingsUiState
 import com.yellowtrack.platform.feature.settings.presentation.StudioProfileFields
+import com.yellowtrack.platform.feature.settings.presentation.SyncSummary
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -37,6 +42,9 @@ class SettingsRenderTest {
                             uiState = UiState.Success(sampleContent()).let(::SettingsUiState),
                             onRetry = {},
                             onSave = {},
+                            onDismissConflict = {},
+                            onSyncNow = {},
+                            onSignOut = {},
                         )
                     }
                 }
@@ -67,5 +75,28 @@ class SettingsRenderTest {
             canIssueDocuments = true,
             gaps = listOf("no tax registration number", "no payment instructions"),
             savedNote = "Saved. Your documents will carry these details.",
+            sync = SyncSummary(lastResult = "Sent 3, received 1."),
+            account =
+                AccountSummary(
+                    email = "ada@harbourline.test",
+                    studioName = "Harbourline Photography",
+                    isHardwareBacked = false,
+                ),
+            conflicts =
+                listOf(
+                    ConflictSummary(
+                        id = SyncConflictId("conflict-1"),
+                        what = "A shoot day",
+                        whenDetected = "July 30, 2026",
+                        differences =
+                            listOf(
+                                ConflictDifference(
+                                    label = "Title",
+                                    discarded = "Ceremony — 2pm",
+                                    kept = "Ceremony — 3pm",
+                                ),
+                            ),
+                    ),
+                ),
         )
 }

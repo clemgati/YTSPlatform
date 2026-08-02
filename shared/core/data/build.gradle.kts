@@ -15,6 +15,17 @@ kotlin {
             implementation(libs.koin.core)
         }
 
+        // The session token is a credential rather than a business record, so each platform
+        // keeps it where that platform keeps credentials. See `auth/SessionStore.kt` on why
+        // these differ in kind and not merely in API.
+        androidMain.dependencies {
+            implementation(libs.androidx.security.crypto)
+        }
+
+        wasmJsMain.dependencies {
+            implementation(libs.kotlinx.browser)
+        }
+
         commonTest.dependencies {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)

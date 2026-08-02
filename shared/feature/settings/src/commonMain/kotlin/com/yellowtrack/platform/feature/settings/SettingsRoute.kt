@@ -17,6 +17,9 @@ fun SettingsRoute(modifier: Modifier = Modifier) {
         uiState = uiState,
         onRetry = {},
         onSave = viewModel::save,
+        onDismissConflict = viewModel::dismissConflict,
+        onSyncNow = viewModel::syncNow,
+        onSignOut = viewModel::signOut,
         modifier = modifier,
     )
 }

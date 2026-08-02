@@ -46,13 +46,17 @@ include(":shared:core:designsystem")
 include(":shared:core:export")
 include(":shared:core:model")
 include(":shared:core:navigation")
+include(":shared:core:network")
 
+include(":shared:feature:auth")
 include(":shared:feature:dashboard")
 include(":shared:feature:clients")
 include(":shared:feature:settings")
 include(":shared:feature:ledger")
 include(":shared:feature:sessions")
 include(":shared:feature:studio")
+
+include(":server")
 
 include(":shared:core:testing")
 include(":shared:core:ui")

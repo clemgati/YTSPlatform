@@ -1,7 +1,10 @@
 # ADR 0008: Synchronise with a server-assigned sequence and visible conflicts
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-07-30
+- Accepted: 2026-07-30, when the Postgres schema was built on decision 1. `server_seq`, its
+  shared sequence and its insert-and-update trigger now exist and are enforced by
+  `SchemaDriftTest`; a schema resting on a proposal is a decision taken without saying so.
 
 ## Context
 

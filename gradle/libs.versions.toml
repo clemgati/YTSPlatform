@@ -11,18 +11,27 @@ androidx-core = "1.16.0"
 androidx-espresso = "3.7.0"
 androidx-lifecycle = "2.11.0-beta01"
 androidx-testExt = "1.3.0"
+androidx-securityCrypto = "1.1.0"
+angusMail = "2.0.5"
+logback = "1.6.1"
+bouncycastle = "1.85"
 composeMultiplatform = "1.11.1"
+flyway = "13.1.0"
+hikari = "7.1.0"
 junit = "4.13.2"
 kotlin = "2.4.10"
 kotlinx-coroutines = "1.11.0"
 material3 = "1.11.0-alpha07"
 ktlintGradle = "14.2.0"
+postgresql = "42.7.13"
+sqliteJdbc = "3.53.2.1"
 koin = "4.1.0"
 composeMaterialIcons = "1.7.3"
 composeIcons = "2.2.1"
 kotlinx-browser = "0.5.0"
 kotlinx-datetime = "0.8.0"
 kotlinx-serialization = "1.11.0"
+ktor = "3.4.0"
 sqldelight = "2.3.2"
 turbine = "1.2.1"
 
@@ -31,6 +40,9 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+# Wraps the session token with a key the application cannot extract, held in the device
+# keystore. See core:data's AndroidSessionStore.
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidx-securityCrypto" }
 androidx-testExt-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-testExt" }
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidx-espresso" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }
@@ -58,6 +70,44 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.ref = "kotlinx-browser" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+
+ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
+ktor-server-contentNegotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-contentNegotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+# One engine per target. Ktor has no single engine that runs on all four.
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
+
+ktor-server-auth = { module = "io.ktor:ktor-server-auth", version.ref = "ktor" }
+ktor-server-cors = { module = "io.ktor:ktor-server-cors", version.ref = "ktor" }
+ktor-server-statusPages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
+ktor-server-testHost = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
+
+# Argon2id without JNI. The usual JVM binding wraps a native library, which would mean a
+# native artefact per platform in CI; see ADR 0009 decision 3.
+bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+
+# SMTP. 2.0.5 rather than 2.1.0-M1, which is what Maven reports as the release and is a
+# milestone. See ADR 0010 decision 5 on SMTP over a provider API.
+angus-mail = { module = "org.eclipse.angus:angus-mail", version.ref = "angusMail" }
+
+# Without a binding SLF4J installs a no-op logger and every warning the server writes goes
+# nowhere. ADR 0010 decision 6 sends failed mail to the log rather than to the caller, which
+# only means anything if the log exists.
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+
+# Reads the committed SQLDelight schema snapshot in the drift test. Test-only: the server
+# has no SQLite of its own.
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqliteJdbc" }
 
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
 sqldelight-coroutinesExtensions = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
