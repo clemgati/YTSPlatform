@@ -53,6 +53,58 @@ class MigrationTest {
 
     private fun v14Database(): SqlDriver = snapshotDatabase(version = 14)
 
+    private fun v15Database(): SqlDriver = snapshotDatabase(version = 15)
+
+    /**
+     * The per-studio singletons take the studio's id, so two devices write one row.
+     *
+     * `studio_profile` and `codb_profile` hold one row per studio and both took a generated
+     * id, which was harmless while neither synchronised. It stops being harmless the moment
+     * they do: the device that signed up would create one row and the device that signed in
+     * another, and the second push would violate the unique index on the server rather than
+     * merge with the first.
+     *
+     * The rewrite has to keep the studio's own details — this is the profile every invoice
+     * is built from — so the test checks the row moved rather than that a row exists.
+     */
+    @Test
+    fun `migration 15 keys the per-studio singletons by their studio`() =
+        runTest {
+            val driver = v15Database()
+
+            driver.exec(
+                """
+                INSERT INTO studio_profile(id, studio_id, name, tax_number, created_at, updated_at, version, currency)
+                VALUES ('generated-id-1', 'studio-1', 'Harbourline Photography', 'GB123456789', 1, 1, 3, 'GBP')
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO codb_profile(id, studio_id, currency, target_annual_salary_minor,
+                                         billable_days_per_year, tax_rate_basis_points,
+                                         created_at, updated_at, version)
+                VALUES ('generated-id-2', 'studio-1', 'GBP', 4000000, 120, 2000, 1, 1, 2)
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 15, newVersion = 16)
+
+            assertEquals(
+                "studio-1|Harbourline Photography|GB123456789|3",
+                driver.scalar(
+                    "SELECT id || '|' || name || '|' || tax_number || '|' || version FROM studio_profile",
+                ),
+                "the profile should be keyed by its studio and otherwise untouched — this is what " +
+                    "every invoice is built from",
+            )
+            assertEquals(
+                "studio-1|2",
+                driver.scalar("SELECT id || '|' || version FROM codb_profile"),
+            )
+
+            driver.close()
+        }
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -1365,7 +1417,7 @@ class MigrationTest {
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(15L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(16L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

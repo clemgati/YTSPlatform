@@ -399,7 +399,10 @@ internal class LedgerViewModel(
                     taxRateBasisPoints = taxBasisPoints,
                     audit = existing.audit.touched(clock.now()),
                 ) ?: CodbProfile(
-                    id = CodbProfileId.new(),
+                    // Keyed by the studio, for the same reason StudioProfile is: one row per
+                    // studio, a unique index saying so, and two devices that each generated
+                    // an id would be two rows the server cannot hold.
+                    id = CodbProfileId(studioContext.studioId.value),
                     studioId = studioContext.studioId,
                     currency = currency,
                     targetAnnualSalary = salary,

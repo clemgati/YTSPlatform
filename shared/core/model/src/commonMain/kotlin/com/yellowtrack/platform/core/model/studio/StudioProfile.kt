@@ -100,7 +100,13 @@ data class StudioProfile(
             audit: AuditMetadata,
         ): StudioProfile =
             StudioProfile(
-                id = StudioProfileId.new(),
+                // The studio's own id, not a fresh one. There is exactly one profile per
+                // studio — both databases carry a unique index saying so — and a generated
+                // id makes that one row two: the device that signed up creates one, the
+                // device that signs in creates another, and the second push violates the
+                // index rather than merging. Deriving it means both devices write the same
+                // row and ordinary reconciliation settles it.
+                id = StudioProfileId(studioId.value),
                 studioId = studioId,
                 name = "",
                 audit = audit,
