@@ -649,15 +649,36 @@ the apex or `www` is the only way to take the other service down, so leave them 
 
 ## Pointing the clients at it
 
-The clients are built with the server baked in. The default is loopback, which no phone can
-reach:
+The clients are built with the server baked in, declared once in `gradle.properties`:
 
-```sh
-./gradlew :desktopApp:packageDistributionForCurrentOS -Pyellowtrack.serverUrl=https://api.yourdomain
+```properties
+yellowtrack.serverUrl=https://api.yourdomain
 ```
 
-A build without that flag will look correct and fail to reach anything, so it is worth
-checking Settings → Synchronisation on a device before shipping one.
+so an ordinary build reaches the deployed server and needs no flag:
+
+```sh
+./gradlew :desktopApp:packageDistributionForCurrentOS
+./gradlew :androidApp:assembleRelease
+```
+
+Point it elsewhere for an afternoon by overriding the same property:
+
+```sh
+./gradlew :desktopApp:run -Pyellowtrack.serverUrl=http://localhost:8080
+```
+
+**This defaulted to loopback until 0.7.0, and it was the wrong way round.** Every build made
+without remembering the flag pointed at a port on the machine that compiled it — which
+fails on the desktop the moment no development server is running, and on a phone can never
+work at all, because `localhost` there is the phone. It presents as *"could not reach the
+server"* with a server that is perfectly healthy, so check the built value before chasing
+the deployment:
+
+```sh
+./gradlew :shared:app:generateBuildInfo
+grep SERVER_URL shared/app/build/generated/buildinfo/com/yellowtrack/platform/app/BuildInfo.kt
+```
 
 ---
 
