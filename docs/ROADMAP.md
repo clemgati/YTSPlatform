@@ -348,11 +348,11 @@ and used.
   address answers `202` and never arrives — which ADR 0010 makes deliberately
   indistinguishable from success, so nobody would ever report it. This is the hard blocker
   on a second studio, and it is an AWS review rather than something to build
-- **Backups run; the restore is rehearsed by hand.** `yellowtrack-backup.timer` is
-  installed and firing daily. What is not automatic is the rehearsal — `restore-database.sh
-  --latest` rebuilds the newest dump into a scratch database and reports what came back, and
-  nothing runs it on a schedule. A timer firing is not a backup working, and an untested
-  restore is a belief about a file
+- ✓ **Backups run, and the restore rehearses itself.** `yellowtrack-backup.timer` writes a
+  dump nightly; `yellowtrack-restore-check.timer` rebuilds the newest one weekly into a
+  scratch database and exits non-zero if fewer tables come back than the schema has.
+  `verify-deployment.sh` checks the *result* rather than the schedule, because a failed unit
+  nobody looks at is not much better than no unit. Units in `docs/DEPLOYMENT.md`
 - **No way to install it.** No TestFlight, no Play track, no hosted web build
 - **One instance, no staging.** Every deploy goes straight to what studios are using, and
   there is nowhere to catch a bad migration first

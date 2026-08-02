@@ -532,14 +532,59 @@ It asks you to type the database name first. `--clean` replaces rather than merg
 a database half restored from a backup and half left over is a state nobody can reason
 about.
 
-A weekly rehearsal, so the belief is checked without anyone remembering to:
+### The rehearsal, on a timer
+
+Backing up nightly proves a dump gets written. Nothing there proves it can still come back,
+and the failures that stop a dump being restorable — a disk that filled halfway through, a
+`pg_dump` that started as Postgres was shutting down — leave a file of about the right size
+in about the right place.
+
+`/etc/systemd/system/yellowtrack-restore-check.service`:
 
 ```ini
-# yellowtrack-restore-check.timer
-[Timer]
-OnCalendar=weekly
-Persistent=true
+[Unit]
+Description=Prove the newest Yellow Track backup can be restored
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+# Nothing live is touched: this restores into a scratch database, counts what came back and
+# drops it. It exits non-zero when fewer tables return than the schema has, which is what
+# makes systemd record a failure rather than a log line nobody reads.
+ExecStart=/usr/local/bin/restore-database.sh --latest
 ```
+
+`/etc/systemd/system/yellowtrack-restore-check.timer`:
+
+```ini
+[Unit]
+Description=Weekly restore rehearsal
+
+[Timer]
+# An hour after the nightly backup, so it rehearses the dump that was just taken rather
+# than yesterday's.
+OnCalendar=Mon *-*-* 01:00:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
+```
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now yellowtrack-restore-check.timer
+sudo systemctl start yellowtrack-restore-check.service   # once, now, rather than waiting a week
+sudo journalctl -u yellowtrack-restore-check -n 20 --no-pager
+```
+
+You are looking for `Restorable.` and a table count matching the schema.
+
+**A failed unit nobody looks at is not much better than no unit**, so
+`verify-deployment.sh` checks the last result rather than only that the timer exists —
+`systemctl is-failed` on the service is the difference between a rehearsal that runs and a
+rehearsal that passes.
 
 ### What a dump does not contain
 

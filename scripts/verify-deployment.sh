@@ -114,7 +114,13 @@ else
     # Set to the app role, or unset and falling back to it, and the next migration fails
     # mid-deploy rather than here.
     migration_user="$(sudo grep -hs '^MIGRATION_USER=' /etc/yellowtrack/env 2>/dev/null | cut -d= -f2- || echo "")"
-    if [ -z "$migration_user" ]; then
+    if [ ! -r /etc/yellowtrack/env ] && ! sudo test -r /etc/yellowtrack/env 2>/dev/null; then
+        # Not a finding. Off the instance there is no environment file to read, and
+        # reporting an inability to look as though it were an answer is the whole thing
+        # skip() exists to stop.
+        skip "the environment file is not readable from here, so the roles were not checked"
+        note "Run this on the instance."
+    elif [ -z "$migration_user" ]; then
         fail "MIGRATION_USER is not set"
         note "Migrations fall back to DATABASE_USER, which owns nothing: the next one you"
         note "add will stop at 'permission denied for schema public' during a deploy."
@@ -173,12 +179,33 @@ fi
 echo
 echo "Backups"
 if ! command -v systemctl >/dev/null 2>&1; then
-    skip "systemd is not available, so the backup timer was not checked"
-elif sudo systemctl list-timers 2>/dev/null | grep -q backup; then
-    pass "a backup timer exists"
+    skip "systemd is not available, so the backup timers were not checked"
 else
-    fail "no backup timer found"
-    note "One lost instance is one lost business. And an untested restore is a belief."
+    if sudo systemctl list-timers --all 2>/dev/null | grep -q yellowtrack-backup; then
+        pass "backups are scheduled"
+    else
+        fail "no backup timer found"
+        note "One lost instance is one lost business."
+    fi
+
+    # Scheduled and passing are different questions, and only the second one means the
+    # studio's data can come back. A dump that stopped being restorable — a disk that
+    # filled halfway through, a pg_dump caught mid-shutdown — leaves a file of about the
+    # right size in about the right place.
+    if ! sudo systemctl list-timers --all 2>/dev/null | grep -q yellowtrack-restore-check; then
+        fail "no restore rehearsal is scheduled"
+        note "An untested restore is a belief about a file. See docs/DEPLOYMENT.md."
+    elif sudo systemctl is-failed --quiet yellowtrack-restore-check.service 2>/dev/null; then
+        fail "the last restore rehearsal failed"
+        note "The newest backup could not be rebuilt. Read it now, not during an outage:"
+        note "  sudo journalctl -u yellowtrack-restore-check -n 40 --no-pager"
+    elif sudo systemctl show -p ExecMainStatus --value yellowtrack-restore-check.service 2>/dev/null |
+        grep -qx "0"; then
+        pass "the newest backup was rebuilt successfully"
+    else
+        skip "the restore rehearsal is scheduled but has not run yet"
+        note "sudo systemctl start yellowtrack-restore-check.service"
+    fi
 fi
 
 echo
