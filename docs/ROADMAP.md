@@ -343,11 +343,16 @@ and used.
 
 - **Nothing watches the server.** No alert when the process dies, the disk fills, renewal
   fails, or backups stop. Today the studio finds out first
-- **SES may still be in the sandbox.** `mail:true` says configured, not permitted: until
-  production access is granted, a password reset for anyone but the account holder answers
-  `202` and never arrives — which ADR 0010 makes deliberately indistinguishable from success
-- **The restore has been rehearsed once, by hand.** The weekly timer is documented; confirm
-  it is installed with `systemctl list-timers`
+- **SES is in the sandbox.** Confirmed, not suspected. `mail:true` says configured, not
+  permitted: until production access is granted, a password reset for anyone but a verified
+  address answers `202` and never arrives — which ADR 0010 makes deliberately
+  indistinguishable from success, so nobody would ever report it. This is the hard blocker
+  on a second studio, and it is an AWS review rather than something to build
+- ✓ **Backups run, and the restore rehearses itself.** `yellowtrack-backup.timer` writes a
+  dump nightly; `yellowtrack-restore-check.timer` rebuilds the newest one weekly into a
+  scratch database and exits non-zero if fewer tables come back than the schema has.
+  `verify-deployment.sh` checks the *result* rather than the schedule, because a failed unit
+  nobody looks at is not much better than no unit. Units in `docs/DEPLOYMENT.md`
 - **No way to install it.** No TestFlight, no Play track, no hosted web build
 - **One instance, no staging.** Every deploy goes straight to what studios are using, and
   there is nowhere to catch a bad migration first
