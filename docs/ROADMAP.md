@@ -180,9 +180,8 @@ and deployment waits until there is something worth deploying.
 
 - ✓ Sync semantics decided before any of it is built — see
   `docs/adr/0008-synchronisation-semantics.md`, accepted once the schema below was built on it
-- ◐ Ktor server sharing `core:model` — the module exists and the model is proved to cross
-  the wire, but it serves a health route and nothing else. Apache and a cloud Postgres wait
-  until there is something worth deploying
+- ✓ Ktor server sharing `core:model` — deployed on EC2 behind Apache with a Let's Encrypt
+  certificate, serving `api.yellowtrackstudios.com` against a Postgres on its own volume
 - ✓ Postgres schema through Flyway, with a test that it has not drifted from SQLDelight's —
   twenty-five tables mirrored, compared column by column against the committed SQLDelight
   snapshot, and the three deliberate divergences asserted to be the only ones. `server_seq`
@@ -193,10 +192,15 @@ and deployment waits until there is something worth deploying.
   `docs/adr/0009-accounts-authentication-and-tenant-isolation.md`. A studio signs up, signs
   in with an Argon2id-hashed password, and gets a revocable token; every business table is
   behind a Postgres policy that returns **nothing** when a request forgets to name its
-  studio, rather than returning everything. Proved by breaking it three ways. Still to come:
-  the client wiring, so the applications can actually sign in, and password reset, which
-  needs the mail transport 0.6.0 also wanted
-- ◐ Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
+  studio, rather than returning everything. Proved by breaking it three ways. The client
+  wiring is in and **all four platforms have signed in against the deployed server** —
+  desktop, Android, iOS and the browser build.
+
+  Two things about that were only learned by deploying. Migrations must run as the schema's
+  owner and requests as `yellowtrack_app`, which owns nothing: one credential cannot do
+  both, because the role that owns a table is exempt from its own policies. And the role
+  has to be created by hand, since the owner deliberately holds no `CREATEROLE`
+- ✓ Synchronisation for `Client`, `Project` and `Session`, landing on a schema that has been
   ready for it since 0.3.0. The server reconciles: a device pulls everything past its cursor
   in one ordered pass across all three tables, pushes what it has, and gets back what became
   of each row. Conflicts are detected on `version`, resolved by arrival, and **the losing
@@ -220,8 +224,8 @@ and deployment waits until there is something worth deploying.
   Each platform now keeps its token where that platform keeps credentials — Keychain on
   iOS, a keystore-wrapped preference file on Android, an owner-only file on desktop,
   `localStorage` in a browser, which `isHardwareBacked` is honest about rather than
-  implying a protection browsers do not offer. Only the desktop one has been run; the other
-  three are compiled
+  implying a protection browsers do not offer. **All four have now been run**: every
+  platform has signed in against the deployed server and kept its session
 - ✓ Password reset, and the mail transport 0.6.0 also wanted — see
   `docs/adr/0010-password-reset-by-emailed-code.md`. A code rather than a link, because
   there is no web front end for a link to land on. Requesting one answers the same whether
@@ -257,12 +261,105 @@ and deployment waits until there is something worth deploying.
   work and never arrive, and same-box Postgres means one lost instance is one lost business.
   The code side is done: the server URL is generated from the build rather than hardcoded to
   loopback, CORS is configurable for the browser build, and `/ready` reports whether the
-  database and mail are actually reachable. Provisioning is nobody's yet
+  database and mail are actually reachable. **It is provisioned and running**: Postgres 18
+  on its own EBS volume, Apache terminating TLS, systemd, daily backups to S3 with a
+  restore rehearsed rather than assumed, and SES sending. `scripts/verify-deployment.sh`
+  checks the failures that do not announce themselves
+- ✓ **The remaining twenty-two entities**, so a studio signing in on a second device gets
+  its whole business rather than three tables of it: contacts and their attachments,
+  invoices and payments, quotes, contracts, expenses, mileage, crew, shots, releases,
+  deliverables, post-production tasks, gear, packing, storage, media copies, lighting
+  recipes, service templates, and the studio profile every document is built from.
+
+  Four defects surfaced while doing it, each invisible from inside the application and each
+  now guarded by a test written after the fact rather than before:
+
+  - **Deletes had never propagated.** Push re-read each queued row through a repository, and
+    every repository read filters `deleted_at IS NULL` — so a deleted row came back absent,
+    was taken for one that had never existed, and its outbox entry was discarded. Anything
+    deleted on one device stayed on every other one indefinitely
+  - **Entities could be declared and never pulled**, by being left out of the list the pull
+    is built from
+  - **Entities could be declared and never pushed**, by being left out of the read that
+    fills the push
+  - **Entities could be wired end to end and never queued**, because their repository did
+    not enqueue — so a device pulled them from other devices and never sent its own
+
+  Adding an entity means threading it through four layers, and each has its own way of
+  dropping one silently. There is now a guard per layer
+
+- ✓ Pages that stand alone. A page ordered by `server_seq` is not one a device can apply:
+  an edit bumps the sequence, so a parent edited after its own child arrives a page later
+  and the child fails a foreign key — identically on every retry, because the cursor only
+  advances once a page is written. Each entity declares what it references and a pull closes
+  each page over its parents. That is what made it safe to **enforce foreign keys on the
+  devices**, which the schema had declared and nothing had ever checked
+
+- ✓ Per-studio singletons keyed by their studio. `studio_profile`, `codb_profile` and the
+  seeded `service_template` rows took generated ids, which is why none of them could
+  synchronise: two devices would each create their own, and the second push would violate a
+  unique index rather than merge. Migrations 15 and 16 rewrite what is already on devices,
+  and a template the studio has renamed keeps its own id — it has become theirs
+
+- ✓ Failures that say what happened. Three separate afternoons were spent on a healthy
+  server that looked broken, so: the clients default to the deployed server rather than
+  loopback, transport and parse failures are classified rather than falling through to
+  "something went wrong here", and a pull carries the tables the server reconciles so a
+  device can say when it is talking to a server older than itself. That last one is the
+  cause of the worst of them — `ignoreUnknownKeys` means an old server **discards entities
+  it has never heard of and answers successfully**, so every screen reads "Up to date"
+  while a category of the studio's work stays on one device
+
 - **Moved to 0.8.0 — object storage for media, via presigned URLs.** Nothing consumes it:
   no entity in the domain model holds an image or attachment, and `media_copy` records where
   files sit on the studio's *own* drives, which 0.6.0 said would stay a card-reader job.
   The thing that needs it is client proofing, and that is 0.8.0 — where the gallery will
   decide the shape of it rather than a guess made a milestone early
+
+## Before another studio uses it
+
+Not a milestone so much as the gap between *working* and *fit to hand to someone else*. It
+is listed before 0.8.0 because every item here blocks a real user more than a proofing
+gallery does, and because none of it was written down until the thing was actually deployed
+and used.
+
+**In the product**
+
+- **Editing a saved record.** Carried from 0.4.0 and now the largest functional hole: a
+  studio can raise an invoice but not correct a mistyped amount, or fix a payment recorded
+  against the wrong booking. Someone will need this on their first day
+- **Emailing a document.** Quotes and invoices render and can be shared; sending one from
+  inside the application is wiring, since the mail transport exists
+- **The share sheet on Android and iOS** is compiled and has never been run. Sign-in has
+  now been exercised on both, so the session stores are proved — this is not
+- **Two studio names.** `studio.name` is fixed at sign-up and shown in Settings → Account;
+  `studio_profile.name` is the editable one every document carries. They can disagree
+  permanently. One of them should stop existing, and `adoptStudioName` — a workaround from
+  when the profile could not travel — should probably go with it
+- **Account deletion and data export.** The application holds other people's clients,
+  addresses and payment histories, with no way to give that back or remove it
+
+**In the operation**
+
+- **Nothing watches the server.** No alert when the process dies, the disk fills, renewal
+  fails, or backups stop. Today the studio finds out first
+- **SES may still be in the sandbox.** `mail:true` says configured, not permitted: until
+  production access is granted, a password reset for anyone but the account holder answers
+  `202` and never arrives — which ADR 0010 makes deliberately indistinguishable from success
+- **The restore has been rehearsed once, by hand.** The weekly timer is documented; confirm
+  it is installed with `systemctl list-timers`
+- **No way to install it.** No TestFlight, no Play track, no hosted web build
+- **One instance, no staging.** Every deploy goes straight to what studios are using, and
+  there is nowhere to catch a bad migration first
+
+**In what has actually been proved**
+
+- **One studio has ever existed.** Tenant isolation is enforced by Postgres and proved by
+  tests that break it deliberately, but two real studios have never shared this server
+- **Synchronisation runs every five minutes** and at no other time — not when the
+  application comes to the foreground, not after a write, and not at all while it is
+  closed. The interval is a guess its own comment asks to revisit once somebody has used
+  this on a shoot day
 
 ## 0.8.0 — Collaboration
 
