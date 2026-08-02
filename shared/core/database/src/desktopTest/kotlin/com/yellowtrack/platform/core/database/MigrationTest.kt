@@ -105,6 +105,55 @@ class MigrationTest {
             driver.close()
         }
 
+    /**
+     * The seeded templates take an id both devices agree on; a renamed one keeps its own.
+     *
+     * Seeding runs once per device, so a generated id gave two devices two full sets of the
+     * same four templates. The rename case is the one worth pinning: a studio that has made
+     * a template its own must not have it merged with another device's untouched copy.
+     */
+    @Test
+    fun `migration 16 keys the seeded templates, and leaves renamed ones alone`() =
+        runTest {
+            // From 15, through both new migrations. There is no 16 snapshot: the schema
+            // generator only ever emits the current version, so a version that was current
+            // only between two commits never gets one.
+            val driver = v15Database()
+
+            driver.exec(
+                """
+                INSERT INTO service_template(id, studio_id, name, service_line,
+                                             default_session_duration_min, default_session_count,
+                                             created_at, updated_at, version)
+                VALUES ('generated-1', 'studio-1', 'Wedding — Full Day', 'Wedding', 600, 1, 1, 1, 1)
+                """.trimIndent(),
+            )
+            driver.exec(
+                """
+                INSERT INTO service_template(id, studio_id, name, service_line,
+                                             default_session_duration_min, default_session_count,
+                                             created_at, updated_at, version)
+                VALUES ('generated-2', 'studio-1', 'Weddings — our way', 'Wedding', 600, 1, 1, 1, 1)
+                """.trimIndent(),
+            )
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 15, newVersion = 17)
+
+            assertEquals(
+                "studio-1:default:Wedding — Full Day",
+                driver.scalar("SELECT id FROM service_template WHERE name = 'Wedding — Full Day'"),
+                "a seeded template must land on the id every other device derives",
+            )
+            assertEquals(
+                "generated-2",
+                driver.scalar("SELECT id FROM service_template WHERE name = 'Weddings — our way'"),
+                "a renamed template is the studio's own, and merging it with another device's " +
+                    "untouched copy would be the wrong answer",
+            )
+
+            driver.close()
+        }
+
     /** A copy of the committed snapshot for [version], so the real shipped schema is used. */
     private fun snapshotDatabase(version: Int): SqlDriver {
         val snapshot = File("src/commonMain/sqldelight/databases/$version.db")
@@ -1417,7 +1466,7 @@ class MigrationTest {
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(16L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(17L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

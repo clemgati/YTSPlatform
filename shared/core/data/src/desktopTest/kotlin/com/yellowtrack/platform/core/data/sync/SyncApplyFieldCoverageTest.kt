@@ -22,6 +22,7 @@ import com.yellowtrack.platform.core.data.sync.applyPackingEntry
 import com.yellowtrack.platform.core.data.sync.applyPayment
 import com.yellowtrack.platform.core.data.sync.applyPostTask
 import com.yellowtrack.platform.core.data.sync.applyQuote
+import com.yellowtrack.platform.core.data.sync.applyServiceTemplate
 import com.yellowtrack.platform.core.data.sync.applyShot
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
 import com.yellowtrack.platform.core.data.sync.applyStudioProfile
@@ -102,6 +103,7 @@ import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -952,6 +954,37 @@ class SyncApplyFieldCoverageTest {
             val row = assertNotNull(database.codbQueries.selectByIdForSync(STUDIO).executeAsOneOrNull())
 
             assertEveryFieldSurvived(CodbProfile.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
+    fun `every field of a ServiceTemplate survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+
+            val fixture =
+                ServiceTemplate(
+                    id = ServiceTemplateId("$STUDIO:default:Wedding — Full Day"),
+                    studioId = StudioId(STUDIO),
+                    name = "Wedding — Full Day",
+                    serviceLine = ServiceLine.Wedding,
+                    defaultSessionDurationMinutes = 600,
+                    defaultSessionCount = 2,
+                    basePrice = Money(minorUnits = 240_000, currency = CurrencyCode.GBP),
+                    defaultDeliverableCount = 600,
+                    defaultTurnaroundDays = 42,
+                    defaultRevisionRounds = 2,
+                    notes = "Includes a second shooter.",
+                    audit = audit(),
+                )
+
+            database.applyServiceTemplate(fixture)
+
+            val row =
+                assertNotNull(
+                    database.serviceTemplateQueries.selectByIdForSync(fixture.id.value).executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(ServiceTemplate.serializer(), fixture, row.toDomain())
         }
 
     @Test

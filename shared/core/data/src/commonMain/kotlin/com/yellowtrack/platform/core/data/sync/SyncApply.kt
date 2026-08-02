@@ -22,6 +22,7 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.studio.StudioProfile
@@ -938,5 +939,44 @@ internal suspend fun YellowTrackDatabase.applyCodbProfile(profile: CodbProfile) 
         deletedAt = profile.audit.deletedAt?.toEpochMilliseconds(),
         version = profile.audit.version.toLong(),
         id = profile.id.value,
+    )
+}
+
+/** What the studio sells. Seeded ones are keyed by studio and name; see migration 16. */
+internal suspend fun YellowTrackDatabase.applyServiceTemplate(template: ServiceTemplate) {
+    serviceTemplateQueries.insertOrIgnore(
+        id = template.id.value,
+        studio_id = template.studioId.value,
+        name = template.name,
+        service_line = template.serviceLine.name,
+        default_session_duration_min = template.defaultSessionDurationMinutes.toLong(),
+        default_session_count = template.defaultSessionCount.toLong(),
+        base_price_minor = template.basePrice?.minorUnits,
+        base_price_currency = template.basePrice?.currency?.code,
+        default_deliverable_count = template.defaultDeliverableCount?.toLong(),
+        default_turnaround_days = template.defaultTurnaroundDays?.toLong(),
+        default_revision_rounds = template.defaultRevisionRounds?.toLong(),
+        notes = template.notes,
+        created_at = template.audit.createdAt.toEpochMilliseconds(),
+        updated_at = template.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = template.audit.deletedAt?.toEpochMilliseconds(),
+        version = template.audit.version.toLong(),
+    )
+
+    serviceTemplateQueries.update(
+        name = template.name,
+        serviceLine = template.serviceLine.name,
+        defaultSessionDurationMin = template.defaultSessionDurationMinutes.toLong(),
+        defaultSessionCount = template.defaultSessionCount.toLong(),
+        basePriceMinor = template.basePrice?.minorUnits,
+        basePriceCurrency = template.basePrice?.currency?.code,
+        defaultDeliverableCount = template.defaultDeliverableCount?.toLong(),
+        defaultTurnaroundDays = template.defaultTurnaroundDays?.toLong(),
+        defaultRevisionRounds = template.defaultRevisionRounds?.toLong(),
+        notes = template.notes,
+        updatedAt = template.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = template.audit.deletedAt?.toEpochMilliseconds(),
+        version = template.audit.version.toLong(),
+        id = template.id.value,
     )
 }

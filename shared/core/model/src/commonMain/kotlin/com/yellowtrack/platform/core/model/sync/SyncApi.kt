@@ -21,6 +21,7 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.studio.StudioProfile
@@ -99,6 +100,8 @@ data class SyncPullResponse(
      */
     val studioProfiles: List<StudioProfile> = emptyList(),
     val codbProfiles: List<CodbProfile> = emptyList(),
+    /** What the studio sells. Keyed by studio and name where the application seeded it. */
+    val serviceTemplates: List<ServiceTemplate> = emptyList(),
     /**
      * Work reconciliation discarded, travelling down only.
      *
@@ -135,6 +138,7 @@ data class SyncPushRequest(
     val lightingRecipes: List<LightingRecipe> = emptyList(),
     val studioProfiles: List<StudioProfile> = emptyList(),
     val codbProfiles: List<CodbProfile> = emptyList(),
+    val serviceTemplates: List<ServiceTemplate> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
@@ -161,7 +165,8 @@ data class SyncPushRequest(
                 talentReleases.isEmpty() &&
                 lightingRecipes.isEmpty() &&
                 studioProfiles.isEmpty() &&
-                codbProfiles.isEmpty()
+                codbProfiles.isEmpty() &&
+                serviceTemplates.isEmpty()
 }
 
 /** What became of one pushed row. */

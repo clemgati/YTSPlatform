@@ -36,7 +36,7 @@ internal fun defaultServiceTemplates(
         revisions: Int?,
         notes: String,
     ) = ServiceTemplate(
-        id = ServiceTemplateId.new(),
+        id = defaultTemplateId(studioId, name),
         studioId = studioId,
         name = name,
         serviceLine = line,
@@ -109,3 +109,23 @@ internal fun defaultServiceTemplatesForStudio(
     studioId: StudioId,
     now: Instant,
 ): List<ServiceTemplate> = defaultServiceTemplates(studioId, now)
+
+/**
+ * The id a default template has on every device, rather than a fresh one on each.
+ *
+ * Seeding runs once per device, so a generated id gave two devices two full sets of the
+ * same four templates and the studio saw everything twice. Derived from the studio and the
+ * template's name, both devices write the same four rows and reconciliation settles them.
+ *
+ * Readable rather than a UUID on purpose: this id says why it is what it is, which matters
+ * when somebody is looking at a `service_template` row wondering where it came from. It is
+ * also what migration 16 has to reproduce in SQL, and a hash would not be reproducible
+ * there without shipping a hash function into SQLite.
+ *
+ * A template the studio renames keeps whatever id it already had. That is correct — it has
+ * stopped being one of ours and become one of theirs.
+ */
+internal fun defaultTemplateId(
+    studioId: StudioId,
+    name: String,
+): ServiceTemplateId = ServiceTemplateId("${studioId.value}:default:$name")

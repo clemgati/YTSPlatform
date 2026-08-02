@@ -78,6 +78,7 @@ import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -667,6 +668,28 @@ class SyncFieldCoverageTest {
                     taxRateBasisPoints = 2_000,
                     annualOverheadOverride = Money(minorUnits = 1_800_000, currency = CurrencyCode.GBP),
                     desiredProfitMarginBasisPoints = 1_500,
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a ServiceTemplate crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.ServiceTemplates,
+            fixture =
+                ServiceTemplate(
+                    id = ServiceTemplateId("$STUDIO:default:Wedding — Full Day"),
+                    studioId = StudioId(STUDIO),
+                    name = "Wedding — Full Day",
+                    serviceLine = ServiceLine.Wedding,
+                    defaultSessionDurationMinutes = 600,
+                    defaultSessionCount = 2,
+                    basePrice = Money(minorUnits = 240_000, currency = CurrencyCode.GBP),
+                    defaultDeliverableCount = 600,
+                    defaultTurnaroundDays = 42,
+                    defaultRevisionRounds = 2,
+                    notes = "Includes a second shooter.",
                     audit = audit(),
                 ),
         )

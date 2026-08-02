@@ -75,6 +75,7 @@ import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -1951,6 +1952,95 @@ sealed interface SyncedEntity<T> {
         }
     }
 
+    /**
+     * What the studio sells, as a starting point for a booking.
+     *
+     * The four the application seeds take an id derived from the studio and the template's
+     * name, because seeding runs once per *device*: generated ids gave two devices two full
+     * sets of the same four templates. A template the studio has renamed keeps whatever id
+     * it had, which is right — it has become theirs. See migration 16.
+     */
+    object ServiceTemplates : SyncedEntity<ServiceTemplate> {
+        override val table = "service_template"
+
+        override fun identify(entity: ServiceTemplate) = entity.id.value
+
+        override fun studioOf(entity: ServiceTemplate) = entity.studioId.value
+
+        override fun versionOf(entity: ServiceTemplate) = entity.audit.version
+
+        override fun deletedAtOf(entity: ServiceTemplate) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): ServiceTemplate =
+            ServiceTemplate(
+                id = ServiceTemplateId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                name = rows.getString("name"),
+                serviceLine = enumOrDefault(rows.getString("service_line"), ServiceLine.Portrait),
+                defaultSessionDurationMinutes = rows.getInt("default_session_duration_min"),
+                defaultSessionCount = rows.getInt("default_session_count"),
+                basePrice = moneyOf(rows.getNullableLong("base_price_minor"), rows.getString("base_price_currency")),
+                defaultDeliverableCount = rows.getNullableLong("default_deliverable_count")?.toInt(),
+                defaultTurnaroundDays = rows.getNullableLong("default_turnaround_days")?.toInt(),
+                defaultRevisionRounds = rows.getNullableLong("default_revision_rounds")?.toInt(),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: ServiceTemplate) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: ServiceTemplate,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO service_template(id, studio_id, name, service_line,
+                                                 default_session_duration_min, default_session_count,
+                                                 base_price_minor, base_price_currency,
+                                                 default_deliverable_count, default_turnaround_days,
+                                                 default_revision_rounds, notes,
+                                                 created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name                         = EXCLUDED.name,
+                        service_line                 = EXCLUDED.service_line,
+                        default_session_duration_min = EXCLUDED.default_session_duration_min,
+                        default_session_count        = EXCLUDED.default_session_count,
+                        base_price_minor             = EXCLUDED.base_price_minor,
+                        base_price_currency          = EXCLUDED.base_price_currency,
+                        default_deliverable_count    = EXCLUDED.default_deliverable_count,
+                        default_turnaround_days      = EXCLUDED.default_turnaround_days,
+                        default_revision_rounds      = EXCLUDED.default_revision_rounds,
+                        notes                        = EXCLUDED.notes,
+                        updated_at                   = EXCLUDED.updated_at,
+                        deleted_at                   = EXCLUDED.deleted_at,
+                        version                      = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.name)
+                    statement.setString(4, entity.serviceLine.name)
+                    statement.setLong(5, entity.defaultSessionDurationMinutes.toLong())
+                    statement.setLong(6, entity.defaultSessionCount.toLong())
+                    statement.setNullableLong(7, entity.basePrice?.minorUnits)
+                    statement.setString(8, entity.basePrice?.currency?.code)
+                    statement.setNullableLong(9, entity.defaultDeliverableCount?.toLong())
+                    statement.setNullableLong(10, entity.defaultTurnaroundDays?.toLong())
+                    statement.setNullableLong(11, entity.defaultRevisionRounds?.toLong())
+                    statement.setString(12, entity.notes)
+                    statement.setLong(13, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(14, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(15, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(16, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
     object Projects : SyncedEntity<Project> {
         override val table = "project"
 
@@ -2218,6 +2308,7 @@ sealed interface SyncedEntity<T> {
                 LightingRecipes,
                 StudioProfiles,
                 CodbProfiles,
+                ServiceTemplates,
                 Deliverables,
                 Invoices,
                 Payments,

@@ -32,6 +32,7 @@ import com.yellowtrack.platform.core.data.sync.applyPayment
 import com.yellowtrack.platform.core.data.sync.applyPostTask
 import com.yellowtrack.platform.core.data.sync.applyProject
 import com.yellowtrack.platform.core.data.sync.applyQuote
+import com.yellowtrack.platform.core.data.sync.applyServiceTemplate
 import com.yellowtrack.platform.core.data.sync.applySession
 import com.yellowtrack.platform.core.data.sync.applyShot
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
@@ -96,6 +97,8 @@ import com.yellowtrack.platform.core.model.quote.QuoteStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
+import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
@@ -840,6 +843,7 @@ class SyncEngineTest {
             db.applyLightingRecipe(lightingRecipe("lr1"))
             db.applyStudioProfile(studioProfile())
             db.applyCodbProfile(codbProfile())
+            db.applyServiceTemplate(serviceTemplate())
 
             val queued =
                 listOf(
@@ -865,6 +869,7 @@ class SyncEngineTest {
                     SyncTables.LIGHTING_RECIPE to "lr1",
                     SyncTables.STUDIO_PROFILE to STUDIO.value,
                     SyncTables.CODB_PROFILE to STUDIO.value,
+                    SyncTables.SERVICE_TEMPLATE to "st1",
                 )
 
             queued.forEach { (table, id) ->
@@ -898,6 +903,7 @@ class SyncEngineTest {
                     if (sent.lightingRecipes.isEmpty()) add(SyncTables.LIGHTING_RECIPE)
                     if (sent.studioProfiles.isEmpty()) add(SyncTables.STUDIO_PROFILE)
                     if (sent.codbProfiles.isEmpty()) add(SyncTables.CODB_PROFILE)
+                    if (sent.serviceTemplates.isEmpty()) add(SyncTables.SERVICE_TEMPLATE)
                 }
 
             assertEquals(
@@ -958,6 +964,16 @@ class SyncEngineTest {
             currency = CurrencyCode.GBP,
             targetAnnualSalary = Money(minorUnits = 4_000_000, currency = CurrencyCode.GBP),
             billableDaysPerYear = 120,
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun serviceTemplate() =
+        ServiceTemplate(
+            id = ServiceTemplateId("st1"),
+            studioId = STUDIO,
+            name = "Wedding — Full Day",
+            serviceLine = ServiceLine.Wedding,
+            defaultSessionDurationMinutes = 600,
             audit = AuditMetadata.createdAt(NOW),
         )
 

@@ -271,6 +271,13 @@ class SyncEngine(
                             .awaitAsOneOrNull()
                             ?.toDomain()
                     },
+                serviceTemplates =
+                    wanted.forTable(SyncTables.SERVICE_TEMPLATE).mapNotNull {
+                        database.serviceTemplateQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
             )
 
         // A queued row that no longer exists at all — never uploaded, then hard-deleted —
@@ -354,7 +361,8 @@ class SyncEngine(
                     page.quotes.size + page.contracts.size +
                     page.shots.size + page.postTasks.size +
                     page.talentReleases.size + page.lightingRecipes.size +
-                    page.studioProfiles.size + page.codbProfiles.size + page.conflicts.size
+                    page.studioProfiles.size + page.codbProfiles.size +
+                    page.serviceTemplates.size + page.conflicts.size
 
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
@@ -384,6 +392,7 @@ class SyncEngine(
                 page.lightingRecipes.forEach { database.applyLightingRecipe(it) }
                 page.studioProfiles.forEach { database.applyStudioProfile(it) }
                 page.codbProfiles.forEach { database.applyCodbProfile(it) }
+                page.serviceTemplates.forEach { database.applyServiceTemplate(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -434,6 +443,7 @@ class SyncEngine(
             lightingRecipes.forEach { add(SyncTables.LIGHTING_RECIPE to it.id.value) }
             studioProfiles.forEach { add(SyncTables.STUDIO_PROFILE to it.id.value) }
             codbProfiles.forEach { add(SyncTables.CODB_PROFILE to it.id.value) }
+            serviceTemplates.forEach { add(SyncTables.SERVICE_TEMPLATE to it.id.value) }
         }
 
     private companion object {

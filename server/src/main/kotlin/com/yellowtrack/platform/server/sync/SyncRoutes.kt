@@ -22,6 +22,7 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.studio.StudioProfile
@@ -121,6 +122,10 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                                 .filterIsInstance<StudioProfile>(),
                         codbProfiles =
                             changes.rows[SyncedEntity.CodbProfiles.table].orEmpty().filterIsInstance<CodbProfile>(),
+                        serviceTemplates =
+                            changes.rows[SyncedEntity.ServiceTemplates.table]
+                                .orEmpty()
+                                .filterIsInstance<ServiceTemplate>(),
                         conflicts =
                             changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
@@ -175,6 +180,9 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                             add(reconciler.push(studioId, SyncedEntity.StudioProfiles, it))
                         }
                         request.codbProfiles.forEach { add(reconciler.push(studioId, SyncedEntity.CodbProfiles, it)) }
+                        request.serviceTemplates.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.ServiceTemplates, it))
+                        }
                         request.payments.forEach { add(reconciler.push(studioId, SyncedEntity.Payments, it)) }
                     }
 
