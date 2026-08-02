@@ -1,5 +1,7 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.id.uuidV7
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
@@ -8,7 +10,9 @@ import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContact
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.contact.Contact
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -86,12 +90,7 @@ internal class SqlDelightClientRepository(
                 id = client.id.value,
             )
 
-            // Links are replaced wholesale: retiring them all and reviving the ones still
-            // present is simpler than diffing, and leaves a tombstone for any genuinely
-            // removed — which a synchronising peer will need.
-            db.clientQueries.softDeleteContactsForClient(deletedAt = now, clientId = client.id.value)
-
-            client.contacts.forEach { link -> db.saveClientContact(client.id, link, now) }
+            db.reconcileContacts(client, now)
 
             db.enqueueForSync(client.studioId.value, SyncTables.CLIENT, client.id.value, OutboxOperation.Upsert, now)
         }
@@ -102,11 +101,134 @@ internal class SqlDelightClientRepository(
         val now = clock.now().toEpochMillis()
 
         db.transaction {
-            db.clientQueries.softDeleteContactsForClient(deletedAt = now, clientId = clientId.value)
+            // Each link is retired individually and queued, because a peer learns a link is
+            // gone from the link's own tombstone. Retiring them in bulk without queueing
+            // would delete them here and leave them attached everywhere else.
+            db.clientQueries.selectLiveClientContactLinks(clientId.value).awaitAsList().forEach { row ->
+                db.clientQueries.softDeleteClientContactById(deletedAt = now, id = row.id)
+                db.enqueueForSync(studioId, SyncTables.CLIENT_CONTACT, row.id, OutboxOperation.Delete, now)
+            }
+
             db.clientQueries.softDelete(deletedAt = now, id = clientId.value)
 
             db.enqueueForSync(studioId, SyncTables.CLIENT, clientId.value, OutboxOperation.Delete, now)
         }
+    }
+
+    /**
+     * Brings the stored contacts and links into line with what was passed, touching only
+     * what actually changed.
+     *
+     * This used to retire every link and revive the survivors, which was simpler and was
+     * fine while links stayed on the device. It is not fine now they synchronise: each save
+     * bumped every link's version twice, so saving a client would re-upload contacts nobody
+     * had edited, and two devices changing unrelated fields would conflict over links
+     * neither had touched. ADR 0008 assumed conflicts would be rare; that assumption has to
+     * be earned here.
+     *
+     * A link is identified for this purpose by the contact and role it joins, because that
+     * is what the caller can express — it passes `ClientContact`, which has no link id. The
+     * row's own id, once assigned, is never regenerated: it is what a second device knows
+     * the row by.
+     */
+    @OptIn(ExperimentalUuidApi::class)
+    private suspend fun YellowTrackDatabase.reconcileContacts(
+        client: Client,
+        now: Long,
+    ) {
+        val studio = client.studioId.value
+        val existing = clientQueries.selectLiveClientContactLinks(client.id.value).awaitAsList()
+        val wantedKeys = client.contacts.map { it.contact.id.value to it.role.name }.toSet()
+
+        existing
+            .filter { (it.contact_id to it.role) !in wantedKeys }
+            .forEach { row ->
+                clientQueries.softDeleteClientContactById(deletedAt = now, id = row.id)
+                enqueueForSync(studio, SyncTables.CLIENT_CONTACT, row.id, OutboxOperation.Delete, now)
+            }
+
+        val byKey = existing.associateBy { it.contact_id to it.role }
+
+        client.contacts.forEach { link ->
+            saveContactIfChanged(link.contact, now)
+
+            if ((link.contact.id.value to link.role.name) in byKey) return@forEach
+
+            // New attachment. The unique index on (client_id, contact_id, role) means an
+            // insert racing a revived tombstone is ignored rather than duplicated.
+            val id = ClientContactLinkId.new().value
+
+            clientQueries.insertOrIgnoreClientContact(
+                id = id,
+                studio_id = studio,
+                client_id = client.id.value,
+                contact_id = link.contact.id.value,
+                role = link.role.name,
+                created_at = now,
+                updated_at = now,
+                deleted_at = null,
+                version = 1L,
+            )
+            clientQueries.reviveClientContact(
+                updatedAt = now,
+                clientId = client.id.value,
+                contactId = link.contact.id.value,
+                role = link.role.name,
+            )
+
+            val stored =
+                clientQueries
+                    .selectLiveClientContactLinks(client.id.value)
+                    .awaitAsList()
+                    .firstOrNull { it.contact_id == link.contact.id.value && it.role == link.role.name }
+
+            stored?.let { enqueueForSync(studio, SyncTables.CLIENT_CONTACT, it.id, OutboxOperation.Upsert, now) }
+        }
+    }
+
+    /**
+     * Writes a contact only when it differs, so that attaching an unedited person to a
+     * second account does not queue their details for upload again.
+     */
+    private suspend fun YellowTrackDatabase.saveContactIfChanged(
+        contact: Contact,
+        now: Long,
+    ) {
+        val stored = contactQueries.selectById(contact.id.value).awaitAsOneOrNull()
+
+        if (stored != null && stored.version == contact.audit.version.toLong() && stored.deleted_at == null) return
+
+        contactQueries.insertOrIgnore(
+            id = contact.id.value,
+            studio_id = contact.studioId.value,
+            first_name = contact.firstName,
+            last_name = contact.lastName,
+            company = contact.company,
+            job_title = contact.jobTitle,
+            emails = encodeContactMethods(contact.emails),
+            phones = encodeContactMethods(contact.phones),
+            notes = contact.notes,
+            created_at = contact.audit.createdAt.toEpochMillis(),
+            updated_at = now,
+            deleted_at = null,
+            version = contact.audit.version.toLong(),
+        )
+
+        contactQueries.update(
+            firstName = contact.firstName,
+            lastName = contact.lastName,
+            company = contact.company,
+            jobTitle = contact.jobTitle,
+            emails = encodeContactMethods(contact.emails),
+            phones = encodeContactMethods(contact.phones),
+            notes = contact.notes,
+            updatedAt = now,
+            deletedAt = null,
+            version = contact.audit.version.toLong(),
+            id = contact.id.value,
+        )
+
+        enqueueForSync(contact.studioId.value, SyncTables.CONTACT, contact.id.value, OutboxOperation.Upsert, now)
     }
 
     @OptIn(ExperimentalUuidApi::class)

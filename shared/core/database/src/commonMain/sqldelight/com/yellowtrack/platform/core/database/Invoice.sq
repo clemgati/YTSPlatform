@@ -136,3 +136,14 @@ softDeletePayment:
 UPDATE payment
 SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectPaymentByIdForSync:
+SELECT *
+FROM payment
+WHERE id = :id;
+
+selectByIdForSync:
+SELECT *
+FROM invoice
+WHERE id = :id;

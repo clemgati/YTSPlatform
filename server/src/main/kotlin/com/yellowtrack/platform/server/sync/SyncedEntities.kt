@@ -3,11 +3,32 @@ package com.yellowtrack.platform.server.sync
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
+import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
+import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.contact.ContactMethod
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.crew.CrewMemberId
+import com.yellowtrack.platform.core.model.crew.CrewRole
+import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.delivery.DeliverableKind
+import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.invoice.PaymentMethod
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -146,9 +167,466 @@ sealed interface SyncedEntity<T> {
             if (entity.contacts.isEmpty()) {
                 null
             } else {
-                "contacts do not travel inside a client. They are their own rows and reconcile by " +
-                    "union on their own ids, and are not yet in the synchronised slice"
+                "contacts do not travel inside a client. They are their own rows, synchronised " +
+                    "as contact and client_contact, and reconcile by union on their own ids"
             }
+    }
+
+    /**
+     * A person. Their own row, and their own sync unit.
+     *
+     * Contacts are shared between client accounts — a planner works with several studios'
+     * couples — which is the second reason they cannot travel inside a `Client`: there is no
+     * single parent to travel inside.
+     */
+    object Contacts : SyncedEntity<Contact> {
+        override val table = "contact"
+
+        override fun identify(entity: Contact) = entity.id.value
+
+        override fun studioOf(entity: Contact) = entity.studioId.value
+
+        override fun versionOf(entity: Contact) = entity.audit.version
+
+        override fun deletedAtOf(entity: Contact) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Contact =
+            Contact(
+                id = ContactId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                firstName = rows.getString("first_name"),
+                lastName = rows.getString("last_name"),
+                company = rows.getString("company"),
+                jobTitle = rows.getString("job_title"),
+                emails = decodeContactMethods(rows.getString("emails")),
+                phones = decodeContactMethods(rows.getString("phones")),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Contact) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Contact,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO contact(id, studio_id, first_name, last_name, company, job_title,
+                                        emails, phones, notes,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        first_name = EXCLUDED.first_name,
+                        last_name  = EXCLUDED.last_name,
+                        company    = EXCLUDED.company,
+                        job_title  = EXCLUDED.job_title,
+                        emails     = EXCLUDED.emails,
+                        phones     = EXCLUDED.phones,
+                        notes      = EXCLUDED.notes,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.firstName)
+                    statement.setString(4, entity.lastName)
+                    statement.setString(5, entity.company)
+                    statement.setString(6, entity.jobTitle)
+                    statement.setString(7, payloadJson.encodeToString(entity.emails))
+                    statement.setString(8, payloadJson.encodeToString(entity.phones))
+                    statement.setString(9, entity.notes)
+                    statement.setLong(10, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(11, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(12, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(13, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /**
+     * That a person is attached to an account, in a role.
+     *
+     * This is decision 5 in practice. Two devices each adding a contact to one client write
+     * two of these, with different ids, and both survive — where a `Client` carrying its
+     * contacts would have had the later save discard the earlier one's work.
+     */
+    object ClientContactLinks : SyncedEntity<ClientContactLink> {
+        override val table = "client_contact"
+
+        override fun identify(entity: ClientContactLink) = entity.id.value
+
+        override fun studioOf(entity: ClientContactLink) = entity.studioId.value
+
+        override fun versionOf(entity: ClientContactLink) = entity.audit.version
+
+        override fun deletedAtOf(entity: ClientContactLink) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): ClientContactLink =
+            ClientContactLink(
+                id = ClientContactLinkId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                clientId = ClientId(rows.getString("client_id")),
+                contactId = ContactId(rows.getString("contact_id")),
+                role = enumOrDefault(rows.getString("role"), ClientContactRole.Primary),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: ClientContactLink) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: ClientContactLink,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO client_contact(id, studio_id, client_id, contact_id, role,
+                                               created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        client_id  = EXCLUDED.client_id,
+                        contact_id = EXCLUDED.contact_id,
+                        role       = EXCLUDED.role,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.clientId.value)
+                    statement.setString(4, entity.contactId.value)
+                    statement.setString(5, entity.role.name)
+                    statement.setLong(6, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(7, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(8, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(9, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /**
+     * An invoice, without its payments.
+     *
+     * `lines` travels *with* the invoice, in a JSON column, and so reconciles by
+     * last-write-wins along with the rest of the document. Payments do not: they are their
+     * own rows, and ADR 0008 decision 5 exists for exactly this case — a stale device's copy
+     * of an invoice must not be able to discard a payment recorded on another. A lost line
+     * is retyped from the quote; a lost payment is discovered during a tax return, if at all.
+     *
+     * The ADR lists line items alongside payments as reconciling by union. They cannot: they
+     * are not rows. See the note added to that decision.
+     */
+    object Invoices : SyncedEntity<Invoice> {
+        override val table = "invoice"
+
+        override fun identify(entity: Invoice) = entity.id.value
+
+        override fun studioOf(entity: Invoice) = entity.studioId.value
+
+        override fun versionOf(entity: Invoice) = entity.audit.version
+
+        override fun deletedAtOf(entity: Invoice) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Invoice =
+            Invoice(
+                id = InvoiceId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                projectId = ProjectId(rows.getString("project_id")),
+                number = rows.getString("number"),
+                kind = enumOrDefault(rows.getString("kind"), InvoiceKind.Full),
+                status = enumOrDefault(rows.getString("status"), InvoiceStatus.Draft),
+                currency = CurrencyCode(rows.getString("currency")),
+                lines = decodeLines(rows.getString("lines")),
+                // Deliberately empty: payments are their own rows and their own sync units.
+                payments = emptyList(),
+                issuedAt = rows.getNullableLong("issued_at")?.let { Instant.fromEpochMilliseconds(it) },
+                dueAt = rows.getNullableLong("due_at")?.let { Instant.fromEpochMilliseconds(it) },
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Invoice) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Invoice,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO invoice(id, studio_id, project_id, number, kind, status, currency,
+                                        lines, issued_at, due_at, notes,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        project_id = EXCLUDED.project_id,
+                        number     = EXCLUDED.number,
+                        kind       = EXCLUDED.kind,
+                        status     = EXCLUDED.status,
+                        currency   = EXCLUDED.currency,
+                        lines      = EXCLUDED.lines,
+                        issued_at  = EXCLUDED.issued_at,
+                        due_at     = EXCLUDED.due_at,
+                        notes      = EXCLUDED.notes,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.projectId.value)
+                    statement.setString(4, entity.number)
+                    statement.setString(5, entity.kind.name)
+                    statement.setString(6, entity.status.name)
+                    statement.setString(7, entity.currency.code)
+                    statement.setString(8, payloadJson.encodeToString(entity.lines))
+                    statement.setNullableLong(9, entity.issuedAt?.toEpochMilliseconds())
+                    statement.setNullableLong(10, entity.dueAt?.toEpochMilliseconds())
+                    statement.setString(11, entity.notes)
+                    statement.setLong(12, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(15, version)
+                    statement.executeUpdate()
+                }
+        }
+
+        /** Why an `Invoice` carrying payments is refused rather than quietly stripped. */
+        fun rejectionReason(entity: Invoice): String? =
+            if (entity.payments.isEmpty()) {
+                null
+            } else {
+                "payments do not travel inside an invoice. They are their own rows and reconcile " +
+                    "by union on their own ids, so that a stale invoice cannot discard one taken " +
+                    "on another device"
+            }
+    }
+
+    /**
+     * Money actually received. The case ADR 0008 decision 5 was written for.
+     */
+    object Payments : SyncedEntity<Payment> {
+        override val table = "payment"
+
+        override fun identify(entity: Payment) = entity.id.value
+
+        override fun studioOf(entity: Payment) = entity.studioId.value
+
+        override fun versionOf(entity: Payment) = entity.audit.version
+
+        override fun deletedAtOf(entity: Payment) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Payment =
+            Payment(
+                id = PaymentId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                invoiceId = InvoiceId(rows.getString("invoice_id")),
+                amount = Money(rows.getLong("amount_minor"), CurrencyCode(rows.getString("amount_currency"))),
+                paidAt = Instant.fromEpochMilliseconds(rows.getLong("paid_at")),
+                method = enumOrDefault(rows.getString("method"), PaymentMethod.BankTransfer),
+                reference = rows.getString("reference"),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Payment) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Payment,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO payment(id, studio_id, invoice_id, amount_minor, amount_currency,
+                                        paid_at, method, reference, notes,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        invoice_id      = EXCLUDED.invoice_id,
+                        amount_minor    = EXCLUDED.amount_minor,
+                        amount_currency = EXCLUDED.amount_currency,
+                        paid_at         = EXCLUDED.paid_at,
+                        method          = EXCLUDED.method,
+                        reference       = EXCLUDED.reference,
+                        notes           = EXCLUDED.notes,
+                        updated_at      = EXCLUDED.updated_at,
+                        deleted_at      = EXCLUDED.deleted_at,
+                        version         = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.invoiceId.value)
+                    statement.setLong(4, entity.amount.minorUnits)
+                    statement.setString(5, entity.amount.currency.code)
+                    statement.setLong(6, entity.paidAt.toEpochMilliseconds())
+                    statement.setString(7, entity.method.name)
+                    statement.setString(8, entity.reference)
+                    statement.setString(9, entity.notes)
+                    statement.setLong(10, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(11, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(12, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(13, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** Who is on a shoot day. A child of the session, and its own row. */
+    object CrewMembers : SyncedEntity<CrewMember> {
+        override val table = "crew_member"
+
+        override fun identify(entity: CrewMember) = entity.id.value
+
+        override fun studioOf(entity: CrewMember) = entity.studioId.value
+
+        override fun versionOf(entity: CrewMember) = entity.audit.version
+
+        override fun deletedAtOf(entity: CrewMember) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): CrewMember =
+            CrewMember(
+                id = CrewMemberId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                sessionId = SessionId(rows.getString("session_id")),
+                name = rows.getString("name"),
+                role = enumOrDefault(rows.getString("role"), CrewRole.SecondShooter),
+                phone = rows.getString("phone"),
+                callTime = rows.getNullableLong("call_time")?.let { Instant.fromEpochMilliseconds(it) },
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: CrewMember) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: CrewMember,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO crew_member(id, studio_id, session_id, name, role, phone, call_time,
+                                            notes, created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        session_id = EXCLUDED.session_id,
+                        name       = EXCLUDED.name,
+                        role       = EXCLUDED.role,
+                        phone      = EXCLUDED.phone,
+                        call_time  = EXCLUDED.call_time,
+                        notes      = EXCLUDED.notes,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.sessionId.value)
+                    statement.setString(4, entity.name)
+                    statement.setString(5, entity.role.name)
+                    statement.setString(6, entity.phone)
+                    statement.setNullableLong(7, entity.callTime?.toEpochMilliseconds())
+                    statement.setString(8, entity.notes)
+                    statement.setLong(9, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(10, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(11, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(12, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** What the client is owed, and whether it has gone. A child of the project. */
+    object Deliverables : SyncedEntity<Deliverable> {
+        override val table = "deliverable"
+
+        override fun identify(entity: Deliverable) = entity.id.value
+
+        override fun studioOf(entity: Deliverable) = entity.studioId.value
+
+        override fun versionOf(entity: Deliverable) = entity.audit.version
+
+        override fun deletedAtOf(entity: Deliverable) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Deliverable =
+            Deliverable(
+                id = DeliverableId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                projectId = ProjectId(rows.getString("project_id")),
+                name = rows.getString("name"),
+                kind = enumOrDefault(rows.getString("kind"), DeliverableKind.Gallery),
+                status = enumOrDefault(rows.getString("status"), DeliverableStatus.NotStarted),
+                dueAt = rows.getNullableLong("due_at")?.let { Instant.fromEpochMilliseconds(it) },
+                deliveredAt = rows.getNullableLong("delivered_at")?.let { Instant.fromEpochMilliseconds(it) },
+                approvedAt = rows.getNullableLong("approved_at")?.let { Instant.fromEpochMilliseconds(it) },
+                revisionsUsed = rows.getInt("revisions_used"),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Deliverable) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Deliverable,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO deliverable(id, studio_id, project_id, name, kind, status, due_at,
+                                            delivered_at, approved_at, revisions_used, notes,
+                                            created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        project_id     = EXCLUDED.project_id,
+                        name           = EXCLUDED.name,
+                        kind           = EXCLUDED.kind,
+                        status         = EXCLUDED.status,
+                        due_at         = EXCLUDED.due_at,
+                        delivered_at   = EXCLUDED.delivered_at,
+                        approved_at    = EXCLUDED.approved_at,
+                        revisions_used = EXCLUDED.revisions_used,
+                        notes          = EXCLUDED.notes,
+                        updated_at     = EXCLUDED.updated_at,
+                        deleted_at     = EXCLUDED.deleted_at,
+                        version        = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.projectId.value)
+                    statement.setString(4, entity.name)
+                    statement.setString(5, entity.kind.name)
+                    statement.setString(6, entity.status.name)
+                    statement.setNullableLong(7, entity.dueAt?.toEpochMilliseconds())
+                    statement.setNullableLong(8, entity.deliveredAt?.toEpochMilliseconds())
+                    statement.setNullableLong(9, entity.approvedAt?.toEpochMilliseconds())
+                    statement.setLong(10, entity.revisionsUsed.toLong())
+                    statement.setString(11, entity.notes)
+                    statement.setLong(12, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(15, version)
+                    statement.executeUpdate()
+                }
+        }
     }
 
     object Projects : SyncedEntity<Project> {
@@ -377,10 +855,26 @@ sealed interface SyncedEntity<T> {
 
     companion object {
         /**
-         * In the order a device must apply them, so a child never lands before its parent.
-         * Conflicts last: they refer to rows, so the rows should exist first.
+         * Every synchronised entity, in the order a device must apply them: parents before
+         * children, conflicts last because they refer to rows that should exist first.
+         *
+         * `client_contact` references `client` and `contact`, so applying the link first
+         * fails a foreign key on a studio's very first sync. Ordered here rather than by
+         * `server_seq` because an edit bumps that — a client updated after its own link was
+         * created sorts *after* it — and the ordering that matters is structural, not
+         * chronological.
          */
-        val all: List<SyncedEntity<*>> = listOf(Clients, Projects, Sessions, Conflicts)
+        val all: List<SyncedEntity<*>> =
+            listOf(
+                Clients,
+                Contacts,
+                ClientContactLinks,
+                Projects,
+                Sessions,
+                Invoices,
+                Payments,
+                Conflicts,
+            )
     }
 }
 
@@ -425,6 +919,15 @@ private fun moneyOf(
     minorUnits: Long?,
     currency: String?,
 ): Money? = if (minorUnits != null && currency != null) Money(minorUnits, CurrencyCode(currency)) else null
+
+/** Contact methods live in a JSON column, the same as on the device. */
+private fun decodeContactMethods(raw: String?): List<ContactMethod> =
+    raw
+        ?.let { runCatching { payloadJson.decodeFromString<List<ContactMethod>>(it) }.getOrNull() }
+        .orEmpty()
+
+private fun decodeLines(raw: String?): List<LineItem> =
+    raw?.let { runCatching { payloadJson.decodeFromString<List<LineItem>>(it) }.getOrNull() }.orEmpty()
 
 private fun decodeTags(raw: String?): List<String> =
     raw?.let { runCatching { payloadJson.decodeFromString<List<String>>(it) }.getOrNull() } ?: emptyList()

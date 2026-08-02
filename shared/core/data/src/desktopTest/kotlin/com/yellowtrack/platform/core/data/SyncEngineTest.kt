@@ -3,15 +3,36 @@ package com.yellowtrack.platform.core.data
 import app.cash.sqldelight.async.coroutines.awaitAsList
 import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
+import com.yellowtrack.platform.core.common.money.CurrencyCode
+import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.time.AppClock
+import com.yellowtrack.platform.core.data.InvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
+import com.yellowtrack.platform.core.model.client.ClientContact
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
+import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
@@ -22,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -422,6 +444,7 @@ class SyncEngineTest {
         val engine: SyncEngine,
         val transport: FakeSyncTransport,
         val clients: ClientRepository,
+        val invoices: InvoiceRepository,
     ) {
         suspend fun outbox(): List<Pair<String, String>> =
             database.outboxQueries
@@ -443,6 +466,220 @@ class SyncEngineTest {
         }
     }
 
+    /**
+     * Deletes did not travel at all until this was written.
+     *
+     * The engine re-read each queued row through the repositories, every one of which filters
+     * `deleted_at IS NULL`. A deleted row came back null, was taken for one that had never
+     * existed, and its outbox entry was dropped. The probe that found it reported
+     * `pushes=0 clientsSent=0`: a client deleted on one device stayed on every other one
+     * indefinitely, and nothing anywhere said so.
+     */
+    @Test
+    fun `a deleted client is uploaded as a tombstone`() =
+        runTest {
+            val world = world()
+            world.clients.saveClient(client("probe-1", "Probe"))
+            world.engine.sync()
+            world.transport.pushed.clear()
+
+            world.clients.deleteClient(ClientId("probe-1"))
+            world.engine.sync()
+
+            val sent = world.transport.pushed.flatMap { it.clients }
+            assertTrue(
+                sent.any { it.id.value == "probe-1" && it.audit.deletedAt != null },
+                "a delete queued to the outbox never reached the server",
+            )
+        }
+
+    /**
+     * A contact added on one device reaches another — which nothing proved until now.
+     *
+     * Contacts were not in the synchronised slice at all: a client arrived on a second device
+     * with an empty contact list and no indication anything was missing. This drives device A
+     * through a real save and push, hands what it uploaded to device B as a pull, and asks B
+     * whether it can see the person.
+     */
+    @Test
+    fun `a contact added on one device arrives attached on another`() =
+        runTest {
+            val deviceA = world()
+            val deviceB = world()
+
+            val ada =
+                Contact(
+                    id = ContactId("contact-1"),
+                    studioId = STUDIO,
+                    firstName = "Ada",
+                    lastName = "Okafor",
+                    audit = AuditMetadata.createdAt(NOW),
+                )
+
+            deviceA.clients.saveClient(
+                client("client-1", "Okafor").copy(
+                    contacts = listOf(ClientContact(contact = ada, role = ClientContactRole.Primary)),
+                ),
+            )
+            deviceA.engine.sync()
+
+            val uploaded = deviceA.transport.pushed.single()
+            assertTrue(uploaded.contacts.isNotEmpty(), "the contact itself never left the device")
+            assertTrue(uploaded.clientContactLinks.isNotEmpty(), "the attachment never left the device")
+
+            // What the server would hand back, in the order it hands it back.
+            deviceB.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 10,
+                        hasMore = false,
+                        clients = uploaded.clients,
+                        contacts = uploaded.contacts,
+                        clientContactLinks = uploaded.clientContactLinks,
+                    ),
+                )
+
+            deviceB.engine.sync()
+
+            val arrived = deviceB.clients.getClient(ClientId("client-1"))
+            assertNotNull(arrived, "the client did not arrive at all")
+            assertEquals(
+                listOf("Ada"),
+                arrived.contacts.map { it.contact.firstName },
+                "the client arrived without the person attached to it, which is what a studio " +
+                    "would notice as a client with no way to contact them",
+            )
+        }
+
+    /**
+     * Two devices each attach a different person to the same client, and both survive.
+     *
+     * This is ADR 0008 decision 5. Had contacts travelled inside the client, the later save
+     * would have carried a contact list missing the other device's addition and silently
+     * discarded it — a lost planner on a wedding, found the week of the shoot.
+     */
+    @Test
+    fun `two devices each adding a contact keep both`() =
+        runTest {
+            val deviceB = world()
+
+            val ada =
+                Contact(
+                    id = ContactId("contact-1"),
+                    studioId = STUDIO,
+                    firstName = "Ada",
+                    lastName = "Okafor",
+                    audit = AuditMetadata.createdAt(NOW),
+                )
+            val planner =
+                Contact(
+                    id = ContactId("contact-2"),
+                    studioId = STUDIO,
+                    firstName = "Rosa",
+                    lastName = "Iyer",
+                    audit = AuditMetadata.createdAt(NOW),
+                )
+
+            // B's own work, done offline.
+            deviceB.clients.saveClient(
+                client("client-1", "Okafor").copy(
+                    contacts = listOf(ClientContact(contact = ada, role = ClientContactRole.Primary)),
+                ),
+            )
+
+            // A's work, arriving. A separate link row, because it has its own id.
+            deviceB.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 20,
+                        hasMore = false,
+                        contacts = listOf(planner),
+                        clientContactLinks =
+                            listOf(
+                                ClientContactLink(
+                                    id = ClientContactLinkId("link-from-a"),
+                                    studioId = STUDIO,
+                                    clientId = ClientId("client-1"),
+                                    contactId = ContactId("contact-2"),
+                                    role = ClientContactRole.Planner,
+                                    audit = AuditMetadata.createdAt(NOW),
+                                ),
+                            ),
+                    ),
+                )
+
+            deviceB.engine.sync()
+
+            val names =
+                deviceB.clients
+                    .getClient(ClientId("client-1"))
+                    ?.contacts
+                    ?.map { it.contact.firstName }
+                    ?.sorted()
+
+            assertEquals(
+                listOf("Ada", "Rosa"),
+                names,
+                "one device's contact displaced the other's, which is exactly what giving each " +
+                    "link its own id is supposed to prevent",
+            )
+        }
+
+    /**
+     * Two devices each record a payment against one invoice, and both survive.
+     *
+     * This is the case ADR 0008 decision 5 was written for, and the asymmetry it turns on:
+     * a lost invoice line is retyped from the quote in seconds, a lost payment is discovered
+     * during a tax return, if at all. Had payments travelled inside the invoice, the second
+     * device's copy would have carried a payment list missing the first's and discarded it.
+     */
+    @Test
+    fun `two devices each recording a payment keep both`() =
+        runTest {
+            val device = world()
+
+            // The chain a payment hangs off, arriving from the server.
+            device.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 5,
+                        hasMore = false,
+                        clients = listOf(client("client-1", "Okafor")),
+                        projects = listOf(project("project-1", "client-1")),
+                        invoices = listOf(invoice("invoice-1", "project-1")),
+                    ),
+                )
+            device.engine.sync()
+
+            // This device's own payment.
+            device.invoices.recordPayment(payment("payment-local", "invoice-1", 90_000))
+
+            // The other device's, arriving. A separate row, with its own id.
+            device.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 9,
+                        hasMore = false,
+                        payments = listOf(payment("payment-remote", "invoice-1", 60_000)),
+                    ),
+                )
+            device.engine.sync()
+
+            val amounts =
+                device.invoices
+                    .getInvoice(InvoiceId("invoice-1"))
+                    ?.payments
+                    ?.map { it.amount.minorUnits }
+                    ?.sorted()
+
+            assertEquals(
+                listOf(60_000L, 90_000L),
+                amounts,
+                "one device's payment displaced the other's — the failure decision 5 exists to " +
+                    "prevent, and the one a studio finds at a tax return rather than on the day",
+            )
+        }
+
     private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.
@@ -460,8 +697,50 @@ class SyncEngineTest {
             engine = SyncEngine(provider, studioContext, transport, clients, projects, sessions, clock),
             transport = transport,
             clients = clients,
+            invoices = SqlDelightInvoiceRepository(provider, studioContext, clock, Dispatchers.Unconfined),
         )
     }
+
+    private fun project(
+        id: String,
+        clientId: String,
+    ) = Project(
+        id = ProjectId(id),
+        studioId = STUDIO,
+        clientId = ClientId(clientId),
+        name = "Okafor — Wedding",
+        serviceLine = ServiceLine.Wedding,
+        status = ProjectStatus.Booked,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun invoice(
+        id: String,
+        projectId: String,
+    ) = Invoice(
+        id = InvoiceId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        number = "2026-014",
+        kind = InvoiceKind.Balance,
+        status = InvoiceStatus.Sent,
+        currency = CurrencyCode.GBP,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun payment(
+        id: String,
+        invoiceId: String,
+        minorUnits: Long,
+    ) = Payment(
+        id = PaymentId(id),
+        studioId = STUDIO,
+        invoiceId = InvoiceId(invoiceId),
+        amount = Money(minorUnits = minorUnits, currency = CurrencyCode.GBP),
+        paidAt = NOW,
+        method = PaymentMethod.BankTransfer,
+        audit = AuditMetadata.createdAt(NOW),
+    )
 
     private fun client(
         id: String,

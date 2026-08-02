@@ -106,18 +106,29 @@ class Reconciler(
                 )
             }
 
-            if (entity is SyncedEntity.Clients) {
-                SyncedEntity.Clients
-                    .rejectionReason(incoming as com.yellowtrack.platform.core.model.client.Client)
-                    ?.let { reason ->
-                        return@inStudio PushResult(
-                            entity.table,
-                            id,
-                            PushOutcome.Rejected,
-                            entity.versionOf(incoming),
-                            reason,
+            // A parent carrying its children is refused rather than quietly stripped: dropping
+            // them would leave the device believing it had uploaded something it had not.
+            val carriesChildren =
+                when {
+                    entity is SyncedEntity.Clients ->
+                        SyncedEntity.Clients.rejectionReason(
+                            incoming as com.yellowtrack.platform.core.model.client.Client,
                         )
-                    }
+                    entity is SyncedEntity.Invoices ->
+                        SyncedEntity.Invoices.rejectionReason(
+                            incoming as com.yellowtrack.platform.core.model.invoice.Invoice,
+                        )
+                    else -> null
+                }
+
+            carriesChildren?.let { reason ->
+                return@inStudio PushResult(
+                    entity.table,
+                    id,
+                    PushOutcome.Rejected,
+                    entity.versionOf(incoming),
+                    reason,
+                )
             }
 
             val existing = current(connection, entity, id)

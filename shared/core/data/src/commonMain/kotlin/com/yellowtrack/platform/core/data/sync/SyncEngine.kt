@@ -8,11 +8,9 @@ import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.internal.SyncTables
+import com.yellowtrack.platform.core.data.internal.toDomain
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.database.YellowTrackDatabase
-import com.yellowtrack.platform.core.model.client.ClientId
-import com.yellowtrack.platform.core.model.project.ProjectId
-import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
 import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 
@@ -96,11 +94,50 @@ class SyncEngine(
 
         val wanted = pending.map { it.entity_table to it.entity_id }.distinct()
 
+        // Read straight from the tables, not through the repositories.
+        //
+        // Every repository read filters `deleted_at IS NULL`, which is right for a screen and
+        // wrong here: a tombstone is exactly what has to be uploaded. Going through them meant
+        // a deleted row came back null, was counted as one that had never existed, and had its
+        // outbox entry quietly dropped — so no delete has ever reached the server. Proved by
+        // `a deleted client is uploaded as a tombstone`, which failed with nothing sent at all.
         val changes =
             SyncPushRequest(
-                clients = wanted.forTable(SyncTables.CLIENT).mapNotNull { clients.getClient(ClientId(it)) },
-                projects = wanted.forTable(SyncTables.PROJECT).mapNotNull { projects.getProject(ProjectId(it)) },
-                sessions = wanted.forTable(SyncTables.SESSION).mapNotNull { sessions.getSession(SessionId(it)) },
+                clients =
+                    wanted.forTable(SyncTables.CLIENT).mapNotNull {
+                        database.clientQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain(emptyList())
+                    },
+                contacts =
+                    wanted.forTable(SyncTables.CONTACT).mapNotNull {
+                        database.contactQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                clientContactLinks =
+                    wanted.forTable(SyncTables.CLIENT_CONTACT).mapNotNull {
+                        database.clientQueries
+                            .selectClientContactLinkById(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                projects =
+                    wanted.forTable(SyncTables.PROJECT).mapNotNull {
+                        database.projectQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                sessions =
+                    wanted.forTable(SyncTables.SESSION).mapNotNull {
+                        database.sessionQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
             )
 
         // A queued row that no longer exists at all — never uploaded, then hard-deleted —
@@ -173,12 +210,25 @@ class SyncEngine(
 
         while (pages < MAX_PAGES) {
             val page = transport.pull(since = cursor, limit = BATCH)
-            val arrived = page.clients.size + page.projects.size + page.sessions.size + page.conflicts.size
+            val arrived =
+                page.clients.size + page.contacts.size + page.clientContactLinks.size +
+                    page.projects.size + page.sessions.size +
+                    page.invoices.size + page.payments.size +
+                    page.crewMembers.size + page.deliverables.size + page.conflicts.size
 
             database.transaction {
+                // Parents before children. A link references a client and a contact, and a
+                // studio's first sync is when all three are new — server_seq cannot be relied
+                // on for this, because an edit to the parent moves it after its own child.
                 page.clients.forEach { database.applyClient(it) }
+                page.contacts.forEach { database.applyContact(it) }
+                page.clientContactLinks.forEach { database.applyClientContactLink(it) }
                 page.projects.forEach { database.applyProject(it) }
                 page.sessions.forEach { database.applySession(it) }
+                page.invoices.forEach { database.applyInvoice(it) }
+                page.payments.forEach { database.applyPayment(it) }
+                page.crewMembers.forEach { database.applyCrewMember(it) }
+                page.deliverables.forEach { database.applyDeliverable(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -206,8 +256,14 @@ class SyncEngine(
     private fun SyncPushRequest.identities(): Set<Pair<String, String>> =
         buildSet {
             clients.forEach { add(SyncTables.CLIENT to it.id.value) }
+            contacts.forEach { add(SyncTables.CONTACT to it.id.value) }
+            clientContactLinks.forEach { add(SyncTables.CLIENT_CONTACT to it.id.value) }
             projects.forEach { add(SyncTables.PROJECT to it.id.value) }
             sessions.forEach { add(SyncTables.SESSION to it.id.value) }
+            invoices.forEach { add(SyncTables.INVOICE to it.id.value) }
+            payments.forEach { add(SyncTables.PAYMENT to it.id.value) }
+            crewMembers.forEach { add(SyncTables.CREW_MEMBER to it.id.value) }
+            deliverables.forEach { add(SyncTables.DELIVERABLE to it.id.value) }
         }
 
     private companion object {

@@ -49,6 +49,12 @@ internal suspend fun YellowTrackDatabase.enqueueForSync(
 /** The table names the server knows these entities by. They cross the wire, so they are fixed. */
 internal object SyncTables {
     const val CLIENT = "client"
+    const val CONTACT = "contact"
+    const val CLIENT_CONTACT = "client_contact"
     const val PROJECT = "project"
     const val SESSION = "session"
+    const val INVOICE = "invoice"
+    const val PAYMENT = "payment"
+    const val CREW_MEMBER = "crew_member"
+    const val DELIVERABLE = "deliverable"
 }

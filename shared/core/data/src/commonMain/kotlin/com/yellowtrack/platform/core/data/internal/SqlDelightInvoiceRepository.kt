@@ -91,15 +91,30 @@ internal class SqlDelightInvoiceRepository(
                 version = invoice.audit.version.toLong(),
                 id = invoice.id.value,
             )
+
+            db.enqueueForSync(
+                invoice.studioId.value,
+                SyncTables.INVOICE,
+                invoice.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
 
         // Payments carried on the object are persisted too, so that saving an invoice
-        // built in memory does not silently drop the money recorded against it.
+        // built in memory does not silently drop the money recorded against it. Each is
+        // queued separately by recordPayment: they are their own rows on the wire.
         invoice.payments.forEach { recordPayment(it) }
     }
 
     override suspend fun deleteInvoice(invoiceId: InvoiceId) {
-        database().invoiceQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = invoiceId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.invoiceQueries.softDelete(deletedAt = now, id = invoiceId.value)
+            db.enqueueForSync(studioId, SyncTables.INVOICE, invoiceId.value, OutboxOperation.Delete, now)
+        }
     }
 
     override suspend fun recordPayment(payment: Payment) {
@@ -135,14 +150,25 @@ internal class SqlDelightInvoiceRepository(
                 version = payment.audit.version.toLong(),
                 id = payment.id.value,
             )
+
+            db.enqueueForSync(
+                payment.studioId.value,
+                SyncTables.PAYMENT,
+                payment.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 
     override suspend fun deletePayment(paymentId: PaymentId) {
-        database().invoiceQueries.softDeletePayment(
-            deletedAt = clock.now().toEpochMillis(),
-            id = paymentId.value,
-        )
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.invoiceQueries.softDeletePayment(deletedAt = now, id = paymentId.value)
+            db.enqueueForSync(studioId, SyncTables.PAYMENT, paymentId.value, OutboxOperation.Delete, now)
+        }
     }
 
     /**

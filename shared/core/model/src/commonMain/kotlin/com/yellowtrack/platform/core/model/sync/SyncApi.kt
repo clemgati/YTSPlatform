@@ -1,6 +1,12 @@
 package com.yellowtrack.platform.core.model.sync
 
 import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import kotlinx.serialization.Serializable
@@ -30,8 +36,28 @@ data class SyncPullResponse(
     /** Whether more remains beyond this page, so the device knows to come again. */
     val hasMore: Boolean,
     val clients: List<Client> = emptyList(),
+    /**
+     * People, and their attachments to accounts — ADR 0008 decision 5.
+     *
+     * A `Client` arrives with no contacts. These are what carry them, as rows with their
+     * own ids, so two devices that each added a contact keep both.
+     */
+    val contacts: List<Contact> = emptyList(),
+    val clientContactLinks: List<ClientContactLink> = emptyList(),
     val projects: List<Project> = emptyList(),
     val sessions: List<Session> = emptyList(),
+    /**
+     * Invoices, and the money against them — ADR 0008 decision 5 again.
+     *
+     * An invoice arrives with no payments. Its `lines` do travel with it, because they are a
+     * JSON column rather than rows and cannot union; a lost line is retyped from the quote,
+     * whereas a lost payment is found during a tax return, if at all.
+     */
+    val invoices: List<Invoice> = emptyList(),
+    val payments: List<Payment> = emptyList(),
+    /** Children of a session and of a project respectively, and rows in their own right. */
+    val crewMembers: List<CrewMember> = emptyList(),
+    val deliverables: List<Deliverable> = emptyList(),
     /**
      * Work reconciliation discarded, travelling down only.
      *
@@ -45,10 +71,26 @@ data class SyncPullResponse(
 @Serializable
 data class SyncPushRequest(
     val clients: List<Client> = emptyList(),
+    val contacts: List<Contact> = emptyList(),
+    val clientContactLinks: List<ClientContactLink> = emptyList(),
     val projects: List<Project> = emptyList(),
     val sessions: List<Session> = emptyList(),
+    val invoices: List<Invoice> = emptyList(),
+    val payments: List<Payment> = emptyList(),
+    val crewMembers: List<CrewMember> = emptyList(),
+    val deliverables: List<Deliverable> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = clients.isEmpty() && projects.isEmpty() && sessions.isEmpty()
+    val isEmpty: Boolean
+        get() =
+            clients.isEmpty() &&
+                contacts.isEmpty() &&
+                clientContactLinks.isEmpty() &&
+                projects.isEmpty() &&
+                sessions.isEmpty() &&
+                invoices.isEmpty() &&
+                payments.isEmpty() &&
+                crewMembers.isEmpty() &&
+                deliverables.isEmpty()
 }
 
 /** What became of one pushed row. */

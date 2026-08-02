@@ -2,6 +2,12 @@ package com.yellowtrack.platform.server.sync
 
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.crew.CrewMember
+import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.sync.SyncConflict
@@ -54,8 +60,19 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         cursor = changes.cursor,
                         hasMore = changes.hasMore,
                         clients = changes.rows[SyncedEntity.Clients.table].orEmpty().filterIsInstance<Client>(),
+                        contacts = changes.rows[SyncedEntity.Contacts.table].orEmpty().filterIsInstance<Contact>(),
+                        clientContactLinks =
+                            changes.rows[SyncedEntity.ClientContactLinks.table]
+                                .orEmpty()
+                                .filterIsInstance<ClientContactLink>(),
                         projects = changes.rows[SyncedEntity.Projects.table].orEmpty().filterIsInstance<Project>(),
                         sessions = changes.rows[SyncedEntity.Sessions.table].orEmpty().filterIsInstance<Session>(),
+                        invoices = changes.rows[SyncedEntity.Invoices.table].orEmpty().filterIsInstance<Invoice>(),
+                        payments = changes.rows[SyncedEntity.Payments.table].orEmpty().filterIsInstance<Payment>(),
+                        crewMembers =
+                            changes.rows[SyncedEntity.CrewMembers.table].orEmpty().filterIsInstance<CrewMember>(),
+                        deliverables =
+                            changes.rows[SyncedEntity.Deliverables.table].orEmpty().filterIsInstance<Deliverable>(),
                         conflicts =
                             changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
@@ -70,9 +87,20 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                 // belongs to and trips a foreign key.
                 val results =
                     buildList {
+                        // Parents before children, for the same reason SyncedEntity.all is
+                        // ordered: a link applied before its client or contact exists fails a
+                        // foreign key, and a studio's first sync is exactly when both are new.
                         request.clients.forEach { add(reconciler.push(studioId, SyncedEntity.Clients, it)) }
+                        request.contacts.forEach { add(reconciler.push(studioId, SyncedEntity.Contacts, it)) }
+                        request.clientContactLinks.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.ClientContactLinks, it))
+                        }
                         request.projects.forEach { add(reconciler.push(studioId, SyncedEntity.Projects, it)) }
                         request.sessions.forEach { add(reconciler.push(studioId, SyncedEntity.Sessions, it)) }
+                        request.invoices.forEach { add(reconciler.push(studioId, SyncedEntity.Invoices, it)) }
+                        request.crewMembers.forEach { add(reconciler.push(studioId, SyncedEntity.CrewMembers, it)) }
+                        request.deliverables.forEach { add(reconciler.push(studioId, SyncedEntity.Deliverables, it)) }
+                        request.payments.forEach { add(reconciler.push(studioId, SyncedEntity.Payments, it)) }
                     }
 
                 call.respond(SyncPushResponse(results.map { it.toWire() }))
