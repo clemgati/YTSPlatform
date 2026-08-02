@@ -8,6 +8,8 @@ import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
+import com.yellowtrack.platform.core.model.expense.ExpenseCategory
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.core.model.quote.QuoteId
@@ -19,9 +21,12 @@ import com.yellowtrack.platform.feature.ledger.presentation.LedgerUiState
 import com.yellowtrack.platform.feature.ledger.presentation.PricingBasisFields
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
+import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
@@ -65,6 +70,7 @@ class LedgerScreenRenderTest {
                             onRetry = {},
                             onSavePricingBasis = { _, _, _ -> },
                             onSaveExpense = { _, _ -> },
+                            onSaveMileage = { _, _ -> },
                             onRecordPayment = {},
                             onAddQuote = {},
                             onAddInvoice = {},
@@ -219,6 +225,7 @@ class LedgerScreenRenderTest {
                                 description = "Second shooter — Okafor wedding",
                                 amount = "$450.00",
                                 allocation = "Okafor — Wedding",
+                                editable = CostEdit.OfExpense(sampleExpenseForm),
                             ),
                             RecordedCost(
                                 id = "m1",
@@ -226,6 +233,7 @@ class LedgerScreenRenderTest {
                                 description = "Venue recce",
                                 amount = "$18.90",
                                 allocation = "Overhead",
+                                editable = CostEdit.OfJourney(sampleJourneyForm),
                             ),
                             RecordedCost(
                                 id = "e2",
@@ -233,6 +241,7 @@ class LedgerScreenRenderTest {
                                 description = "Insurance renewal",
                                 amount = "$1,240.00",
                                 allocation = "Overhead",
+                                editable = CostEdit.OfExpense(sampleExpenseForm),
                             ),
                         ),
                 ),
@@ -243,6 +252,29 @@ class LedgerScreenRenderTest {
         )
 
     private companion object {
+        val sampleExpenseForm =
+            NewExpense(
+                description = "Second shooter — Okafor wedding",
+                amount = "450.00",
+                category = ExpenseCategory.Other,
+                incurredOn = "2026-07-26",
+                projectId = null,
+                vendor = null,
+                isTaxDeductible = true,
+            )
+
+        val sampleJourneyForm =
+            NewMileage(
+                travelledOn = "2026-07-24",
+                distance = "42",
+                unit = DistanceUnit.Miles,
+                ratePerUnit = "0.45",
+                projectId = null,
+                purpose = "Venue recce",
+                fromLocation = null,
+                toLocation = null,
+            )
+
         const val WIDTH = 1_280
 
         /**

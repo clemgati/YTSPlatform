@@ -42,6 +42,7 @@ import com.yellowtrack.platform.core.model.contract.UsageLicense
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.ExpenseId
 import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
@@ -70,6 +71,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignat
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
@@ -455,6 +457,52 @@ internal class LedgerViewModel(
                     isTaxDeductible = expense.isTaxDeductible,
                     // Kept, not restamped: when the money left is a fact about the cost, not
                     // about when somebody noticed the amount was wrong.
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Records a journey, or corrects one already recorded.
+     *
+     * The same shape as [saveExpense], and for the same reasons: the row is kept so the
+     * journey stays itself on every device, and the audit is touched so reconciliation sees
+     * a change rather than a stranger.
+     *
+     * Mileage has existed since 0.4.0 with nothing able to create it, so the deduction on
+     * the Ledger could only ever read zero — a claim against tax the studio was silently not
+     * making.
+     */
+    fun saveMileage(
+        journey: NewMileage,
+        existingId: String? = null,
+    ) {
+        viewModelScope.launch {
+            val currency = studioProfileRepository.currency()
+            val distance =
+                journey.distance
+                    .trim()
+                    .toDoubleOrNull()
+                    ?.takeIf { it > 0 } ?: return@launch
+            val rate = parseMoney(journey.ratePerUnit, currency)?.takeIf { it.isPositive } ?: return@launch
+            val travelledOn = runCatching { LocalDate.parse(journey.travelledOn) }.getOrNull() ?: return@launch
+            val now = clock.now()
+
+            val existing = existingId?.let { id -> expenseRepository.getMileage(MileageId(id)) }
+
+            expenseRepository.saveMileage(
+                Mileage(
+                    id = existing?.id ?: MileageId.new(),
+                    studioId = studioContext.studioId,
+                    travelledOn = travelledOn,
+                    distance = distance,
+                    unit = journey.unit,
+                    ratePerUnit = rate,
+                    projectId = journey.projectId,
+                    purpose = journey.purpose,
+                    fromLocation = journey.fromLocation,
+                    toLocation = journey.toLocation,
                     audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )

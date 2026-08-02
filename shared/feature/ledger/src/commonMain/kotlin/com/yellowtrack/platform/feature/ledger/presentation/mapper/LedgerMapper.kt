@@ -17,10 +17,12 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
+import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
@@ -272,14 +274,16 @@ internal fun buildExpenseSummary(
                             // Seeded from the cost as recorded, so opening it shows what was
                             // entered rather than an empty form to type again.
                             editable =
-                                NewExpense(
-                                    description = expense.description,
-                                    amount = expense.amount.editableAmount(),
-                                    category = expense.category,
-                                    incurredOn = expense.incurredOn.toString(),
-                                    projectId = expense.projectId,
-                                    vendor = expense.vendor,
-                                    isTaxDeductible = expense.isTaxDeductible,
+                                CostEdit.OfExpense(
+                                    NewExpense(
+                                        description = expense.description,
+                                        amount = expense.amount.editableAmount(),
+                                        category = expense.category,
+                                        incurredOn = expense.incurredOn.toString(),
+                                        projectId = expense.projectId,
+                                        vendor = expense.vendor,
+                                        isTaxDeductible = expense.isTaxDeductible,
+                                    ),
                                 ),
                         )
                 } +
@@ -295,6 +299,19 @@ internal fun buildExpenseSummary(
                                         ?: "${journey.distance} ${journey.unit.name.lowercase()}",
                                 amount = journey.deductibleAmount.display(),
                                 allocation = allocation(journey.projectId),
+                                editable =
+                                    CostEdit.OfJourney(
+                                        NewMileage(
+                                            travelledOn = journey.travelledOn.toString(),
+                                            distance = journey.distance.toString(),
+                                            unit = journey.unit,
+                                            ratePerUnit = journey.ratePerUnit.editableAmount(),
+                                            projectId = journey.projectId,
+                                            purpose = journey.purpose,
+                                            fromLocation = journey.fromLocation,
+                                            toLocation = journey.toLocation,
+                                        ),
+                                    ),
                             )
                     }
             )

@@ -136,6 +136,13 @@ internal class SqlDelightExpenseRepository(
                 .mapMileageRows()
         }
 
+    override suspend fun getMileage(mileageId: MileageId): Mileage? =
+        database()
+            .expenseQueries
+            .selectMileageByIdForSync(mileageId.value)
+            .awaitAsOneOrNull()
+            ?.toDomain()
+
     override suspend fun saveMileage(mileage: Mileage) {
         val db = database()
         val now = clock.now().toEpochMillis()

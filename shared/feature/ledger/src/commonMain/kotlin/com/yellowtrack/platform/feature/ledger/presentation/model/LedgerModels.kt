@@ -215,14 +215,26 @@ internal data class RecordedCost(
      * out of one booking's margin.
      */
     val allocation: String,
-    /**
-     * The form seeded from this cost, when it is one the studio can correct.
-     *
-     * Null for a journey: mileage has no form to open, because nothing in the application
-     * can record one in the first place — see the note on `ExpenseSummary.items`.
-     */
-    val editable: NewExpense? = null,
+    /** The form seeded from this row, so correcting it opens on what was entered. */
+    val editable: CostEdit,
 )
+
+/**
+ * Which form a row reopens.
+ *
+ * A cost and a journey read the same in the list and are not the same thing to correct —
+ * one has an amount, the other a distance and a rate — so the row carries the form rather
+ * than the screen guessing from the fields.
+ */
+internal sealed interface CostEdit {
+    data class OfExpense(
+        val form: NewExpense,
+    ) : CostEdit
+
+    data class OfJourney(
+        val form: NewMileage,
+    ) : CostEdit
+}
 
 /** An enquiry that has been waiting for a reply. */
 internal data class WaitingEnquiry(

@@ -12,6 +12,7 @@ import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildExpenseSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -141,6 +142,51 @@ class RecordedCostsTest {
             summary.items.map { it.description },
             "a list that disagrees with the totals above it is worse than no list",
         )
+    }
+
+    @Test
+    fun `a cost reopens on what was entered`() {
+        val summary =
+            buildExpenseSummary(
+                expenses =
+                    listOf(
+                        expense("e1", "Insurance renewal", 124_000, LocalDate.parse("2026-03-04")),
+                    ),
+                mileage = emptyList(),
+                year = 2026,
+                currency = CurrencyCode.GBP,
+            )
+
+        val edit = summary.items.single().editable
+        assertTrue(edit is CostEdit.OfExpense, "a cost has to open the cost form")
+
+        assertEquals("Insurance renewal", edit.form.description)
+        assertEquals(
+            "1240.00",
+            edit.form.amount,
+            "digits rather than a rendering: a form opening on \"£1,240.00\" makes somebody " +
+                "delete punctuation before changing a digit",
+        )
+        assertEquals("2026-03-04", edit.form.incurredOn)
+    }
+
+    @Test
+    fun `a journey reopens on the journey form`() {
+        val summary =
+            buildExpenseSummary(
+                expenses = emptyList(),
+                mileage = listOf(journey("m1", DAY, purpose = "Venue recce")),
+                year = 2026,
+                currency = CurrencyCode.GBP,
+            )
+
+        val edit = summary.items.single().editable
+        assertTrue(edit is CostEdit.OfJourney, "a journey is not a cost and does not open its form")
+
+        assertEquals("42.0", edit.form.distance)
+        assertEquals("0.45", edit.form.ratePerUnit, "the rate has to come back as it was entered")
+        assertEquals(DistanceUnit.Miles, edit.form.unit)
+        assertEquals("Venue recce", edit.form.purpose)
     }
 
     private fun expense(

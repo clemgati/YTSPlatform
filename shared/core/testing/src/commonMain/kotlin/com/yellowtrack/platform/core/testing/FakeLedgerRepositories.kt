@@ -191,6 +191,8 @@ class FakeExpenseRepository(
     override fun observeMileageForProject(projectId: ProjectId): Flow<List<Mileage>> =
         mileage.map { rows -> rows.filter { it.projectId == projectId } }
 
+    override suspend fun getMileage(mileageId: MileageId): Mileage? = mileage.value.firstOrNull { it.id == mileageId }
+
     override suspend fun saveMileage(mileage: Mileage) {
         this.mileage.value = this.mileage.value.filterNot { it.id == mileage.id } + mileage
     }

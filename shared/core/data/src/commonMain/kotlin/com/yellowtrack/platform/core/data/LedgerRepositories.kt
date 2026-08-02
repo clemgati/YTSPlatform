@@ -137,6 +137,9 @@ interface ExpenseRepository {
 
     fun observeMileageForProject(projectId: ProjectId): Flow<List<Mileage>>
 
+    /** One journey, for correcting it — see the note on [ExpenseRepository.getExpense]. */
+    suspend fun getMileage(mileageId: MileageId): Mileage?
+
     suspend fun saveMileage(mileage: Mileage)
 
     suspend fun deleteMileage(mileageId: MileageId)

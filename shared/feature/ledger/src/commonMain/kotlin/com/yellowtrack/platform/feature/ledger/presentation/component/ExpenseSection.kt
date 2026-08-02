@@ -21,6 +21,7 @@ internal fun ExpenseSection(
     onAddExpense: () -> Unit,
     /** Called for a cost the studio can correct; journeys pass nothing, having no form. */
     onCorrectCost: (RecordedCost) -> Unit = {},
+    onAddMileage: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -72,19 +73,26 @@ internal fun ExpenseSection(
                 )
 
                 summary.items.forEach { cost ->
-                    RecordedCostRow(
-                        cost = cost,
-                        onCorrect = cost.editable?.let { { onCorrectCost(cost) } },
-                    )
+                    RecordedCostRow(cost = cost, onCorrect = { onCorrectCost(cost) })
                 }
             }
 
-            TextButton(onClick = onAddExpense) {
-                Text(
-                    text = "Record a cost",
-                    style = YTTheme.typography.labelLarge,
-                    color = YTTheme.colors.primary,
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.medium)) {
+                TextButton(onClick = onAddExpense) {
+                    Text(
+                        text = "Record a cost",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
+                TextButton(onClick = onAddMileage) {
+                    Text(
+                        text = "Record a journey",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.primary,
+                    )
+                }
             }
         }
     }
@@ -101,15 +109,13 @@ internal fun ExpenseSection(
 @Composable
 private fun RecordedCostRow(
     cost: RecordedCost,
-    onCorrect: (() -> Unit)?,
+    onCorrect: () -> Unit,
 ) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                // Only rows there is something to open. A journey cannot be corrected
-                // because nothing in the application can record one to begin with.
-                .then(onCorrect?.let { Modifier.clickable(onClick = it) } ?: Modifier),
+                .clickable(onClick = onCorrect),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {

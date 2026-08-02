@@ -24,6 +24,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.component.ContractSi
 import com.yellowtrack.platform.feature.ledger.presentation.component.ExpenseFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.ExpenseSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.InvoiceFormDialog
+import com.yellowtrack.platform.feature.ledger.presentation.component.MileageFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.MoneyOwedSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.PaymentFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.PricingSection
@@ -31,9 +32,11 @@ import com.yellowtrack.platform.feature.ledger.presentation.component.ProposalsS
 import com.yellowtrack.platform.feature.ledger.presentation.component.QuoteFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
+import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
@@ -44,8 +47,9 @@ internal fun LedgerScreen(
     uiState: LedgerUiState,
     onRetry: () -> Unit,
     onSavePricingBasis: (salary: String, billableDays: String, taxRate: String) -> Unit,
-    /** The second argument is the cost being corrected, or null when recording a new one. */
+    /** The second argument is the row being corrected, or null when recording a new one. */
     onSaveExpense: (NewExpense, String?) -> Unit,
+    onSaveMileage: (NewMileage, String?) -> Unit,
     onRecordPayment: (NewPayment) -> Unit,
     onAddQuote: (NewQuote) -> Unit,
     onAddInvoice: (NewInvoice) -> Unit,
@@ -63,6 +67,7 @@ internal fun LedgerScreen(
     modifier: Modifier = Modifier,
 ) {
     var showExpenseForm by remember { mutableStateOf(false) }
+    var showMileageForm by remember { mutableStateOf(false) }
     var correctingCost by remember { mutableStateOf<RecordedCost?>(null) }
     var showQuoteForm by remember { mutableStateOf(false) }
     var showInvoiceForm by remember { mutableStateOf(false) }
@@ -88,18 +93,49 @@ internal fun LedgerScreen(
             )
         }
 
-        correctingCost?.let { cost ->
-            ExpenseFormDialog(
+        if (showMileageForm) {
+            MileageFormDialog(
                 today = content.today,
                 currency = content.currency,
                 projects = content.projects,
                 onSave = {
-                    onSaveExpense(it, cost.id)
-                    correctingCost = null
+                    onSaveMileage(it, null)
+                    showMileageForm = false
                 },
-                onDismiss = { correctingCost = null },
-                initial = cost.editable,
+                onDismiss = { showMileageForm = false },
             )
+        }
+
+        // Which form a correction opens is the row's own business, not something the screen
+        // works out from which fields happen to be filled in.
+        correctingCost?.let { cost ->
+            when (val edit = cost.editable) {
+                is CostEdit.OfExpense ->
+                    ExpenseFormDialog(
+                        today = content.today,
+                        currency = content.currency,
+                        projects = content.projects,
+                        onSave = {
+                            onSaveExpense(it, cost.id)
+                            correctingCost = null
+                        },
+                        onDismiss = { correctingCost = null },
+                        initial = edit.form,
+                    )
+
+                is CostEdit.OfJourney ->
+                    MileageFormDialog(
+                        today = content.today,
+                        currency = content.currency,
+                        projects = content.projects,
+                        onSave = {
+                            onSaveMileage(it, cost.id)
+                            correctingCost = null
+                        },
+                        onDismiss = { correctingCost = null },
+                        initial = edit.form,
+                    )
+            }
         }
 
         if (showQuoteForm) {
@@ -224,6 +260,7 @@ internal fun LedgerScreen(
                 summary = content.expenses,
                 onAddExpense = { showExpenseForm = true },
                 onCorrectCost = { correctingCost = it },
+                onAddMileage = { showMileageForm = true },
             )
         }
     }
