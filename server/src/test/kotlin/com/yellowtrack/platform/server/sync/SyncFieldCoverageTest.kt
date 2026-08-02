@@ -3,6 +3,7 @@ package com.yellowtrack.platform.server.sync
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
+import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContactLink
@@ -15,6 +16,13 @@ import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.invoice.PaymentMethod
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -167,6 +175,60 @@ class SyncFieldCoverageTest {
         )
     }
 
+    @Test
+    fun `every field of an Invoice crosses, except the payments that are their own rows`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Invoices,
+            fixture =
+                Invoice(
+                    id = InvoiceId(INVOICE),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    number = "2026-014",
+                    kind = InvoiceKind.Balance,
+                    status = InvoiceStatus.Sent,
+                    currency = CurrencyCode.GBP,
+                    lines =
+                        listOf(
+                            LineItem(
+                                description = "Wedding coverage, ten hours",
+                                unitPrice = Money(minorUnits = 180_000, currency = CurrencyCode.GBP),
+                                quantity = 1,
+                                taxRateBasisPoints = 2_000,
+                            ),
+                        ),
+                    payments = emptyList(),
+                    issuedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    dueAt = Instant.fromEpochMilliseconds(1_781_900_000_000),
+                    notes = "Balance due two weeks before the date.",
+                    audit = audit(),
+                ),
+            // ADR 0008 decision 5, and the case it was written for. `lines` is not exempt:
+            // it is a JSON column on the invoice, so it travels with the document and
+            // reconciles with it.
+            notCarried = mapOf("payments" to "child rows, synchronised separately"),
+        )
+    }
+
+    @Test
+    fun `every field of a Payment crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Payments,
+            fixture =
+                Payment(
+                    id = PaymentId("77777777-7777-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    invoiceId = InvoiceId(INVOICE),
+                    amount = Money(minorUnits = 90_000, currency = CurrencyCode.GBP),
+                    paidAt = Instant.fromEpochMilliseconds(1_781_500_000_000),
+                    method = PaymentMethod.BankTransfer,
+                    reference = "FP-8841",
+                    notes = "Retainer, paid on the day of booking.",
+                    audit = audit(),
+                ),
+        )
+    }
+
     // -- The mechanism -----------------------------------------------------------------------
 
     private fun <T> assertEveryFieldCrosses(
@@ -308,6 +370,21 @@ class SyncFieldCoverageTest {
             ),
             version = 1,
         )
+
+        SyncedEntity.Invoices.upsert(
+            db,
+            Invoice(
+                id = InvoiceId(INVOICE),
+                studioId = StudioId(STUDIO),
+                projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                number = "2026-014",
+                kind = InvoiceKind.Balance,
+                status = InvoiceStatus.Draft,
+                currency = CurrencyCode.GBP,
+                audit = audit(),
+            ),
+            version = 1,
+        )
     }
 
     private fun audit() =
@@ -321,5 +398,6 @@ class SyncFieldCoverageTest {
     private companion object {
         const val STUDIO = "99999999-9999-7000-8000-000000000001"
         const val CONTACT = "66666666-6666-7000-8000-000000000001"
+        const val INVOICE = "88888888-8888-7000-8000-000000000001"
     }
 }

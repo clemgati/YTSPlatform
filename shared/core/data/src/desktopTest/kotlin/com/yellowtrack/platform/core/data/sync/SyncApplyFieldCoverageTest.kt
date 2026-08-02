@@ -7,7 +7,10 @@ import com.yellowtrack.platform.core.data.InMemoryDatabaseDriverFactory
 import com.yellowtrack.platform.core.data.internal.toDomain
 import com.yellowtrack.platform.core.data.sync.applyClientContactLink
 import com.yellowtrack.platform.core.data.sync.applyContact
+import com.yellowtrack.platform.core.data.sync.applyInvoice
+import com.yellowtrack.platform.core.data.sync.applyPayment
 import com.yellowtrack.platform.core.database.DatabaseProvider
+import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContactLink
@@ -20,6 +23,13 @@ import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.invoice.PaymentMethod
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -206,6 +216,83 @@ class SyncApplyFieldCoverageTest {
         }
 
     @Test
+    fun `every field of an Invoice survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyProject(parentProject())
+
+            val fixture =
+                Invoice(
+                    id = InvoiceId(INVOICE),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId(PROJECT),
+                    number = "2026-014",
+                    kind = InvoiceKind.Balance,
+                    status = InvoiceStatus.Sent,
+                    currency = CurrencyCode.GBP,
+                    lines =
+                        listOf(
+                            LineItem(
+                                description = "Wedding coverage, ten hours",
+                                unitPrice = Money(minorUnits = 180_000, currency = CurrencyCode.GBP),
+                                quantity = 1,
+                                taxRateBasisPoints = 2_000,
+                            ),
+                        ),
+                    payments = emptyList(),
+                    issuedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    dueAt = Instant.fromEpochMilliseconds(1_781_900_000_000),
+                    notes = "Balance due two weeks before the date.",
+                    audit = audit(),
+                )
+
+            database.applyInvoice(fixture)
+
+            val row = assertNotNull(database.invoiceQueries.selectByIdForSync(INVOICE).executeAsOneOrNull())
+
+            assertEveryFieldSurvived(
+                Invoice.serializer(),
+                fixture,
+                row.toDomain(payments = emptyList()),
+                notCarried = setOf("payments"),
+            )
+        }
+
+    @Test
+    fun `every field of a Payment survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyProject(parentProject())
+            database.applyInvoice(parentInvoice())
+
+            val fixture =
+                Payment(
+                    id = PaymentId("77777777-7777-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    invoiceId = InvoiceId(INVOICE),
+                    amount = Money(minorUnits = 90_000, currency = CurrencyCode.GBP),
+                    paidAt = Instant.fromEpochMilliseconds(1_781_500_000_000),
+                    method = PaymentMethod.BankTransfer,
+                    reference = "FP-8841",
+                    notes = "Retainer, paid on the day of booking.",
+                    audit = audit(),
+                )
+
+            database.applyPayment(fixture)
+
+            val row =
+                assertNotNull(
+                    database.invoiceQueries
+                        .selectPaymentByIdForSync("77777777-7777-7000-8000-000000000001")
+                        .executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(Payment.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
     fun `a tombstone arrives as a tombstone`() =
         runTest {
             val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
@@ -286,6 +373,18 @@ class SyncApplyFieldCoverageTest {
             audit = audit(),
         )
 
+    private fun parentInvoice() =
+        Invoice(
+            id = InvoiceId(INVOICE),
+            studioId = StudioId(STUDIO),
+            projectId = ProjectId(PROJECT),
+            number = "2026-014",
+            kind = InvoiceKind.Balance,
+            status = InvoiceStatus.Draft,
+            currency = CurrencyCode.GBP,
+            audit = audit(),
+        )
+
     private fun parentContact() =
         Contact(
             id = ContactId(CONTACT),
@@ -324,6 +423,7 @@ class SyncApplyFieldCoverageTest {
         const val CLIENT = "11111111-1111-7000-8000-000000000001"
         const val PROJECT = "22222222-2222-7000-8000-000000000001"
         const val CONTACT = "66666666-6666-7000-8000-000000000001"
+        const val INVOICE = "88888888-8888-7000-8000-000000000001"
 
         val json = Json { encodeDefaults = true }
     }

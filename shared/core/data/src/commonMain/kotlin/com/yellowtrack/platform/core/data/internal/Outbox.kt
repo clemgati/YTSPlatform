@@ -53,4 +53,6 @@ internal object SyncTables {
     const val CLIENT_CONTACT = "client_contact"
     const val PROJECT = "project"
     const val SESSION = "session"
+    const val INVOICE = "invoice"
+    const val PAYMENT = "payment"
 }

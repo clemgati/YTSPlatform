@@ -3,8 +3,12 @@ package com.yellowtrack.platform.core.data
 import app.cash.sqldelight.async.coroutines.awaitAsList
 import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
+import com.yellowtrack.platform.core.common.money.CurrencyCode
+import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.time.AppClock
+import com.yellowtrack.platform.core.data.InvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
 import com.yellowtrack.platform.core.data.sync.SyncEngine
@@ -18,6 +22,17 @@ import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
@@ -429,6 +444,7 @@ class SyncEngineTest {
         val engine: SyncEngine,
         val transport: FakeSyncTransport,
         val clients: ClientRepository,
+        val invoices: InvoiceRepository,
     ) {
         suspend fun outbox(): List<Pair<String, String>> =
             database.outboxQueries
@@ -609,6 +625,61 @@ class SyncEngineTest {
             )
         }
 
+    /**
+     * Two devices each record a payment against one invoice, and both survive.
+     *
+     * This is the case ADR 0008 decision 5 was written for, and the asymmetry it turns on:
+     * a lost invoice line is retyped from the quote in seconds, a lost payment is discovered
+     * during a tax return, if at all. Had payments travelled inside the invoice, the second
+     * device's copy would have carried a payment list missing the first's and discarded it.
+     */
+    @Test
+    fun `two devices each recording a payment keep both`() =
+        runTest {
+            val device = world()
+
+            // The chain a payment hangs off, arriving from the server.
+            device.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 5,
+                        hasMore = false,
+                        clients = listOf(client("client-1", "Okafor")),
+                        projects = listOf(project("project-1", "client-1")),
+                        invoices = listOf(invoice("invoice-1", "project-1")),
+                    ),
+                )
+            device.engine.sync()
+
+            // This device's own payment.
+            device.invoices.recordPayment(payment("payment-local", "invoice-1", 90_000))
+
+            // The other device's, arriving. A separate row, with its own id.
+            device.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 9,
+                        hasMore = false,
+                        payments = listOf(payment("payment-remote", "invoice-1", 60_000)),
+                    ),
+                )
+            device.engine.sync()
+
+            val amounts =
+                device.invoices
+                    .getInvoice(InvoiceId("invoice-1"))
+                    ?.payments
+                    ?.map { it.amount.minorUnits }
+                    ?.sorted()
+
+            assertEquals(
+                listOf(60_000L, 90_000L),
+                amounts,
+                "one device's payment displaced the other's — the failure decision 5 exists to " +
+                    "prevent, and the one a studio finds at a tax return rather than on the day",
+            )
+        }
+
     private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.
@@ -626,8 +697,50 @@ class SyncEngineTest {
             engine = SyncEngine(provider, studioContext, transport, clients, projects, sessions, clock),
             transport = transport,
             clients = clients,
+            invoices = SqlDelightInvoiceRepository(provider, studioContext, clock, Dispatchers.Unconfined),
         )
     }
+
+    private fun project(
+        id: String,
+        clientId: String,
+    ) = Project(
+        id = ProjectId(id),
+        studioId = STUDIO,
+        clientId = ClientId(clientId),
+        name = "Okafor — Wedding",
+        serviceLine = ServiceLine.Wedding,
+        status = ProjectStatus.Booked,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun invoice(
+        id: String,
+        projectId: String,
+    ) = Invoice(
+        id = InvoiceId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        number = "2026-014",
+        kind = InvoiceKind.Balance,
+        status = InvoiceStatus.Sent,
+        currency = CurrencyCode.GBP,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun payment(
+        id: String,
+        invoiceId: String,
+        minorUnits: Long,
+    ) = Payment(
+        id = PaymentId(id),
+        studioId = STUDIO,
+        invoiceId = InvoiceId(invoiceId),
+        amount = Money(minorUnits = minorUnits, currency = CurrencyCode.GBP),
+        paidAt = NOW,
+        method = PaymentMethod.BankTransfer,
+        audit = AuditMetadata.createdAt(NOW),
+    )
 
     private fun client(
         id: String,

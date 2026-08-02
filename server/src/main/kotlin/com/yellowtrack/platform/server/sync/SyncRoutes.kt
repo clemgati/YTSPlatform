@@ -4,6 +4,8 @@ import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.sync.SyncConflict
@@ -63,6 +65,8 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                                 .filterIsInstance<ClientContactLink>(),
                         projects = changes.rows[SyncedEntity.Projects.table].orEmpty().filterIsInstance<Project>(),
                         sessions = changes.rows[SyncedEntity.Sessions.table].orEmpty().filterIsInstance<Session>(),
+                        invoices = changes.rows[SyncedEntity.Invoices.table].orEmpty().filterIsInstance<Invoice>(),
+                        payments = changes.rows[SyncedEntity.Payments.table].orEmpty().filterIsInstance<Payment>(),
                         conflicts =
                             changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
@@ -87,6 +91,8 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         }
                         request.projects.forEach { add(reconciler.push(studioId, SyncedEntity.Projects, it)) }
                         request.sessions.forEach { add(reconciler.push(studioId, SyncedEntity.Sessions, it)) }
+                        request.invoices.forEach { add(reconciler.push(studioId, SyncedEntity.Invoices, it)) }
+                        request.payments.forEach { add(reconciler.push(studioId, SyncedEntity.Payments, it)) }
                     }
 
                 call.respond(SyncPushResponse(results.map { it.toWire() }))

@@ -3,6 +3,8 @@ package com.yellowtrack.platform.core.model.sync
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import kotlinx.serialization.Serializable
@@ -43,6 +45,15 @@ data class SyncPullResponse(
     val projects: List<Project> = emptyList(),
     val sessions: List<Session> = emptyList(),
     /**
+     * Invoices, and the money against them — ADR 0008 decision 5 again.
+     *
+     * An invoice arrives with no payments. Its `lines` do travel with it, because they are a
+     * JSON column rather than rows and cannot union; a lost line is retyped from the quote,
+     * whereas a lost payment is found during a tax return, if at all.
+     */
+    val invoices: List<Invoice> = emptyList(),
+    val payments: List<Payment> = emptyList(),
+    /**
      * Work reconciliation discarded, travelling down only.
      *
      * There is no matching list on [SyncPushRequest]: the server is the only party that
@@ -59,6 +70,8 @@ data class SyncPushRequest(
     val clientContactLinks: List<ClientContactLink> = emptyList(),
     val projects: List<Project> = emptyList(),
     val sessions: List<Session> = emptyList(),
+    val invoices: List<Invoice> = emptyList(),
+    val payments: List<Payment> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
@@ -66,7 +79,9 @@ data class SyncPushRequest(
                 contacts.isEmpty() &&
                 clientContactLinks.isEmpty() &&
                 projects.isEmpty() &&
-                sessions.isEmpty()
+                sessions.isEmpty() &&
+                invoices.isEmpty() &&
+                payments.isEmpty()
 }
 
 /** What became of one pushed row. */

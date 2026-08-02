@@ -84,9 +84,24 @@ soft (ADR 0006), the row is recoverable rather than gone.
 
 ### 5. Append-only collections merge by union, not by row replacement
 
-Payments on an invoice, line items, packing entries, media copies, and crew are child
-records with their own UUID primary keys. They reconcile by union on `id`, not by the
-parent row's last-write-wins.
+Payments on an invoice, packing entries, media copies, and crew are child records with
+their own UUID primary keys. They reconcile by union on `id`, not by the parent row's
+last-write-wins.
+
+> **Correction, 0.7.0.** This decision originally listed invoice line items here as well.
+> They are not rows: `lines` is a JSON column on `invoice`, so they travel with the
+> document and reconcile with it under last-write-wins. Union is not available to them
+> without moving them to a table of their own, which has not been done.
+>
+> The case this decision was written for is unaffected — payments are their own table — and
+> the asymmetry below is the reason to leave it that way for now. A line retyped from the
+> quote costs seconds; a payment does not.
+
+It also needs no merge machinery. Every child row already carries its own `id`, `version`
+and `deleted_at`, so two devices adding payments write two different rows and ordinary
+row-level reconciliation keeps both. What it does need is **ordering** — a child applied
+before its parent fails a foreign key — and `server_seq` cannot supply it, because editing
+a parent moves it after its own child. The apply order is therefore structural.
 
 Row-level LWW applied to a parent and its children would let a stale device's copy of an
 invoice discard a payment recorded on another device. The asymmetry in stakes from the

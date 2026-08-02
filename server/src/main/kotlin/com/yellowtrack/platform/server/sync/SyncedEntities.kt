@@ -3,6 +3,7 @@ package com.yellowtrack.platform.server.sync
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
+import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContactLink
@@ -14,6 +15,13 @@ import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
+import com.yellowtrack.platform.core.model.invoice.Invoice
+import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
+import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.invoice.PaymentId
+import com.yellowtrack.platform.core.model.invoice.PaymentMethod
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -298,6 +306,178 @@ sealed interface SyncedEntity<T> {
         }
     }
 
+    /**
+     * An invoice, without its payments.
+     *
+     * `lines` travels *with* the invoice, in a JSON column, and so reconciles by
+     * last-write-wins along with the rest of the document. Payments do not: they are their
+     * own rows, and ADR 0008 decision 5 exists for exactly this case — a stale device's copy
+     * of an invoice must not be able to discard a payment recorded on another. A lost line
+     * is retyped from the quote; a lost payment is discovered during a tax return, if at all.
+     *
+     * The ADR lists line items alongside payments as reconciling by union. They cannot: they
+     * are not rows. See the note added to that decision.
+     */
+    object Invoices : SyncedEntity<Invoice> {
+        override val table = "invoice"
+
+        override fun identify(entity: Invoice) = entity.id.value
+
+        override fun studioOf(entity: Invoice) = entity.studioId.value
+
+        override fun versionOf(entity: Invoice) = entity.audit.version
+
+        override fun deletedAtOf(entity: Invoice) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Invoice =
+            Invoice(
+                id = InvoiceId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                projectId = ProjectId(rows.getString("project_id")),
+                number = rows.getString("number"),
+                kind = enumOrDefault(rows.getString("kind"), InvoiceKind.Full),
+                status = enumOrDefault(rows.getString("status"), InvoiceStatus.Draft),
+                currency = CurrencyCode(rows.getString("currency")),
+                lines = decodeLines(rows.getString("lines")),
+                // Deliberately empty: payments are their own rows and their own sync units.
+                payments = emptyList(),
+                issuedAt = rows.getNullableLong("issued_at")?.let { Instant.fromEpochMilliseconds(it) },
+                dueAt = rows.getNullableLong("due_at")?.let { Instant.fromEpochMilliseconds(it) },
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Invoice) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Invoice,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO invoice(id, studio_id, project_id, number, kind, status, currency,
+                                        lines, issued_at, due_at, notes,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        project_id = EXCLUDED.project_id,
+                        number     = EXCLUDED.number,
+                        kind       = EXCLUDED.kind,
+                        status     = EXCLUDED.status,
+                        currency   = EXCLUDED.currency,
+                        lines      = EXCLUDED.lines,
+                        issued_at  = EXCLUDED.issued_at,
+                        due_at     = EXCLUDED.due_at,
+                        notes      = EXCLUDED.notes,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.projectId.value)
+                    statement.setString(4, entity.number)
+                    statement.setString(5, entity.kind.name)
+                    statement.setString(6, entity.status.name)
+                    statement.setString(7, entity.currency.code)
+                    statement.setString(8, payloadJson.encodeToString(entity.lines))
+                    statement.setNullableLong(9, entity.issuedAt?.toEpochMilliseconds())
+                    statement.setNullableLong(10, entity.dueAt?.toEpochMilliseconds())
+                    statement.setString(11, entity.notes)
+                    statement.setLong(12, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(15, version)
+                    statement.executeUpdate()
+                }
+        }
+
+        /** Why an `Invoice` carrying payments is refused rather than quietly stripped. */
+        fun rejectionReason(entity: Invoice): String? =
+            if (entity.payments.isEmpty()) {
+                null
+            } else {
+                "payments do not travel inside an invoice. They are their own rows and reconcile " +
+                    "by union on their own ids, so that a stale invoice cannot discard one taken " +
+                    "on another device"
+            }
+    }
+
+    /**
+     * Money actually received. The case ADR 0008 decision 5 was written for.
+     */
+    object Payments : SyncedEntity<Payment> {
+        override val table = "payment"
+
+        override fun identify(entity: Payment) = entity.id.value
+
+        override fun studioOf(entity: Payment) = entity.studioId.value
+
+        override fun versionOf(entity: Payment) = entity.audit.version
+
+        override fun deletedAtOf(entity: Payment) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Payment =
+            Payment(
+                id = PaymentId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                invoiceId = InvoiceId(rows.getString("invoice_id")),
+                amount = Money(rows.getLong("amount_minor"), CurrencyCode(rows.getString("amount_currency"))),
+                paidAt = Instant.fromEpochMilliseconds(rows.getLong("paid_at")),
+                method = enumOrDefault(rows.getString("method"), PaymentMethod.BankTransfer),
+                reference = rows.getString("reference"),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Payment) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Payment,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO payment(id, studio_id, invoice_id, amount_minor, amount_currency,
+                                        paid_at, method, reference, notes,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        invoice_id      = EXCLUDED.invoice_id,
+                        amount_minor    = EXCLUDED.amount_minor,
+                        amount_currency = EXCLUDED.amount_currency,
+                        paid_at         = EXCLUDED.paid_at,
+                        method          = EXCLUDED.method,
+                        reference       = EXCLUDED.reference,
+                        notes           = EXCLUDED.notes,
+                        updated_at      = EXCLUDED.updated_at,
+                        deleted_at      = EXCLUDED.deleted_at,
+                        version         = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.invoiceId.value)
+                    statement.setLong(4, entity.amount.minorUnits)
+                    statement.setString(5, entity.amount.currency.code)
+                    statement.setLong(6, entity.paidAt.toEpochMilliseconds())
+                    statement.setString(7, entity.method.name)
+                    statement.setString(8, entity.reference)
+                    statement.setString(9, entity.notes)
+                    statement.setLong(10, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(11, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(12, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(13, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
     object Projects : SyncedEntity<Project> {
         override val table = "project"
 
@@ -534,7 +714,16 @@ sealed interface SyncedEntity<T> {
          * chronological.
          */
         val all: List<SyncedEntity<*>> =
-            listOf(Clients, Contacts, ClientContactLinks, Projects, Sessions, Conflicts)
+            listOf(
+                Clients,
+                Contacts,
+                ClientContactLinks,
+                Projects,
+                Sessions,
+                Invoices,
+                Payments,
+                Conflicts,
+            )
     }
 }
 
@@ -585,6 +774,9 @@ private fun decodeContactMethods(raw: String?): List<ContactMethod> =
     raw
         ?.let { runCatching { payloadJson.decodeFromString<List<ContactMethod>>(it) }.getOrNull() }
         .orEmpty()
+
+private fun decodeLines(raw: String?): List<LineItem> =
+    raw?.let { runCatching { payloadJson.decodeFromString<List<LineItem>>(it) }.getOrNull() }.orEmpty()
 
 private fun decodeTags(raw: String?): List<String> =
     raw?.let { runCatching { payloadJson.decodeFromString<List<String>>(it) }.getOrNull() } ?: emptyList()
