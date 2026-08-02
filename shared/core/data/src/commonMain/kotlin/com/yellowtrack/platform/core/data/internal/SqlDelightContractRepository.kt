@@ -111,10 +111,18 @@ internal class SqlDelightContractRepository(
                 version = contract.audit.version.toLong(),
                 id = contract.id.value,
             )
+
+            db.enqueueForSync(studioId, SyncTables.CONTRACT, contract.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteContract(contractId: ContractId) {
-        database().contractQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = contractId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.contractQueries.softDelete(deletedAt = now, id = contractId.value)
+            db.enqueueForSync(studioId, SyncTables.CONTRACT, contractId.value, OutboxOperation.Delete, now)
+        }
     }
 }

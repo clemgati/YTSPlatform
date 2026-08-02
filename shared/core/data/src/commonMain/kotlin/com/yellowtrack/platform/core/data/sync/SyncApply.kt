@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.expense.Expense
@@ -16,6 +17,7 @@ import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import kotlinx.serialization.json.Json
@@ -632,5 +634,103 @@ internal suspend fun YellowTrackDatabase.applyMileage(mileage: Mileage) {
         deletedAt = mileage.audit.deletedAt?.toEpochMilliseconds(),
         version = mileage.audit.version.toLong(),
         id = mileage.id.value,
+    )
+}
+
+/** A price offered. Its lines travel with it, in a JSON column, as an invoice's do. */
+internal suspend fun YellowTrackDatabase.applyQuote(quote: Quote) {
+    quoteQueries.insertOrIgnore(
+        id = quote.id.value,
+        studio_id = quote.studioId.value,
+        project_id = quote.projectId.value,
+        number = quote.number,
+        status = quote.status.name,
+        currency = quote.currency.code,
+        lines = syncJson.encodeToString(quote.lines),
+        issued_at = quote.issuedAt?.toEpochMilliseconds(),
+        valid_until = quote.validUntil?.toEpochMilliseconds(),
+        accepted_at = quote.acceptedAt?.toEpochMilliseconds(),
+        declined_at = quote.declinedAt?.toEpochMilliseconds(),
+        notes = quote.notes,
+        terms = quote.terms,
+        created_at = quote.audit.createdAt.toEpochMilliseconds(),
+        updated_at = quote.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = quote.audit.deletedAt?.toEpochMilliseconds(),
+        version = quote.audit.version.toLong(),
+    )
+
+    quoteQueries.update(
+        projectId = quote.projectId.value,
+        number = quote.number,
+        status = quote.status.name,
+        currency = quote.currency.code,
+        lines = syncJson.encodeToString(quote.lines),
+        issuedAt = quote.issuedAt?.toEpochMilliseconds(),
+        validUntil = quote.validUntil?.toEpochMilliseconds(),
+        acceptedAt = quote.acceptedAt?.toEpochMilliseconds(),
+        declinedAt = quote.declinedAt?.toEpochMilliseconds(),
+        notes = quote.notes,
+        terms = quote.terms,
+        updatedAt = quote.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = quote.audit.deletedAt?.toEpochMilliseconds(),
+        version = quote.audit.version.toLong(),
+        id = quote.id.value,
+    )
+}
+
+/** What was agreed. The usage licence is a document held in one column. */
+internal suspend fun YellowTrackDatabase.applyContract(contract: Contract) {
+    val licence = contract.usageLicense?.let { syncJson.encodeToString(it) }
+
+    contractQueries.insertOrIgnore(
+        id = contract.id.value,
+        studio_id = contract.studioId.value,
+        project_id = contract.projectId.value,
+        title = contract.title,
+        status = contract.status.name,
+        sent_at = contract.sentAt?.toEpochMilliseconds(),
+        signed_at = contract.signedAt?.toEpochMilliseconds(),
+        signer_name = contract.signerName,
+        signer_email = contract.signerEmail,
+        retainer_minor = contract.retainerAmount?.minorUnits,
+        retainer_currency = contract.retainerAmount?.currency?.code,
+        is_retainer_refundable = if (contract.isRetainerRefundable) 1L else 0L,
+        turnaround_days = contract.turnaroundDays?.toLong(),
+        revision_rounds = contract.revisionRounds?.toLong(),
+        cancellation_terms = contract.cancellationTerms,
+        reschedule_terms = contract.rescheduleTerms,
+        weather_clause = contract.weatherClause,
+        usage_license = licence,
+        document_reference = contract.documentReference,
+        notes = contract.notes,
+        created_at = contract.audit.createdAt.toEpochMilliseconds(),
+        updated_at = contract.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = contract.audit.deletedAt?.toEpochMilliseconds(),
+        version = contract.audit.version.toLong(),
+    )
+
+    contractQueries.update(
+        projectId = contract.projectId.value,
+        title = contract.title,
+        status = contract.status.name,
+        sentAt = contract.sentAt?.toEpochMilliseconds(),
+        signedAt = contract.signedAt?.toEpochMilliseconds(),
+        signerName = contract.signerName,
+        signerEmail = contract.signerEmail,
+        retainerMinor = contract.retainerAmount?.minorUnits,
+        retainerCurrency = contract.retainerAmount?.currency?.code,
+        isRetainerRefundable = if (contract.isRetainerRefundable) 1L else 0L,
+        turnaroundDays = contract.turnaroundDays?.toLong(),
+        revisionRounds = contract.revisionRounds?.toLong(),
+        cancellationTerms = contract.cancellationTerms,
+        rescheduleTerms = contract.rescheduleTerms,
+        weatherClause = contract.weatherClause,
+        usageLicense = licence,
+        documentReference = contract.documentReference,
+        notes = contract.notes,
+        updatedAt = contract.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = contract.audit.deletedAt?.toEpochMilliseconds(),
+        version = contract.audit.version.toLong(),
+        id = contract.id.value,
     )
 }

@@ -16,6 +16,7 @@ import com.yellowtrack.platform.core.data.internal.SyncTables
 import com.yellowtrack.platform.core.data.internal.enqueueForSync
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.data.sync.applyClient
+import com.yellowtrack.platform.core.data.sync.applyContract
 import com.yellowtrack.platform.core.data.sync.applyCrewMember
 import com.yellowtrack.platform.core.data.sync.applyDeliverable
 import com.yellowtrack.platform.core.data.sync.applyExpense
@@ -27,6 +28,7 @@ import com.yellowtrack.platform.core.data.sync.applyMileage
 import com.yellowtrack.platform.core.data.sync.applyPackingEntry
 import com.yellowtrack.platform.core.data.sync.applyPayment
 import com.yellowtrack.platform.core.data.sync.applyProject
+import com.yellowtrack.platform.core.data.sync.applyQuote
 import com.yellowtrack.platform.core.data.sync.applySession
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
 import com.yellowtrack.platform.core.model.client.Client
@@ -39,6 +41,9 @@ import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
@@ -73,6 +78,9 @@ import com.yellowtrack.platform.core.model.media.StorageVolumeId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
+import com.yellowtrack.platform.core.model.quote.QuoteStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -806,6 +814,8 @@ class SyncEngineTest {
             db.applyLead(lead("l1"))
             db.applyExpense(expense("e1"))
             db.applyMileage(mileage("mi1"))
+            db.applyQuote(quote("q1", "p1"))
+            db.applyContract(contract("co1", "p1"))
 
             val queued =
                 listOf(
@@ -823,6 +833,8 @@ class SyncEngineTest {
                     SyncTables.LEAD to "l1",
                     SyncTables.EXPENSE to "e1",
                     SyncTables.MILEAGE to "mi1",
+                    SyncTables.QUOTE to "q1",
+                    SyncTables.CONTRACT to "co1",
                 )
 
             queued.forEach { (table, id) ->
@@ -848,6 +860,8 @@ class SyncEngineTest {
                     if (sent.leads.isEmpty()) add(SyncTables.LEAD)
                     if (sent.expenses.isEmpty()) add(SyncTables.EXPENSE)
                     if (sent.mileages.isEmpty()) add(SyncTables.MILEAGE)
+                    if (sent.quotes.isEmpty()) add(SyncTables.QUOTE)
+                    if (sent.contracts.isEmpty()) add(SyncTables.CONTRACT)
                 }
 
             assertEquals(
@@ -889,6 +903,31 @@ class SyncEngineTest {
         name = "Okafor — Wedding",
         serviceLine = ServiceLine.Wedding,
         status = ProjectStatus.Booked,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun quote(
+        id: String,
+        projectId: String,
+    ) = Quote(
+        id = QuoteId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        number = "Q-2026-004",
+        status = QuoteStatus.Sent,
+        currency = CurrencyCode.GBP,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun contract(
+        id: String,
+        projectId: String,
+    ) = Contract(
+        id = ContractId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        title = "Wedding coverage agreement",
+        status = ContractStatus.Sent,
         audit = AuditMetadata.createdAt(NOW),
     )
 

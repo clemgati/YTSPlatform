@@ -15,6 +15,10 @@ import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
+import com.yellowtrack.platform.core.model.contract.UsageLicense
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
@@ -54,6 +58,9 @@ import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
+import com.yellowtrack.platform.core.model.quote.QuoteStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
@@ -1282,6 +1289,202 @@ sealed interface SyncedEntity<T> {
         }
     }
 
+    /** A price offered, before it is an invoice. Its lines travel with it, as an invoice's do. */
+    object Quotes : SyncedEntity<Quote> {
+        override val table = "quote"
+
+        override val parents by lazy { listOf(ParentRef<Quote>(Projects) { it.projectId.value }) }
+
+        override fun identify(entity: Quote) = entity.id.value
+
+        override fun studioOf(entity: Quote) = entity.studioId.value
+
+        override fun versionOf(entity: Quote) = entity.audit.version
+
+        override fun deletedAtOf(entity: Quote) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Quote =
+            Quote(
+                id = QuoteId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                projectId = ProjectId(rows.getString("project_id")),
+                number = rows.getString("number"),
+                status = enumOrDefault(rows.getString("status"), QuoteStatus.Draft),
+                currency = CurrencyCode(rows.getString("currency")),
+                lines = decodeLines(rows.getString("lines")),
+                issuedAt = rows.getNullableLong("issued_at")?.let { Instant.fromEpochMilliseconds(it) },
+                validUntil = rows.getNullableLong("valid_until")?.let { Instant.fromEpochMilliseconds(it) },
+                acceptedAt = rows.getNullableLong("accepted_at")?.let { Instant.fromEpochMilliseconds(it) },
+                declinedAt = rows.getNullableLong("declined_at")?.let { Instant.fromEpochMilliseconds(it) },
+                notes = rows.getString("notes"),
+                terms = rows.getString("terms"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Quote) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Quote,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO quote(id, studio_id, project_id, number, status, currency, lines,
+                                      issued_at, valid_until, accepted_at, declined_at, notes, terms,
+                                      created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        project_id  = EXCLUDED.project_id,
+                        number      = EXCLUDED.number,
+                        status      = EXCLUDED.status,
+                        currency    = EXCLUDED.currency,
+                        lines       = EXCLUDED.lines,
+                        issued_at   = EXCLUDED.issued_at,
+                        valid_until = EXCLUDED.valid_until,
+                        accepted_at = EXCLUDED.accepted_at,
+                        declined_at = EXCLUDED.declined_at,
+                        notes       = EXCLUDED.notes,
+                        terms       = EXCLUDED.terms,
+                        updated_at  = EXCLUDED.updated_at,
+                        deleted_at  = EXCLUDED.deleted_at,
+                        version     = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.projectId.value)
+                    statement.setString(4, entity.number)
+                    statement.setString(5, entity.status.name)
+                    statement.setString(6, entity.currency.code)
+                    statement.setString(7, payloadJson.encodeToString(entity.lines))
+                    statement.setNullableLong(8, entity.issuedAt?.toEpochMilliseconds())
+                    statement.setNullableLong(9, entity.validUntil?.toEpochMilliseconds())
+                    statement.setNullableLong(10, entity.acceptedAt?.toEpochMilliseconds())
+                    statement.setNullableLong(11, entity.declinedAt?.toEpochMilliseconds())
+                    statement.setString(12, entity.notes)
+                    statement.setString(13, entity.terms)
+                    statement.setLong(14, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(15, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(16, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(17, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /** What was agreed, and whether it was signed. `usageLicense` is a document in one column. */
+    object Contracts : SyncedEntity<Contract> {
+        override val table = "contract"
+
+        override val parents by lazy { listOf(ParentRef<Contract>(Projects) { it.projectId.value }) }
+
+        override fun identify(entity: Contract) = entity.id.value
+
+        override fun studioOf(entity: Contract) = entity.studioId.value
+
+        override fun versionOf(entity: Contract) = entity.audit.version
+
+        override fun deletedAtOf(entity: Contract) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Contract =
+            Contract(
+                id = ContractId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                projectId = ProjectId(rows.getString("project_id")),
+                title = rows.getString("title"),
+                status = enumOrDefault(rows.getString("status"), ContractStatus.Draft),
+                sentAt = rows.getNullableLong("sent_at")?.let { Instant.fromEpochMilliseconds(it) },
+                signedAt = rows.getNullableLong("signed_at")?.let { Instant.fromEpochMilliseconds(it) },
+                signerName = rows.getString("signer_name"),
+                signerEmail = rows.getString("signer_email"),
+                retainerAmount = moneyOf(rows.getNullableLong("retainer_minor"), rows.getString("retainer_currency")),
+                isRetainerRefundable = rows.getBoolean("is_retainer_refundable"),
+                turnaroundDays = rows.getNullableLong("turnaround_days")?.toInt(),
+                revisionRounds = rows.getNullableLong("revision_rounds")?.toInt(),
+                cancellationTerms = rows.getString("cancellation_terms"),
+                rescheduleTerms = rows.getString("reschedule_terms"),
+                weatherClause = rows.getString("weather_clause"),
+                usageLicense =
+                    rows.getString("usage_license")?.let {
+                        runCatching { payloadJson.decodeFromString<UsageLicense>(it) }.getOrNull()
+                    },
+                documentReference = rows.getString("document_reference"),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Contract) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Contract,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO contract(id, studio_id, project_id, title, status, sent_at, signed_at,
+                                         signer_name, signer_email, retainer_minor, retainer_currency,
+                                         is_retainer_refundable, turnaround_days, revision_rounds,
+                                         cancellation_terms, reschedule_terms, weather_clause,
+                                         usage_license, document_reference, notes,
+                                         created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        project_id             = EXCLUDED.project_id,
+                        title                  = EXCLUDED.title,
+                        status                 = EXCLUDED.status,
+                        sent_at                = EXCLUDED.sent_at,
+                        signed_at              = EXCLUDED.signed_at,
+                        signer_name            = EXCLUDED.signer_name,
+                        signer_email           = EXCLUDED.signer_email,
+                        retainer_minor         = EXCLUDED.retainer_minor,
+                        retainer_currency      = EXCLUDED.retainer_currency,
+                        is_retainer_refundable = EXCLUDED.is_retainer_refundable,
+                        turnaround_days        = EXCLUDED.turnaround_days,
+                        revision_rounds        = EXCLUDED.revision_rounds,
+                        cancellation_terms     = EXCLUDED.cancellation_terms,
+                        reschedule_terms       = EXCLUDED.reschedule_terms,
+                        weather_clause         = EXCLUDED.weather_clause,
+                        usage_license          = EXCLUDED.usage_license,
+                        document_reference     = EXCLUDED.document_reference,
+                        notes                  = EXCLUDED.notes,
+                        updated_at             = EXCLUDED.updated_at,
+                        deleted_at             = EXCLUDED.deleted_at,
+                        version                = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.projectId.value)
+                    statement.setString(4, entity.title)
+                    statement.setString(5, entity.status.name)
+                    statement.setNullableLong(6, entity.sentAt?.toEpochMilliseconds())
+                    statement.setNullableLong(7, entity.signedAt?.toEpochMilliseconds())
+                    statement.setString(8, entity.signerName)
+                    statement.setString(9, entity.signerEmail)
+                    statement.setNullableLong(10, entity.retainerAmount?.minorUnits)
+                    statement.setString(11, entity.retainerAmount?.currency?.code)
+                    statement.setBoolean(12, entity.isRetainerRefundable)
+                    statement.setNullableLong(13, entity.turnaroundDays?.toLong())
+                    statement.setNullableLong(14, entity.revisionRounds?.toLong())
+                    statement.setString(15, entity.cancellationTerms)
+                    statement.setString(16, entity.rescheduleTerms)
+                    statement.setString(17, entity.weatherClause)
+                    statement.setString(18, entity.usageLicense?.let { payloadJson.encodeToString(it) })
+                    statement.setString(19, entity.documentReference)
+                    statement.setString(20, entity.notes)
+                    statement.setLong(21, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(22, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(23, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(24, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
     object Projects : SyncedEntity<Project> {
         override val table = "project"
 
@@ -1541,6 +1744,8 @@ sealed interface SyncedEntity<T> {
                 Leads,
                 Expenses,
                 Mileages,
+                Quotes,
+                Contracts,
                 Deliverables,
                 Invoices,
                 Payments,

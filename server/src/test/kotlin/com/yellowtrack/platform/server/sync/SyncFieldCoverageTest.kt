@@ -16,6 +16,11 @@ import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
+import com.yellowtrack.platform.core.model.contract.LicenseMedium
+import com.yellowtrack.platform.core.model.contract.UsageLicense
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
@@ -55,6 +60,9 @@ import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
+import com.yellowtrack.platform.core.model.quote.QuoteStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
@@ -453,6 +461,68 @@ class SyncFieldCoverageTest {
         )
     }
 
+    @Test
+    fun `every field of a Quote crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Quotes,
+            fixture =
+                Quote(
+                    id = QuoteId("44444444-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    number = "Q-2026-004",
+                    status = QuoteStatus.Sent,
+                    currency = CurrencyCode.GBP,
+                    lines =
+                        listOf(
+                            LineItem(
+                                description = "Wedding coverage, ten hours",
+                                unitPrice = Money(minorUnits = 180_000, currency = CurrencyCode.GBP),
+                                quantity = 1,
+                                taxRateBasisPoints = 2_000,
+                            ),
+                        ),
+                    issuedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    validUntil = Instant.fromEpochMilliseconds(1_781_900_000_000),
+                    acceptedAt = Instant.fromEpochMilliseconds(1_781_100_000_000),
+                    declinedAt = Instant.fromEpochMilliseconds(1_781_200_000_000),
+                    notes = "Held for fourteen days.",
+                    terms = "Fifty per cent to book.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Contract crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Contracts,
+            fixture =
+                Contract(
+                    id = ContractId("55555555-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    title = "Wedding coverage agreement",
+                    status = ContractStatus.Signed,
+                    sentAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    signedAt = Instant.fromEpochMilliseconds(1_781_050_000_000),
+                    signerName = "Ada Okafor",
+                    signerEmail = "ada@harbourline.test",
+                    retainerAmount = Money(minorUnits = 90_000, currency = CurrencyCode.GBP),
+                    isRetainerRefundable = true,
+                    turnaroundDays = 42,
+                    revisionRounds = 2,
+                    cancellationTerms = "Retainer forfeit inside sixty days.",
+                    rescheduleTerms = "One free move, weather permitting.",
+                    weatherClause = "Ceremony moves indoors at the venue's discretion.",
+                    usageLicense = usageLicence(),
+                    documentReference = "DOC-8841",
+                    notes = "Signed on paper, scanned.",
+                    audit = audit(),
+                ),
+        )
+    }
+
     // -- The mechanism -----------------------------------------------------------------------
 
     private fun <T> assertEveryFieldCrosses(
@@ -650,6 +720,16 @@ class SyncFieldCoverageTest {
             version = 1,
         )
     }
+
+    private fun usageLicence() =
+        UsageLicense(
+            media = listOf(LicenseMedium.Social, LicenseMedium.Print),
+            territory = "United Kingdom",
+            durationMonths = 24,
+            isExclusive = true,
+            startsOn = LocalDate.parse("2026-09-01"),
+            notes = "Excludes advertising.",
+        )
 
     private fun audit() =
         AuditMetadata(

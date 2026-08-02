@@ -7,6 +7,7 @@ import com.yellowtrack.platform.core.data.InMemoryDatabaseDriverFactory
 import com.yellowtrack.platform.core.data.internal.toDomain
 import com.yellowtrack.platform.core.data.sync.applyClientContactLink
 import com.yellowtrack.platform.core.data.sync.applyContact
+import com.yellowtrack.platform.core.data.sync.applyContract
 import com.yellowtrack.platform.core.data.sync.applyCrewMember
 import com.yellowtrack.platform.core.data.sync.applyDeliverable
 import com.yellowtrack.platform.core.data.sync.applyExpense
@@ -17,6 +18,7 @@ import com.yellowtrack.platform.core.data.sync.applyMediaCopy
 import com.yellowtrack.platform.core.data.sync.applyMileage
 import com.yellowtrack.platform.core.data.sync.applyPackingEntry
 import com.yellowtrack.platform.core.data.sync.applyPayment
+import com.yellowtrack.platform.core.data.sync.applyQuote
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.billing.LineItem
@@ -32,6 +34,11 @@ import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
+import com.yellowtrack.platform.core.model.contract.LicenseMedium
+import com.yellowtrack.platform.core.model.contract.UsageLicense
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
@@ -71,6 +78,9 @@ import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
+import com.yellowtrack.platform.core.model.quote.QuoteStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
@@ -629,6 +639,102 @@ class SyncApplyFieldCoverageTest {
                 )
 
             assertEveryFieldSurvived(Mileage.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
+    fun `every field of a Quote survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyProject(parentProject())
+
+            val fixture =
+                Quote(
+                    id = QuoteId("44444444-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId(PROJECT),
+                    number = "Q-2026-004",
+                    status = QuoteStatus.Sent,
+                    currency = CurrencyCode.GBP,
+                    lines =
+                        listOf(
+                            LineItem(
+                                description = "Wedding coverage, ten hours",
+                                unitPrice = Money(minorUnits = 180_000, currency = CurrencyCode.GBP),
+                                quantity = 1,
+                                taxRateBasisPoints = 2_000,
+                            ),
+                        ),
+                    issuedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    validUntil = Instant.fromEpochMilliseconds(1_781_900_000_000),
+                    acceptedAt = Instant.fromEpochMilliseconds(1_781_100_000_000),
+                    declinedAt = Instant.fromEpochMilliseconds(1_781_200_000_000),
+                    notes = "Held for fourteen days.",
+                    terms = "Fifty per cent to book.",
+                    audit = audit(),
+                )
+
+            database.applyQuote(fixture)
+
+            val row =
+                assertNotNull(
+                    database.quoteQueries
+                        .selectByIdForSync("44444444-aaaa-7000-8000-000000000001")
+                        .executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(Quote.serializer(), fixture, row.toDomain())
+        }
+
+    @Test
+    fun `every field of a Contract survives being applied`() =
+        runTest {
+            val database = DatabaseProvider(InMemoryDatabaseDriverFactory()).database()
+            database.applyClient(parentClient())
+            database.applyProject(parentProject())
+
+            val fixture =
+                Contract(
+                    id = ContractId("55555555-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId(PROJECT),
+                    title = "Wedding coverage agreement",
+                    status = ContractStatus.Signed,
+                    sentAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    signedAt = Instant.fromEpochMilliseconds(1_781_050_000_000),
+                    signerName = "Ada Okafor",
+                    signerEmail = "ada@harbourline.test",
+                    retainerAmount = Money(minorUnits = 90_000, currency = CurrencyCode.GBP),
+                    isRetainerRefundable = true,
+                    turnaroundDays = 42,
+                    revisionRounds = 2,
+                    cancellationTerms = "Retainer forfeit inside sixty days.",
+                    rescheduleTerms = "One free move, weather permitting.",
+                    weatherClause = "Ceremony moves indoors at the venue's discretion.",
+                    usageLicense =
+                        UsageLicense(
+                            media = listOf(LicenseMedium.Social, LicenseMedium.Print),
+                            territory = "United Kingdom",
+                            durationMonths = 24,
+                            isExclusive = true,
+                            startsOn = LocalDate.parse("2026-09-01"),
+                            notes = "Excludes advertising.",
+                        ),
+                    documentReference = "DOC-8841",
+                    notes = "Signed on paper, scanned.",
+                    audit = audit(),
+                )
+
+            database.applyContract(fixture)
+
+            val row =
+                assertNotNull(
+                    database.contractQueries
+                        .selectByIdForSync("55555555-aaaa-7000-8000-000000000001")
+                        .executeAsOneOrNull(),
+                )
+
+            assertEveryFieldSurvived(Contract.serializer(), fixture, row.toDomain())
         }
 
     @Test

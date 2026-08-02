@@ -64,4 +64,6 @@ internal object SyncTables {
     const val LEAD = "lead"
     const val EXPENSE = "expense"
     const val MILEAGE = "mileage"
+    const val QUOTE = "quote"
+    const val CONTRACT = "contract"
 }

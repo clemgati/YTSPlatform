@@ -215,6 +215,20 @@ class SyncEngine(
                             .awaitAsOneOrNull()
                             ?.toDomain()
                     },
+                quotes =
+                    wanted.forTable(SyncTables.QUOTE).mapNotNull {
+                        database.quoteQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                contracts =
+                    wanted.forTable(SyncTables.CONTRACT).mapNotNull {
+                        database.contractQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
             )
 
         // A queued row that no longer exists at all — never uploaded, then hard-deleted —
@@ -294,7 +308,8 @@ class SyncEngine(
                     page.crewMembers.size + page.deliverables.size +
                     page.gearItems.size + page.packingEntries.size +
                     page.storageVolumes.size + page.mediaCopies.size +
-                    page.leads.size + page.expenses.size + page.mileages.size + page.conflicts.size
+                    page.leads.size + page.expenses.size + page.mileages.size +
+                    page.quotes.size + page.contracts.size + page.conflicts.size
 
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
@@ -316,6 +331,8 @@ class SyncEngine(
                 page.leads.forEach { database.applyLead(it) }
                 page.expenses.forEach { database.applyExpense(it) }
                 page.mileages.forEach { database.applyMileage(it) }
+                page.quotes.forEach { database.applyQuote(it) }
+                page.contracts.forEach { database.applyContract(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -358,6 +375,8 @@ class SyncEngine(
             leads.forEach { add(SyncTables.LEAD to it.id.value) }
             expenses.forEach { add(SyncTables.EXPENSE to it.id.value) }
             mileages.forEach { add(SyncTables.MILEAGE to it.id.value) }
+            quotes.forEach { add(SyncTables.QUOTE to it.id.value) }
+            contracts.forEach { add(SyncTables.CONTRACT to it.id.value) }
         }
 
     private companion object {
