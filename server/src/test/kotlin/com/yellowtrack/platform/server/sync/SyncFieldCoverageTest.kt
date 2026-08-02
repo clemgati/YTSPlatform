@@ -16,6 +16,11 @@ import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.model.contact.ContactMethodLabel
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
+import com.yellowtrack.platform.core.model.contract.LicenseMedium
+import com.yellowtrack.platform.core.model.contract.UsageLicense
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
@@ -23,10 +28,20 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableKind
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.ExpenseCategory
+import com.yellowtrack.platform.core.model.expense.ExpenseId
+import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.gear.GearCategory
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
 import com.yellowtrack.platform.core.model.gear.GearStatus
+import com.yellowtrack.platform.core.model.gear.LightRole
+import com.yellowtrack.platform.core.model.gear.LightSetup
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
+import com.yellowtrack.platform.core.model.gear.LightingRecipeId
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.invoice.Invoice
@@ -36,21 +51,38 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.lead.Lead
+import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.lead.LeadSource
+import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.media.StorageVolumeId
 import com.yellowtrack.platform.core.model.media.VolumeStatus
+import com.yellowtrack.platform.core.model.post.PostProductionTask
+import com.yellowtrack.platform.core.model.post.PostProductionTaskId
+import com.yellowtrack.platform.core.model.post.PostTaskKind
+import com.yellowtrack.platform.core.model.post.PostTaskStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
+import com.yellowtrack.platform.core.model.quote.QuoteStatus
+import com.yellowtrack.platform.core.model.release.ReleaseKind
+import com.yellowtrack.platform.core.model.release.ReleaseStatus
+import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.server.TestDatabase
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
@@ -371,6 +403,230 @@ class SyncFieldCoverageTest {
         )
     }
 
+    @Test
+    fun `every field of a Lead crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Leads,
+            fixture =
+                Lead(
+                    id = LeadId("11111111-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    name = "Ada Okafor",
+                    source = LeadSource.ClientReferral,
+                    status = LeadStatus.New,
+                    receivedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    email = "ada@harbourline.test",
+                    phone = "07700 900123",
+                    firstResponseAt = Instant.fromEpochMilliseconds(1_781_010_000_000),
+                    serviceLine = ServiceLine.Wedding,
+                    desiredDate = LocalDate.parse("2027-06-12"),
+                    budgetLow = Money(minorUnits = 150_000, currency = CurrencyCode.GBP),
+                    budgetHigh = Money(minorUnits = 250_000, currency = CurrencyCode.GBP),
+                    referredBy = "Rosa Iyer",
+                    lostReason = "Went with a cheaper quote",
+                    convertedProjectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    convertedClientId = ClientId("11111111-1111-7000-8000-000000000001"),
+                    notes = "Wants film, not digital.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of an Expense crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Expenses,
+            fixture =
+                Expense(
+                    id = ExpenseId("22222222-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    category = ExpenseCategory.Travel,
+                    description = "Parking at the venue",
+                    amount = Money(minorUnits = 1_200, currency = CurrencyCode.GBP),
+                    incurredOn = LocalDate.parse("2026-08-01"),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    vendor = "Trebah Garden",
+                    isTaxDeductible = true,
+                    receiptReference = "R-4412",
+                    notes = "All day, paid on arrival.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Mileage crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Mileages,
+            fixture =
+                Mileage(
+                    id = ExpenseId("33333333-aaaa-7000-8000-000000000001").let { MileageId(it.value) },
+                    studioId = StudioId(STUDIO),
+                    travelledOn = LocalDate.parse("2026-08-01"),
+                    distance = 42.5,
+                    unit = DistanceUnit.Miles,
+                    ratePerUnit = Money(minorUnits = 45, currency = CurrencyCode.GBP),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    purpose = "Venue recce",
+                    fromLocation = "Falmouth",
+                    toLocation = "Mawnan Smith",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Quote crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Quotes,
+            fixture =
+                Quote(
+                    id = QuoteId("44444444-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    number = "Q-2026-004",
+                    status = QuoteStatus.Sent,
+                    currency = CurrencyCode.GBP,
+                    lines =
+                        listOf(
+                            LineItem(
+                                description = "Wedding coverage, ten hours",
+                                unitPrice = Money(minorUnits = 180_000, currency = CurrencyCode.GBP),
+                                quantity = 1,
+                                taxRateBasisPoints = 2_000,
+                            ),
+                        ),
+                    issuedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    validUntil = Instant.fromEpochMilliseconds(1_781_900_000_000),
+                    acceptedAt = Instant.fromEpochMilliseconds(1_781_100_000_000),
+                    declinedAt = Instant.fromEpochMilliseconds(1_781_200_000_000),
+                    notes = "Held for fourteen days.",
+                    terms = "Fifty per cent to book.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Contract crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Contracts,
+            fixture =
+                Contract(
+                    id = ContractId("55555555-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    title = "Wedding coverage agreement",
+                    status = ContractStatus.Signed,
+                    sentAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
+                    signedAt = Instant.fromEpochMilliseconds(1_781_050_000_000),
+                    signerName = "Ada Okafor",
+                    signerEmail = "ada@harbourline.test",
+                    retainerAmount = Money(minorUnits = 90_000, currency = CurrencyCode.GBP),
+                    isRetainerRefundable = true,
+                    turnaroundDays = 42,
+                    revisionRounds = 2,
+                    cancellationTerms = "Retainer forfeit inside sixty days.",
+                    rescheduleTerms = "One free move, weather permitting.",
+                    weatherClause = "Ceremony moves indoors at the venue's discretion.",
+                    usageLicense = usageLicence(),
+                    documentReference = "DOC-8841",
+                    notes = "Signed on paper, scanned.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a Shot crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.Shots,
+            fixture =
+                Shot(
+                    id = ShotId("66666666-aaaa-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    sessionId = SessionId(SESSION),
+                    description = "Rings on the windowsill",
+                    group = "Details",
+                    people = "None",
+                    position = 3,
+                    isCaptured = true,
+                    capturedAt = Instant.fromEpochMilliseconds(1_781_205_000_000),
+                    notes = "Use the 100mm macro.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a PostProductionTask crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.PostProductionTasks,
+            fixture =
+                PostProductionTask(
+                    id = PostProductionTaskId("77777777-bbbb-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    projectId = ProjectId("22222222-2222-7000-8000-000000000001"),
+                    name = "Cull and rate",
+                    kind = PostTaskKind.Cull,
+                    status = PostTaskStatus.InProgress,
+                    estimatedHours = 6.5,
+                    actualHours = 8.25,
+                    completedAt = Instant.fromEpochMilliseconds(1_781_800_000_000),
+                    notes = "Two passes, then rate.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a TalentRelease crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.TalentReleases,
+            fixture =
+                TalentRelease(
+                    id = TalentReleaseId("88888888-bbbb-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    sessionId = SessionId(SESSION),
+                    personName = "Rosa Iyer",
+                    kind = ReleaseKind.Minor,
+                    status = ReleaseStatus.Signed,
+                    signedAt = Instant.fromEpochMilliseconds(1_781_190_000_000),
+                    guardianName = "Ada Okafor",
+                    email = "ada@harbourline.test",
+                    documentReference = "REL-4412",
+                    notes = "Signed at the venue.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a LightingRecipe crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.LightingRecipes,
+            fixture =
+                LightingRecipe(
+                    id = LightingRecipeId("99999999-bbbb-7000-8000-000000000001"),
+                    studioId = StudioId(STUDIO),
+                    name = "Two-light clamshell",
+                    lights =
+                        listOf(
+                            LightSetup(
+                                role = LightRole.Key,
+                                instrument = "Profoto B10",
+                                modifier = "Beauty dish",
+                                power = "1/4",
+                                position = "Above, 45 degrees",
+                                distance = "1.2m",
+                            ),
+                        ),
+                    notes = "Drop the fill for men.",
+                    audit = audit(),
+                ),
+        )
+    }
+
     // -- The mechanism -----------------------------------------------------------------------
 
     private fun <T> assertEveryFieldCrosses(
@@ -568,6 +824,16 @@ class SyncFieldCoverageTest {
             version = 1,
         )
     }
+
+    private fun usageLicence() =
+        UsageLicense(
+            media = listOf(LicenseMedium.Social, LicenseMedium.Print),
+            territory = "United Kingdom",
+            durationMonths = 24,
+            isExclusive = true,
+            startsOn = LocalDate.parse("2026-09-01"),
+            notes = "Excludes advertising.",
+        )
 
     private fun audit() =
         AuditMetadata(

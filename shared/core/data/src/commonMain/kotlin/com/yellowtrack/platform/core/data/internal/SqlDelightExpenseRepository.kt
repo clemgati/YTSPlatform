@@ -97,11 +97,19 @@ internal class SqlDelightExpenseRepository(
                 version = expense.audit.version.toLong(),
                 id = expense.id.value,
             )
+
+            db.enqueueForSync(studioId, SyncTables.EXPENSE, expense.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteExpense(expenseId: ExpenseId) {
-        database().expenseQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = expenseId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.expenseQueries.softDelete(deletedAt = now, id = expenseId.value)
+            db.enqueueForSync(studioId, SyncTables.EXPENSE, expenseId.value, OutboxOperation.Delete, now)
+        }
     }
 
     override fun observeMileage(): Flow<List<Mileage>> =
@@ -158,14 +166,19 @@ internal class SqlDelightExpenseRepository(
                 version = mileage.audit.version.toLong(),
                 id = mileage.id.value,
             )
+
+            db.enqueueForSync(studioId, SyncTables.MILEAGE, mileage.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteMileage(mileageId: MileageId) {
-        database().expenseQueries.softDeleteMileage(
-            deletedAt = clock.now().toEpochMillis(),
-            id = mileageId.value,
-        )
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.expenseQueries.softDeleteMileage(deletedAt = now, id = mileageId.value)
+            db.enqueueForSync(studioId, SyncTables.MILEAGE, mileageId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<ExpenseRow>>.mapRows(): Flow<List<Expense>> = map { rows -> rows.map { it.toDomain() } }

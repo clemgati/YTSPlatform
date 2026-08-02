@@ -149,3 +149,14 @@ softDeleteMileage:
 UPDATE mileage
 SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectByIdForSync:
+SELECT *
+FROM expense
+WHERE id = :id;
+
+selectMileageByIdForSync:
+SELECT *
+FROM mileage
+WHERE id = :id;

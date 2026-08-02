@@ -113,11 +113,19 @@ internal class SqlDelightLeadRepository(
                 version = lead.audit.version.toLong(),
                 id = lead.id.value,
             )
+
+            db.enqueueForSync(studioId, SyncTables.LEAD, lead.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteLead(leadId: LeadId) {
-        database().leadQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = leadId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.leadQueries.softDelete(deletedAt = now, id = leadId.value)
+            db.enqueueForSync(studioId, SyncTables.LEAD, leadId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<LeadRow>>.mapRows(): Flow<List<Lead>> = map { rows -> rows.map { it.toDomain() } }

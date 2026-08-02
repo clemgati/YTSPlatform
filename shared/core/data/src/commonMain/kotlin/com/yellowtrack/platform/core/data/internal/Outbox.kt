@@ -61,4 +61,13 @@ internal object SyncTables {
     const val PACKING_ENTRY = "packing_entry"
     const val STORAGE_VOLUME = "storage_volume"
     const val MEDIA_COPY = "media_copy"
+    const val LEAD = "lead"
+    const val EXPENSE = "expense"
+    const val MILEAGE = "mileage"
+    const val QUOTE = "quote"
+    const val CONTRACT = "contract"
+    const val SHOT = "shot"
+    const val POST_TASK = "post_task"
+    const val TALENT_RELEASE = "talent_release"
+    const val LIGHTING_RECIPE = "lighting_recipe"
 }

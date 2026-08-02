@@ -65,3 +65,9 @@ softDelete:
 UPDATE post_task
 SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectByIdForSync:
+SELECT *
+FROM post_task
+WHERE id = :id;

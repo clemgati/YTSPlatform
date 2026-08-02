@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.MediaCopyRepository
 import com.yellowtrack.platform.core.database.DatabaseProvider
@@ -80,11 +81,28 @@ internal class SqlDelightMediaCopyRepository(
                 version = copy.audit.version.toLong(),
                 id = copy.id.value,
             )
+
+            db.enqueueForSync(copy.studioId.value, SyncTables.MEDIA_COPY, copy.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteCopy(copyId: MediaCopyId) {
-        database().mediaCopyQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = copyId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.mediaCopyQueries
+                .selectByIdForSync(copyId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.mediaCopyQueries.softDelete(deletedAt = now, id = copyId.value)
+
+            db.enqueueForSync(studio, SyncTables.MEDIA_COPY, copyId.value, OutboxOperation.Delete, now)
+        }
     }
 
     private fun Flow<List<MediaCopyRow>>.mapRows(): Flow<List<MediaCopy>> = map { rows -> rows.map { it.toDomain() } }

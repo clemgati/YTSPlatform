@@ -194,6 +194,69 @@ class SyncEngine(
                             .awaitAsOneOrNull()
                             ?.toDomain()
                     },
+                leads =
+                    wanted.forTable(SyncTables.LEAD).mapNotNull {
+                        database.leadQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                expenses =
+                    wanted.forTable(SyncTables.EXPENSE).mapNotNull {
+                        database.expenseQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                mileages =
+                    wanted.forTable(SyncTables.MILEAGE).mapNotNull {
+                        database.expenseQueries
+                            .selectMileageByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                quotes =
+                    wanted.forTable(SyncTables.QUOTE).mapNotNull {
+                        database.quoteQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                contracts =
+                    wanted.forTable(SyncTables.CONTRACT).mapNotNull {
+                        database.contractQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                shots =
+                    wanted.forTable(SyncTables.SHOT).mapNotNull {
+                        database.shotQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                postTasks =
+                    wanted.forTable(SyncTables.POST_TASK).mapNotNull {
+                        database.postTaskQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                talentReleases =
+                    wanted.forTable(SyncTables.TALENT_RELEASE).mapNotNull {
+                        database.talentReleaseQueries
+                            .selectByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
+                lightingRecipes =
+                    wanted.forTable(SyncTables.LIGHTING_RECIPE).mapNotNull {
+                        database.gearQueries
+                            .selectRecipeByIdForSync(it)
+                            .awaitAsOneOrNull()
+                            ?.toDomain()
+                    },
             )
 
         // A queued row that no longer exists at all — never uploaded, then hard-deleted —
@@ -272,7 +335,11 @@ class SyncEngine(
                     page.invoices.size + page.payments.size +
                     page.crewMembers.size + page.deliverables.size +
                     page.gearItems.size + page.packingEntries.size +
-                    page.storageVolumes.size + page.mediaCopies.size + page.conflicts.size
+                    page.storageVolumes.size + page.mediaCopies.size +
+                    page.leads.size + page.expenses.size + page.mileages.size +
+                    page.quotes.size + page.contracts.size +
+                    page.shots.size + page.postTasks.size +
+                    page.talentReleases.size + page.lightingRecipes.size + page.conflicts.size
 
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
@@ -291,6 +358,15 @@ class SyncEngine(
                 page.storageVolumes.forEach { database.applyStorageVolume(it) }
                 page.packingEntries.forEach { database.applyPackingEntry(it) }
                 page.mediaCopies.forEach { database.applyMediaCopy(it) }
+                page.leads.forEach { database.applyLead(it) }
+                page.expenses.forEach { database.applyExpense(it) }
+                page.mileages.forEach { database.applyMileage(it) }
+                page.quotes.forEach { database.applyQuote(it) }
+                page.contracts.forEach { database.applyContract(it) }
+                page.shots.forEach { database.applyShot(it) }
+                page.postTasks.forEach { database.applyPostTask(it) }
+                page.talentReleases.forEach { database.applyTalentRelease(it) }
+                page.lightingRecipes.forEach { database.applyLightingRecipe(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -330,6 +406,15 @@ class SyncEngine(
             packingEntries.forEach { add(SyncTables.PACKING_ENTRY to it.id.value) }
             storageVolumes.forEach { add(SyncTables.STORAGE_VOLUME to it.id.value) }
             mediaCopies.forEach { add(SyncTables.MEDIA_COPY to it.id.value) }
+            leads.forEach { add(SyncTables.LEAD to it.id.value) }
+            expenses.forEach { add(SyncTables.EXPENSE to it.id.value) }
+            mileages.forEach { add(SyncTables.MILEAGE to it.id.value) }
+            quotes.forEach { add(SyncTables.QUOTE to it.id.value) }
+            contracts.forEach { add(SyncTables.CONTRACT to it.id.value) }
+            shots.forEach { add(SyncTables.SHOT to it.id.value) }
+            postTasks.forEach { add(SyncTables.POST_TASK to it.id.value) }
+            talentReleases.forEach { add(SyncTables.TALENT_RELEASE to it.id.value) }
+            lightingRecipes.forEach { add(SyncTables.LIGHTING_RECIPE to it.id.value) }
         }
 
     private companion object {

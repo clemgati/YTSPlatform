@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.StorageVolumeRepository
 import com.yellowtrack.platform.core.data.StudioContext
@@ -71,11 +72,34 @@ internal class SqlDelightStorageVolumeRepository(
                 version = volume.audit.version.toLong(),
                 id = volume.id.value,
             )
+
+            db.enqueueForSync(
+                volume.studioId.value,
+                SyncTables.STORAGE_VOLUME,
+                volume.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 
     override suspend fun deleteVolume(volumeId: StorageVolumeId) {
-        database().storageVolumeQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = volumeId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        // Taken from the row: this repository reaches its rows through a parent, so it holds
+        // no studio of its own.
+        val studio =
+            db.storageVolumeQueries
+                .selectByIdForSync(volumeId.value)
+                .awaitAsOneOrNull()
+                ?.studio_id ?: return
+
+        db.transaction {
+            db.storageVolumeQueries.softDelete(deletedAt = now, id = volumeId.value)
+
+            db.enqueueForSync(studio, SyncTables.STORAGE_VOLUME, volumeId.value, OutboxOperation.Delete, now)
+        }
     }
 
     override fun observeCopyCounts(): Flow<Map<StorageVolumeId, Int>> =

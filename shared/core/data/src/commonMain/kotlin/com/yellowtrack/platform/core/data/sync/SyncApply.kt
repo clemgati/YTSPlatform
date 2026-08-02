@@ -4,16 +4,25 @@ import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.delivery.Deliverable
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.Payment
+import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import kotlinx.serialization.json.Json
 
@@ -500,5 +509,364 @@ internal suspend fun YellowTrackDatabase.applyMediaCopy(copy: MediaCopy) {
         deletedAt = copy.audit.deletedAt?.toEpochMilliseconds(),
         version = copy.audit.version.toLong(),
         id = copy.id.value,
+    )
+}
+
+/** An enquiry. Its converted project and client, when it has them, are written before it. */
+internal suspend fun YellowTrackDatabase.applyLead(lead: Lead) {
+    leadQueries.insertOrIgnore(
+        id = lead.id.value,
+        studio_id = lead.studioId.value,
+        name = lead.name,
+        source = lead.source.name,
+        status = lead.status.name,
+        received_at = lead.receivedAt.toEpochMilliseconds(),
+        email = lead.email,
+        phone = lead.phone,
+        first_response_at = lead.firstResponseAt?.toEpochMilliseconds(),
+        service_line = lead.serviceLine?.name,
+        desired_date = lead.desiredDate?.toString(),
+        budget_low_minor = lead.budgetLow?.minorUnits,
+        budget_high_minor = lead.budgetHigh?.minorUnits,
+        budget_currency = (lead.budgetLow ?: lead.budgetHigh)?.currency?.code,
+        referred_by = lead.referredBy,
+        lost_reason = lead.lostReason,
+        converted_project_id = lead.convertedProjectId?.value,
+        converted_client_id = lead.convertedClientId?.value,
+        notes = lead.notes,
+        created_at = lead.audit.createdAt.toEpochMilliseconds(),
+        updated_at = lead.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = lead.audit.deletedAt?.toEpochMilliseconds(),
+        version = lead.audit.version.toLong(),
+    )
+
+    leadQueries.update(
+        name = lead.name,
+        source = lead.source.name,
+        status = lead.status.name,
+        receivedAt = lead.receivedAt.toEpochMilliseconds(),
+        email = lead.email,
+        phone = lead.phone,
+        firstResponseAt = lead.firstResponseAt?.toEpochMilliseconds(),
+        serviceLine = lead.serviceLine?.name,
+        desiredDate = lead.desiredDate?.toString(),
+        budgetLowMinor = lead.budgetLow?.minorUnits,
+        budgetHighMinor = lead.budgetHigh?.minorUnits,
+        budgetCurrency = (lead.budgetLow ?: lead.budgetHigh)?.currency?.code,
+        referredBy = lead.referredBy,
+        lostReason = lead.lostReason,
+        convertedProjectId = lead.convertedProjectId?.value,
+        convertedClientId = lead.convertedClientId?.value,
+        notes = lead.notes,
+        updatedAt = lead.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = lead.audit.deletedAt?.toEpochMilliseconds(),
+        version = lead.audit.version.toLong(),
+        id = lead.id.value,
+    )
+}
+
+/** Money out. */
+internal suspend fun YellowTrackDatabase.applyExpense(expense: Expense) {
+    expenseQueries.insertOrIgnore(
+        id = expense.id.value,
+        studio_id = expense.studioId.value,
+        category = expense.category.name,
+        description = expense.description,
+        amount_minor = expense.amount.minorUnits,
+        amount_currency = expense.amount.currency.code,
+        incurred_on = expense.incurredOn.toString(),
+        project_id = expense.projectId?.value,
+        vendor = expense.vendor,
+        is_tax_deductible = if (expense.isTaxDeductible) 1L else 0L,
+        receipt_reference = expense.receiptReference,
+        notes = expense.notes,
+        created_at = expense.audit.createdAt.toEpochMilliseconds(),
+        updated_at = expense.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = expense.audit.deletedAt?.toEpochMilliseconds(),
+        version = expense.audit.version.toLong(),
+    )
+
+    expenseQueries.update(
+        category = expense.category.name,
+        description = expense.description,
+        amountMinor = expense.amount.minorUnits,
+        amountCurrency = expense.amount.currency.code,
+        incurredOn = expense.incurredOn.toString(),
+        projectId = expense.projectId?.value,
+        vendor = expense.vendor,
+        isTaxDeductible = if (expense.isTaxDeductible) 1L else 0L,
+        receiptReference = expense.receiptReference,
+        notes = expense.notes,
+        updatedAt = expense.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = expense.audit.deletedAt?.toEpochMilliseconds(),
+        version = expense.audit.version.toLong(),
+        id = expense.id.value,
+    )
+}
+
+/** Miles driven. */
+internal suspend fun YellowTrackDatabase.applyMileage(mileage: Mileage) {
+    expenseQueries.insertOrIgnoreMileage(
+        id = mileage.id.value,
+        studio_id = mileage.studioId.value,
+        travelled_on = mileage.travelledOn.toString(),
+        distance = mileage.distance,
+        unit = mileage.unit.name,
+        rate_minor = mileage.ratePerUnit.minorUnits,
+        rate_currency = mileage.ratePerUnit.currency.code,
+        project_id = mileage.projectId?.value,
+        purpose = mileage.purpose,
+        from_location = mileage.fromLocation,
+        to_location = mileage.toLocation,
+        created_at = mileage.audit.createdAt.toEpochMilliseconds(),
+        updated_at = mileage.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = mileage.audit.deletedAt?.toEpochMilliseconds(),
+        version = mileage.audit.version.toLong(),
+    )
+
+    expenseQueries.updateMileage(
+        travelledOn = mileage.travelledOn.toString(),
+        distance = mileage.distance,
+        unit = mileage.unit.name,
+        rateMinor = mileage.ratePerUnit.minorUnits,
+        rateCurrency = mileage.ratePerUnit.currency.code,
+        projectId = mileage.projectId?.value,
+        purpose = mileage.purpose,
+        fromLocation = mileage.fromLocation,
+        toLocation = mileage.toLocation,
+        updatedAt = mileage.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = mileage.audit.deletedAt?.toEpochMilliseconds(),
+        version = mileage.audit.version.toLong(),
+        id = mileage.id.value,
+    )
+}
+
+/** A price offered. Its lines travel with it, in a JSON column, as an invoice's do. */
+internal suspend fun YellowTrackDatabase.applyQuote(quote: Quote) {
+    quoteQueries.insertOrIgnore(
+        id = quote.id.value,
+        studio_id = quote.studioId.value,
+        project_id = quote.projectId.value,
+        number = quote.number,
+        status = quote.status.name,
+        currency = quote.currency.code,
+        lines = syncJson.encodeToString(quote.lines),
+        issued_at = quote.issuedAt?.toEpochMilliseconds(),
+        valid_until = quote.validUntil?.toEpochMilliseconds(),
+        accepted_at = quote.acceptedAt?.toEpochMilliseconds(),
+        declined_at = quote.declinedAt?.toEpochMilliseconds(),
+        notes = quote.notes,
+        terms = quote.terms,
+        created_at = quote.audit.createdAt.toEpochMilliseconds(),
+        updated_at = quote.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = quote.audit.deletedAt?.toEpochMilliseconds(),
+        version = quote.audit.version.toLong(),
+    )
+
+    quoteQueries.update(
+        projectId = quote.projectId.value,
+        number = quote.number,
+        status = quote.status.name,
+        currency = quote.currency.code,
+        lines = syncJson.encodeToString(quote.lines),
+        issuedAt = quote.issuedAt?.toEpochMilliseconds(),
+        validUntil = quote.validUntil?.toEpochMilliseconds(),
+        acceptedAt = quote.acceptedAt?.toEpochMilliseconds(),
+        declinedAt = quote.declinedAt?.toEpochMilliseconds(),
+        notes = quote.notes,
+        terms = quote.terms,
+        updatedAt = quote.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = quote.audit.deletedAt?.toEpochMilliseconds(),
+        version = quote.audit.version.toLong(),
+        id = quote.id.value,
+    )
+}
+
+/** What was agreed. The usage licence is a document held in one column. */
+internal suspend fun YellowTrackDatabase.applyContract(contract: Contract) {
+    val licence = contract.usageLicense?.let { syncJson.encodeToString(it) }
+
+    contractQueries.insertOrIgnore(
+        id = contract.id.value,
+        studio_id = contract.studioId.value,
+        project_id = contract.projectId.value,
+        title = contract.title,
+        status = contract.status.name,
+        sent_at = contract.sentAt?.toEpochMilliseconds(),
+        signed_at = contract.signedAt?.toEpochMilliseconds(),
+        signer_name = contract.signerName,
+        signer_email = contract.signerEmail,
+        retainer_minor = contract.retainerAmount?.minorUnits,
+        retainer_currency = contract.retainerAmount?.currency?.code,
+        is_retainer_refundable = if (contract.isRetainerRefundable) 1L else 0L,
+        turnaround_days = contract.turnaroundDays?.toLong(),
+        revision_rounds = contract.revisionRounds?.toLong(),
+        cancellation_terms = contract.cancellationTerms,
+        reschedule_terms = contract.rescheduleTerms,
+        weather_clause = contract.weatherClause,
+        usage_license = licence,
+        document_reference = contract.documentReference,
+        notes = contract.notes,
+        created_at = contract.audit.createdAt.toEpochMilliseconds(),
+        updated_at = contract.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = contract.audit.deletedAt?.toEpochMilliseconds(),
+        version = contract.audit.version.toLong(),
+    )
+
+    contractQueries.update(
+        projectId = contract.projectId.value,
+        title = contract.title,
+        status = contract.status.name,
+        sentAt = contract.sentAt?.toEpochMilliseconds(),
+        signedAt = contract.signedAt?.toEpochMilliseconds(),
+        signerName = contract.signerName,
+        signerEmail = contract.signerEmail,
+        retainerMinor = contract.retainerAmount?.minorUnits,
+        retainerCurrency = contract.retainerAmount?.currency?.code,
+        isRetainerRefundable = if (contract.isRetainerRefundable) 1L else 0L,
+        turnaroundDays = contract.turnaroundDays?.toLong(),
+        revisionRounds = contract.revisionRounds?.toLong(),
+        cancellationTerms = contract.cancellationTerms,
+        rescheduleTerms = contract.rescheduleTerms,
+        weatherClause = contract.weatherClause,
+        usageLicense = licence,
+        documentReference = contract.documentReference,
+        notes = contract.notes,
+        updatedAt = contract.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = contract.audit.deletedAt?.toEpochMilliseconds(),
+        version = contract.audit.version.toLong(),
+        id = contract.id.value,
+    )
+}
+
+/** One frame on the list. Written after its session. */
+internal suspend fun YellowTrackDatabase.applyShot(shot: Shot) {
+    shotQueries.insertOrIgnore(
+        id = shot.id.value,
+        studio_id = shot.studioId.value,
+        session_id = shot.sessionId.value,
+        description = shot.description,
+        group_name = shot.group,
+        people = shot.people,
+        position = shot.position.toLong(),
+        is_captured = if (shot.isCaptured) 1L else 0L,
+        captured_at = shot.capturedAt?.toEpochMilliseconds(),
+        notes = shot.notes,
+        created_at = shot.audit.createdAt.toEpochMilliseconds(),
+        updated_at = shot.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = shot.audit.deletedAt?.toEpochMilliseconds(),
+        version = shot.audit.version.toLong(),
+    )
+
+    shotQueries.update(
+        sessionId = shot.sessionId.value,
+        description = shot.description,
+        groupName = shot.group,
+        people = shot.people,
+        position = shot.position.toLong(),
+        isCaptured = if (shot.isCaptured) 1L else 0L,
+        capturedAt = shot.capturedAt?.toEpochMilliseconds(),
+        notes = shot.notes,
+        updatedAt = shot.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = shot.audit.deletedAt?.toEpochMilliseconds(),
+        version = shot.audit.version.toLong(),
+        id = shot.id.value,
+    )
+}
+
+/** Work after the shoot. Written after its project. */
+internal suspend fun YellowTrackDatabase.applyPostTask(task: PostProductionTask) {
+    postTaskQueries.insertOrIgnore(
+        id = task.id.value,
+        studio_id = task.studioId.value,
+        project_id = task.projectId.value,
+        name = task.name,
+        kind = task.kind.name,
+        status = task.status.name,
+        estimated_hours = task.estimatedHours,
+        actual_hours = task.actualHours,
+        completed_at = task.completedAt?.toEpochMilliseconds(),
+        notes = task.notes,
+        created_at = task.audit.createdAt.toEpochMilliseconds(),
+        updated_at = task.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = task.audit.deletedAt?.toEpochMilliseconds(),
+        version = task.audit.version.toLong(),
+    )
+
+    postTaskQueries.update(
+        projectId = task.projectId.value,
+        name = task.name,
+        kind = task.kind.name,
+        status = task.status.name,
+        estimatedHours = task.estimatedHours,
+        actualHours = task.actualHours,
+        completedAt = task.completedAt?.toEpochMilliseconds(),
+        notes = task.notes,
+        updatedAt = task.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = task.audit.deletedAt?.toEpochMilliseconds(),
+        version = task.audit.version.toLong(),
+        id = task.id.value,
+    )
+}
+
+/** Permission from the person photographed. Written after its session. */
+internal suspend fun YellowTrackDatabase.applyTalentRelease(release: TalentRelease) {
+    talentReleaseQueries.insertOrIgnore(
+        id = release.id.value,
+        studio_id = release.studioId.value,
+        session_id = release.sessionId.value,
+        person_name = release.personName,
+        kind = release.kind.name,
+        status = release.status.name,
+        signed_at = release.signedAt?.toEpochMilliseconds(),
+        guardian_name = release.guardianName,
+        email = release.email,
+        document_reference = release.documentReference,
+        notes = release.notes,
+        created_at = release.audit.createdAt.toEpochMilliseconds(),
+        updated_at = release.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = release.audit.deletedAt?.toEpochMilliseconds(),
+        version = release.audit.version.toLong(),
+    )
+
+    talentReleaseQueries.update(
+        sessionId = release.sessionId.value,
+        personName = release.personName,
+        kind = release.kind.name,
+        status = release.status.name,
+        signedAt = release.signedAt?.toEpochMilliseconds(),
+        guardianName = release.guardianName,
+        email = release.email,
+        documentReference = release.documentReference,
+        notes = release.notes,
+        updatedAt = release.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = release.audit.deletedAt?.toEpochMilliseconds(),
+        version = release.audit.version.toLong(),
+        id = release.id.value,
+    )
+}
+
+/** A remembered set-up. Its lights are a document in one column. */
+internal suspend fun YellowTrackDatabase.applyLightingRecipe(recipe: LightingRecipe) {
+    gearQueries.insertRecipeOrIgnore(
+        id = recipe.id.value,
+        studio_id = recipe.studioId.value,
+        name = recipe.name,
+        lights = syncJson.encodeToString(recipe.lights),
+        notes = recipe.notes,
+        created_at = recipe.audit.createdAt.toEpochMilliseconds(),
+        updated_at = recipe.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = recipe.audit.deletedAt?.toEpochMilliseconds(),
+        version = recipe.audit.version.toLong(),
+    )
+
+    gearQueries.updateRecipe(
+        name = recipe.name,
+        lights = syncJson.encodeToString(recipe.lights),
+        notes = recipe.notes,
+        updatedAt = recipe.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = recipe.audit.deletedAt?.toEpochMilliseconds(),
+        version = recipe.audit.version.toLong(),
+        id = recipe.id.value,
     )
 }

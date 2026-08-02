@@ -105,10 +105,18 @@ internal class SqlDelightQuoteRepository(
                 version = quote.audit.version.toLong(),
                 id = quote.id.value,
             )
+
+            db.enqueueForSync(studioId, SyncTables.QUOTE, quote.id.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun deleteQuote(quoteId: QuoteId) {
-        database().quoteQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = quoteId.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.quoteQueries.softDelete(deletedAt = now, id = quoteId.value)
+            db.enqueueForSync(studioId, SyncTables.QUOTE, quoteId.value, OutboxOperation.Delete, now)
+        }
     }
 }

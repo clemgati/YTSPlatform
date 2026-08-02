@@ -16,16 +16,25 @@ import com.yellowtrack.platform.core.data.internal.SyncTables
 import com.yellowtrack.platform.core.data.internal.enqueueForSync
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.data.sync.applyClient
+import com.yellowtrack.platform.core.data.sync.applyContract
 import com.yellowtrack.platform.core.data.sync.applyCrewMember
 import com.yellowtrack.platform.core.data.sync.applyDeliverable
+import com.yellowtrack.platform.core.data.sync.applyExpense
 import com.yellowtrack.platform.core.data.sync.applyGearItem
 import com.yellowtrack.platform.core.data.sync.applyInvoice
+import com.yellowtrack.platform.core.data.sync.applyLead
+import com.yellowtrack.platform.core.data.sync.applyLightingRecipe
 import com.yellowtrack.platform.core.data.sync.applyMediaCopy
+import com.yellowtrack.platform.core.data.sync.applyMileage
 import com.yellowtrack.platform.core.data.sync.applyPackingEntry
 import com.yellowtrack.platform.core.data.sync.applyPayment
+import com.yellowtrack.platform.core.data.sync.applyPostTask
 import com.yellowtrack.platform.core.data.sync.applyProject
+import com.yellowtrack.platform.core.data.sync.applyQuote
 import com.yellowtrack.platform.core.data.sync.applySession
+import com.yellowtrack.platform.core.data.sync.applyShot
 import com.yellowtrack.platform.core.data.sync.applyStorageVolume
+import com.yellowtrack.platform.core.data.sync.applyTalentRelease
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContact
@@ -36,13 +45,24 @@ import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
 import com.yellowtrack.platform.core.model.crew.CrewMember
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.crew.CrewRole
 import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.ExpenseCategory
+import com.yellowtrack.platform.core.model.expense.ExpenseId
+import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
+import com.yellowtrack.platform.core.model.gear.LightingRecipeId
 import com.yellowtrack.platform.core.model.gear.PackingEntry
 import com.yellowtrack.platform.core.model.gear.PackingEntryId
 import com.yellowtrack.platform.core.model.invoice.Invoice
@@ -52,19 +72,32 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
+import com.yellowtrack.platform.core.model.lead.Lead
+import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.lead.LeadSource
+import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.MediaCopy
 import com.yellowtrack.platform.core.model.media.MediaCopyId
 import com.yellowtrack.platform.core.model.media.StorageKind
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.post.PostProductionTask
+import com.yellowtrack.platform.core.model.post.PostProductionTaskId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
+import com.yellowtrack.platform.core.model.quote.QuoteStatus
+import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
+import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
@@ -73,6 +106,7 @@ import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import com.yellowtrack.platform.core.model.sync.SyncPushResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -789,6 +823,15 @@ class SyncEngineTest {
             db.applyPackingEntry(packingEntry("pk1", "s1", "g1"))
             db.applyStorageVolume(storageVolume("v1"))
             db.applyMediaCopy(mediaCopy("m1", "s1", "v1"))
+            db.applyLead(lead("l1"))
+            db.applyExpense(expense("e1"))
+            db.applyMileage(mileage("mi1"))
+            db.applyQuote(quote("q1", "p1"))
+            db.applyContract(contract("co1", "p1"))
+            db.applyShot(shot("sh1", "s1"))
+            db.applyPostTask(postTask("pt1", "p1"))
+            db.applyTalentRelease(talentRelease("tr1", "s1"))
+            db.applyLightingRecipe(lightingRecipe("lr1"))
 
             val queued =
                 listOf(
@@ -803,6 +846,15 @@ class SyncEngineTest {
                     SyncTables.PACKING_ENTRY to "pk1",
                     SyncTables.STORAGE_VOLUME to "v1",
                     SyncTables.MEDIA_COPY to "m1",
+                    SyncTables.LEAD to "l1",
+                    SyncTables.EXPENSE to "e1",
+                    SyncTables.MILEAGE to "mi1",
+                    SyncTables.QUOTE to "q1",
+                    SyncTables.CONTRACT to "co1",
+                    SyncTables.SHOT to "sh1",
+                    SyncTables.POST_TASK to "pt1",
+                    SyncTables.TALENT_RELEASE to "tr1",
+                    SyncTables.LIGHTING_RECIPE to "lr1",
                 )
 
             queued.forEach { (table, id) ->
@@ -825,6 +877,15 @@ class SyncEngineTest {
                     if (sent.packingEntries.isEmpty()) add(SyncTables.PACKING_ENTRY)
                     if (sent.storageVolumes.isEmpty()) add(SyncTables.STORAGE_VOLUME)
                     if (sent.mediaCopies.isEmpty()) add(SyncTables.MEDIA_COPY)
+                    if (sent.leads.isEmpty()) add(SyncTables.LEAD)
+                    if (sent.expenses.isEmpty()) add(SyncTables.EXPENSE)
+                    if (sent.mileages.isEmpty()) add(SyncTables.MILEAGE)
+                    if (sent.quotes.isEmpty()) add(SyncTables.QUOTE)
+                    if (sent.contracts.isEmpty()) add(SyncTables.CONTRACT)
+                    if (sent.shots.isEmpty()) add(SyncTables.SHOT)
+                    if (sent.postTasks.isEmpty()) add(SyncTables.POST_TASK)
+                    if (sent.talentReleases.isEmpty()) add(SyncTables.TALENT_RELEASE)
+                    if (sent.lightingRecipes.isEmpty()) add(SyncTables.LIGHTING_RECIPE)
                 }
 
             assertEquals(
@@ -868,6 +929,105 @@ class SyncEngineTest {
         status = ProjectStatus.Booked,
         audit = AuditMetadata.createdAt(NOW),
     )
+
+    private fun shot(
+        id: String,
+        sessionId: String,
+    ) = Shot(
+        id = ShotId(id),
+        studioId = STUDIO,
+        sessionId = SessionId(sessionId),
+        description = "Rings on the windowsill",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun postTask(
+        id: String,
+        projectId: String,
+    ) = PostProductionTask(
+        id = PostProductionTaskId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        name = "Cull",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun talentRelease(
+        id: String,
+        sessionId: String,
+    ) = TalentRelease(
+        id = TalentReleaseId(id),
+        studioId = STUDIO,
+        sessionId = SessionId(sessionId),
+        personName = "Rosa Iyer",
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun lightingRecipe(id: String) =
+        LightingRecipe(
+            id = LightingRecipeId(id),
+            studioId = STUDIO,
+            name = "Two-light clamshell",
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun quote(
+        id: String,
+        projectId: String,
+    ) = Quote(
+        id = QuoteId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        number = "Q-2026-004",
+        status = QuoteStatus.Sent,
+        currency = CurrencyCode.GBP,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun contract(
+        id: String,
+        projectId: String,
+    ) = Contract(
+        id = ContractId(id),
+        studioId = STUDIO,
+        projectId = ProjectId(projectId),
+        title = "Wedding coverage agreement",
+        status = ContractStatus.Sent,
+        audit = AuditMetadata.createdAt(NOW),
+    )
+
+    private fun lead(id: String) =
+        Lead(
+            id = LeadId(id),
+            studioId = STUDIO,
+            name = "Ada Okafor",
+            source = LeadSource.ClientReferral,
+            status = LeadStatus.New,
+            receivedAt = NOW,
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun expense(id: String) =
+        Expense(
+            id = ExpenseId(id),
+            studioId = STUDIO,
+            category = ExpenseCategory.Other,
+            description = "Parking at the venue",
+            amount = Money(minorUnits = 1_200, currency = CurrencyCode.GBP),
+            incurredOn = LocalDate.parse("2026-08-01"),
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    private fun mileage(id: String) =
+        Mileage(
+            id = MileageId(id),
+            studioId = STUDIO,
+            travelledOn = LocalDate.parse("2026-08-01"),
+            distance = 42.0,
+            unit = DistanceUnit.Miles,
+            ratePerUnit = Money(minorUnits = 45, currency = CurrencyCode.GBP),
+            audit = AuditMetadata.createdAt(NOW),
+        )
 
     private fun deliverable(
         id: String,
