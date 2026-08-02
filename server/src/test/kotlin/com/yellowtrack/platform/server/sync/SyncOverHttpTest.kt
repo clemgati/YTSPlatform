@@ -45,6 +45,31 @@ import kotlin.time.Instant
  * the two ends have drifted, it fails here rather than on somebody's phone.
  */
 class SyncOverHttpTest {
+    /**
+     * The server tells a device what it reconciles, over the wire.
+     *
+     * A device compares this against its own list to notice it is talking to a server older
+     * than itself — which otherwise passes unremarked, because unknown fields are discarded
+     * from a push and the answer is a success either way.
+     */
+    @Test
+    fun `a pull carries the tables this server reconciles`() =
+        withSignedInDevice { transport, _ ->
+            val pulled = transport.pull(since = 0, limit = 1)
+
+            assertEquals(
+                SyncedEntity.all.map { it.table }.toSet() - SyncedEntity.Conflicts.table,
+                pulled.reconciles.toSet(),
+                "a device compares this list against its own, so anything missing from it is a " +
+                    "kind of record that would silently go nowhere",
+            )
+            assertTrue(
+                SyncedEntity.Conflicts.table !in pulled.reconciles,
+                "conflicts travel downward only and are never pushed, so listing them would " +
+                    "invite a device to expect something it can never send",
+            )
+        }
+
     @Test
     fun `a client pushed over http comes back on the next pull`() =
         withSignedInDevice { transport, studioId ->

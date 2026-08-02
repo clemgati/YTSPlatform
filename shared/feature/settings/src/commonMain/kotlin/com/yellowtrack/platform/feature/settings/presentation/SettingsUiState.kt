@@ -73,6 +73,14 @@ internal data class SyncSummary(
     val isWorking: Boolean = false,
     val lastResult: String? = null,
     val isFailure: Boolean = false,
+    /**
+     * Kinds of record the server does not handle, when it is older than this application.
+     *
+     * Shown because the failure is otherwise perfectly silent: the server discards what it
+     * does not recognise and answers successfully, so everything here reads "Up to date"
+     * while a whole category of the studio's work stays on one device.
+     */
+    val notReconciled: Set<String> = emptySet(),
 )
 
 /**

@@ -75,6 +75,9 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                     SyncPullResponse(
                         cursor = changes.cursor,
                         hasMore = changes.hasMore,
+                        // What this server knows how to reconcile, so a newer device can say
+                        // so rather than pushing into a version that will drop it.
+                        reconciles = SyncedEntity.all.map { it.table } - SyncedEntity.Conflicts.table,
                         clients = changes.rows[SyncedEntity.Clients.table].orEmpty().filterIsInstance<Client>(),
                         contacts = changes.rows[SyncedEntity.Contacts.table].orEmpty().filterIsInstance<Contact>(),
                         clientContactLinks =

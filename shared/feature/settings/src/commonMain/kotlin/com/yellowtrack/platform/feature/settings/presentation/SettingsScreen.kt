@@ -89,6 +89,21 @@ internal fun SettingsScreen(
                     )
                 }
 
+                if (content.sync.notReconciled.isNotEmpty()) {
+                    // Deliberately specific about the number rather than "some": a studio
+                    // deciding whether to keep working on one device needs to know how much
+                    // is not travelling, and the server's own operator needs to know to
+                    // deploy. Naming every table would be noise on a phone.
+                    Text(
+                        text =
+                            "This server is older than the app and does not handle " +
+                                "${content.sync.notReconciled.size} kinds of record. Everything " +
+                                "else is syncing; those stay on this device until it is updated.",
+                        style = YTTheme.typography.bodyMedium,
+                        color = YTTheme.colors.error,
+                    )
+                }
+
                 YTButton(
                     text = if (content.sync.isWorking) "Syncing…" else "Sync now",
                     onClick = onSyncNow,
