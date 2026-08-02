@@ -26,8 +26,12 @@ import kotlin.test.assertTrue
  * were diagnosed slowly because a healthy server produced the last of those.
  */
 class HttpAuthApiFailureTest {
+    // Test names here carry no commas: this is commonTest, so it compiles for Kotlin/Native
+    // too, and that backend rejects a comma inside a backtick-quoted name. The rest of the
+    // repository's comma-laden names live in desktopTest, which is the JVM only.
+
     @Test
-    fun `a transport failure is unreachable, not a mystery`() =
+    fun `a transport failure is reported as unreachable rather than as a mystery`() =
         runTest {
             // Thrown as a Throwable rather than an Exception, which is how a browser
             // refusing a request on its own account can arrive. `catch (_: Exception)` let
@@ -48,7 +52,7 @@ class HttpAuthApiFailureTest {
         }
 
     @Test
-    fun `an answer this app cannot read says so, and points at the server's version`() =
+    fun `an answer this app cannot read points at the server version`() =
         runTest {
             val api =
                 api {
