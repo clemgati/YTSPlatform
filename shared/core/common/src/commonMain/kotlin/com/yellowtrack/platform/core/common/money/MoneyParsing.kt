@@ -83,3 +83,27 @@ fun Int.basisPointsAsPercentage(): String {
         else -> "$whole.${remainder.toString().padStart(2, '0')}"
     }
 }
+
+/**
+ * The amount as a form would hold it, so an edit reopens on what was recorded.
+ *
+ * The inverse of [parseMoney], and deliberately not [Money.display]: a display carries a
+ * currency symbol and grouping separators, and a form that opens showing "$1,240.00" makes
+ * the studio delete punctuation before it can change a digit.
+ *
+ * Integer arithmetic throughout, for the reason [parseMoney] gives — a round trip through
+ * `Double` is not the amount that was recorded.
+ */
+fun Money.editableAmount(fractionDigits: Int = 2): String {
+    var scale = 1L
+    repeat(fractionDigits) { scale *= 10 }
+
+    val sign = if (minorUnits < 0) "-" else ""
+    val magnitude = if (minorUnits < 0) -minorUnits else minorUnits
+    val whole = magnitude / scale
+    val fraction = magnitude % scale
+
+    if (fractionDigits == 0) return "$sign$whole"
+
+    return "$sign$whole.${fraction.toString().padStart(fractionDigits, '0')}"
+}

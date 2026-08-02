@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.ledger.presentation.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,11 +13,15 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 
 @Composable
 internal fun ExpenseSection(
     summary: ExpenseSummary,
     onAddExpense: () -> Unit,
+    /** Called for a cost the studio can correct; journeys pass nothing, having no form. */
+    onCorrectCost: (RecordedCost) -> Unit = {},
+    onAddMileage: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -60,14 +65,78 @@ internal fun ExpenseSection(
                 caption = "Claimable against the rate recorded per journey",
             )
 
-            TextButton(onClick = onAddExpense) {
+            if (summary.items.isNotEmpty()) {
                 Text(
-                    text = "Record a cost",
-                    style = YTTheme.typography.labelLarge,
-                    color = YTTheme.colors.primary,
+                    text = "What was spent",
+                    style = YTTheme.typography.titleSmall,
+                    color = YTTheme.colors.onSurface,
                 )
+
+                summary.items.forEach { cost ->
+                    RecordedCostRow(cost = cost, onCorrect = { onCorrectCost(cost) })
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.medium)) {
+                TextButton(onClick = onAddExpense) {
+                    Text(
+                        text = "Record a cost",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
+                TextButton(onClick = onAddMileage) {
+                    Text(
+                        text = "Record a journey",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.primary,
+                    )
+                }
             }
         }
+    }
+}
+
+/**
+ * One cost, as entered.
+ *
+ * These were only ever totalled before, which meant a studio could record something and
+ * never see it again — no way to check an amount, spot the invoice entered twice, or
+ * itemise the year. The allocation is shown on every row because it is the field that
+ * decides whether the money came out of one booking or off every job.
+ */
+@Composable
+private fun RecordedCostRow(
+    cost: RecordedCost,
+    onCorrect: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onCorrect),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = cost.description,
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurface,
+            )
+            Text(
+                text = "${cost.date} · ${cost.allocation}",
+                style = YTTheme.typography.labelMedium,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
+
+        Text(
+            text = cost.amount,
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurface,
+        )
     }
 }
 

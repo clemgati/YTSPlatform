@@ -176,6 +176,8 @@ class FakeExpenseRepository(
             rows.filter { it.isOverhead && it.incurredOn >= fromInclusive && it.incurredOn < toExclusive }
         }
 
+    override suspend fun getExpense(expenseId: ExpenseId): Expense? = expenses.value.firstOrNull { it.id == expenseId }
+
     override suspend fun saveExpense(expense: Expense) {
         expenses.value = expenses.value.filterNot { it.id == expense.id } + expense
     }
@@ -188,6 +190,8 @@ class FakeExpenseRepository(
 
     override fun observeMileageForProject(projectId: ProjectId): Flow<List<Mileage>> =
         mileage.map { rows -> rows.filter { it.projectId == projectId } }
+
+    override suspend fun getMileage(mileageId: MileageId): Mileage? = mileage.value.firstOrNull { it.id == mileageId }
 
     override suspend fun saveMileage(mileage: Mileage) {
         this.mileage.value = this.mileage.value.filterNot { it.id == mileage.id } + mileage

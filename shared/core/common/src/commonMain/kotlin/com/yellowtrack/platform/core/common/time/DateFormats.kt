@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.core.common.time
 
 import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
@@ -28,6 +29,14 @@ object DateFormats {
         with(instant.toLocalDateTime(zone)) {
             "${month.shortLabel} $day"
         }
+
+    /**
+     * "Jul 21" for a date that carries no time of day.
+     *
+     * A cost is incurred on a day, not at an instant, so it has no zone to be read in and
+     * none is asked for. Formatting it through an `Instant` would invent one.
+     */
+    fun shortDate(date: LocalDate): String = "${date.month.shortLabel} ${date.day}"
 
     /** "July 21, 2026" */
     fun fullDate(

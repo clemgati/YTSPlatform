@@ -119,6 +119,16 @@ interface ExpenseRepository {
         toExclusive: LocalDate,
     ): Flow<List<Expense>>
 
+    /**
+     * One cost, for correcting it.
+     *
+     * A correction has to keep the row it is correcting: its id, so it is the same cost
+     * everywhere, its `createdAt`, because when the money left is a fact about the cost
+     * rather than about when the mistake was spotted, and its `version`, which is what
+     * reconciliation compares.
+     */
+    suspend fun getExpense(expenseId: ExpenseId): Expense?
+
     suspend fun saveExpense(expense: Expense)
 
     suspend fun deleteExpense(expenseId: ExpenseId)
@@ -126,6 +136,9 @@ interface ExpenseRepository {
     fun observeMileage(): Flow<List<Mileage>>
 
     fun observeMileageForProject(projectId: ProjectId): Flow<List<Mileage>>
+
+    /** One journey, for correcting it — see the note on [ExpenseRepository.getExpense]. */
+    suspend fun getMileage(mileageId: MileageId): Mileage?
 
     suspend fun saveMileage(mileage: Mileage)
 

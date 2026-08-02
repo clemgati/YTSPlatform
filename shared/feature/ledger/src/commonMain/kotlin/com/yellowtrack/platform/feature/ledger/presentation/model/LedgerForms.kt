@@ -2,6 +2,7 @@ package com.yellowtrack.platform.feature.ledger.presentation.model
 
 import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.contract.LicenseMedium
+import com.yellowtrack.platform.core.model.expense.DistanceUnit
 import com.yellowtrack.platform.core.model.expense.ExpenseCategory
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
@@ -23,6 +24,24 @@ internal data class NewExpense(
     val projectId: ProjectId?,
     val vendor: String?,
     val isTaxDeductible: Boolean,
+)
+
+/**
+ * What the journey form collected.
+ *
+ * Distance and rate stay as text for the reason amounts do: what counts as readable is the
+ * ViewModel's rule, in one place, rather than something the form decides for itself.
+ */
+internal data class NewMileage(
+    val travelledOn: String,
+    val distance: String,
+    val unit: DistanceUnit,
+    val ratePerUnit: String,
+    /** Null means overhead, the same as it does for a cost. */
+    val projectId: ProjectId?,
+    val purpose: String?,
+    val fromLocation: String?,
+    val toLocation: String?,
 )
 
 internal data class NewPayment(

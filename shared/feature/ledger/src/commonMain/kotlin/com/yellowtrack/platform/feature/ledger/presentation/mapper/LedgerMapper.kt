@@ -2,6 +2,7 @@ package com.yellowtrack.platform.feature.ledger.presentation.mapper
 
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
+import com.yellowtrack.platform.core.common.money.editableAmount
 import com.yellowtrack.platform.core.common.money.formatted
 import com.yellowtrack.platform.core.common.money.sum
 import com.yellowtrack.platform.core.common.time.DateFormats
@@ -14,13 +15,18 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
 import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
+import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 import kotlinx.datetime.TimeZone
 import kotlin.time.Instant
 
@@ -225,8 +231,12 @@ internal fun buildExpenseSummary(
     mileage: List<Mileage>,
     year: Int,
     currency: CurrencyCode,
+    /** Booking labels, so a cost says which job it came out of rather than showing an id. */
+    projectNames: Map<ProjectId, String> = emptyMap(),
 ): ExpenseSummary {
     val inCurrency = expenses.filter { it.amount.currency == currency }
+
+    fun allocation(projectId: ProjectId?): String = projectId?.let { projectNames[it] ?: "A booking" } ?: "Overhead"
 
     return ExpenseSummary(
         year = year,
@@ -249,6 +259,67 @@ internal fun buildExpenseSummary(
                 .sum(currency)
                 .display(),
         recorded = expenses.size,
+        // Newest first: the reason to open this is almost always to check what was just
+        // entered, or to find the thing entered twice.
+        items =
+            (
+                inCurrency.map { expense ->
+                    expense.incurredOn to
+                        RecordedCost(
+                            id = expense.id.value,
+                            date = DateFormats.shortDate(expense.incurredOn),
+                            description = expense.description,
+                            amount = expense.amount.display(),
+                            allocation = allocation(expense.projectId),
+                            // Seeded from the cost as recorded, so opening it shows what was
+                            // entered rather than an empty form to type again.
+                            editable =
+                                CostEdit.OfExpense(
+                                    NewExpense(
+                                        description = expense.description,
+                                        amount = expense.amount.editableAmount(),
+                                        category = expense.category,
+                                        incurredOn = expense.incurredOn.toString(),
+                                        projectId = expense.projectId,
+                                        vendor = expense.vendor,
+                                        isTaxDeductible = expense.isTaxDeductible,
+                                    ),
+                                ),
+                        )
+                } +
+                    mileage.filter { it.ratePerUnit.currency == currency }.map { journey ->
+                        journey.travelledOn to
+                            RecordedCost(
+                                id = journey.id.value,
+                                date = DateFormats.shortDate(journey.travelledOn),
+                                // The purpose is what a studio wrote down; without one the
+                                // distance is the only honest description of the journey.
+                                description =
+                                    journey.purpose?.takeIf { it.isNotBlank() }
+                                        ?: "${journey.distance} ${journey.unit.name.lowercase()}",
+                                amount = journey.deductibleAmount.display(),
+                                allocation = allocation(journey.projectId),
+                                editable =
+                                    CostEdit.OfJourney(
+                                        NewMileage(
+                                            travelledOn = journey.travelledOn.toString(),
+                                            distance = journey.distance.toString(),
+                                            unit = journey.unit,
+                                            ratePerUnit = journey.ratePerUnit.editableAmount(),
+                                            projectId = journey.projectId,
+                                            purpose = journey.purpose,
+                                            fromLocation = journey.fromLocation,
+                                            toLocation = journey.toLocation,
+                                        ),
+                                    ),
+                            )
+                    }
+            )
+                // Sorted on the date itself, never on the rendering of it: "Jul 21" sorts
+                // before "Mar 3" alphabetically, which would put the year in the wrong order
+                // and look entirely plausible doing it.
+                .sortedByDescending { (date, _) -> date }
+                .map { (_, cost) -> cost },
     )
 }
 
