@@ -3,6 +3,8 @@ package com.yellowtrack.platform.core.data.internal
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContact
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
 import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.StudioId
@@ -10,6 +12,7 @@ import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contact.ContactId
 import kotlinx.serialization.json.Json
 import com.yellowtrack.platform.core.database.Client as ClientRow
+import com.yellowtrack.platform.core.database.Client_contact as ClientContactLinkRow
 import com.yellowtrack.platform.core.database.SelectContactsForStudio as ClientContactRow
 
 private val tagsJson = Json { ignoreUnknownKeys = true }
@@ -49,4 +52,18 @@ internal fun ClientContactRow.toDomain(): ClientContact =
                 audit = auditOf(created_at, updated_at, deleted_at, version),
             ),
         role = enumOrDefault(role, ClientContactRole.Primary),
+    )
+
+/**
+ * The link row as it travels — see `ClientContactLink`, and ADR 0008 decision 5 for why it
+ * travels at all rather than inside its client.
+ */
+internal fun ClientContactLinkRow.toDomain(): ClientContactLink =
+    ClientContactLink(
+        id = ClientContactLinkId(id),
+        studioId = StudioId(studio_id),
+        clientId = ClientId(client_id),
+        contactId = ContactId(contact_id),
+        role = enumOrDefault(role, ClientContactRole.Primary),
+        audit = auditOf(created_at, updated_at, deleted_at, version),
     )

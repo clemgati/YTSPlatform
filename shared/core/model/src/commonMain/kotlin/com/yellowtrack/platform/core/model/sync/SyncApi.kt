@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.core.model.sync
 
 import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import kotlinx.serialization.Serializable
@@ -30,6 +32,14 @@ data class SyncPullResponse(
     /** Whether more remains beyond this page, so the device knows to come again. */
     val hasMore: Boolean,
     val clients: List<Client> = emptyList(),
+    /**
+     * People, and their attachments to accounts — ADR 0008 decision 5.
+     *
+     * A `Client` arrives with no contacts. These are what carry them, as rows with their
+     * own ids, so two devices that each added a contact keep both.
+     */
+    val contacts: List<Contact> = emptyList(),
+    val clientContactLinks: List<ClientContactLink> = emptyList(),
     val projects: List<Project> = emptyList(),
     val sessions: List<Session> = emptyList(),
     /**
@@ -45,10 +55,18 @@ data class SyncPullResponse(
 @Serializable
 data class SyncPushRequest(
     val clients: List<Client> = emptyList(),
+    val contacts: List<Contact> = emptyList(),
+    val clientContactLinks: List<ClientContactLink> = emptyList(),
     val projects: List<Project> = emptyList(),
     val sessions: List<Session> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = clients.isEmpty() && projects.isEmpty() && sessions.isEmpty()
+    val isEmpty: Boolean
+        get() =
+            clients.isEmpty() &&
+                contacts.isEmpty() &&
+                clientContactLinks.isEmpty() &&
+                projects.isEmpty() &&
+                sessions.isEmpty()
 }
 
 /** What became of one pushed row. */

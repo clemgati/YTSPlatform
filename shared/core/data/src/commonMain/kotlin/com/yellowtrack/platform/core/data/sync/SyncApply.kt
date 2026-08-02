@@ -2,6 +2,8 @@ package com.yellowtrack.platform.core.data.sync
 
 import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.sync.SyncConflict
@@ -44,6 +46,66 @@ internal suspend fun YellowTrackDatabase.applyClient(client: Client) {
         deletedAt = client.audit.deletedAt?.toEpochMilliseconds(),
         version = client.audit.version.toLong(),
         id = client.id.value,
+    )
+}
+
+internal suspend fun YellowTrackDatabase.applyContact(contact: Contact) {
+    contactQueries.insertOrIgnore(
+        id = contact.id.value,
+        studio_id = contact.studioId.value,
+        first_name = contact.firstName,
+        last_name = contact.lastName,
+        company = contact.company,
+        job_title = contact.jobTitle,
+        emails = syncJson.encodeToString(contact.emails),
+        phones = syncJson.encodeToString(contact.phones),
+        notes = contact.notes,
+        created_at = contact.audit.createdAt.toEpochMilliseconds(),
+        updated_at = contact.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = contact.audit.deletedAt?.toEpochMilliseconds(),
+        version = contact.audit.version.toLong(),
+    )
+
+    contactQueries.update(
+        firstName = contact.firstName,
+        lastName = contact.lastName,
+        company = contact.company,
+        jobTitle = contact.jobTitle,
+        emails = syncJson.encodeToString(contact.emails),
+        phones = syncJson.encodeToString(contact.phones),
+        notes = contact.notes,
+        updatedAt = contact.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = contact.audit.deletedAt?.toEpochMilliseconds(),
+        version = contact.audit.version.toLong(),
+        id = contact.id.value,
+    )
+}
+
+/**
+ * The attachment of a person to an account.
+ *
+ * Written after its client and its contact — see the apply order in `SyncEngine`. The row
+ * carries a foreign key to both, and a studio's first sync is exactly when all three are new.
+ */
+internal suspend fun YellowTrackDatabase.applyClientContactLink(link: ClientContactLink) {
+    clientQueries.insertOrIgnoreClientContact(
+        id = link.id.value,
+        studio_id = link.studioId.value,
+        client_id = link.clientId.value,
+        contact_id = link.contactId.value,
+        role = link.role.name,
+        created_at = link.audit.createdAt.toEpochMilliseconds(),
+        updated_at = link.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = link.audit.deletedAt?.toEpochMilliseconds(),
+        version = link.audit.version.toLong(),
+    )
+
+    clientQueries.updateClientContact(
+        role = link.role.name,
+        updatedAt = link.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = link.audit.deletedAt?.toEpochMilliseconds(),
+        version = link.audit.version.toLong(),
+        id = link.id.value,
     )
 }
 

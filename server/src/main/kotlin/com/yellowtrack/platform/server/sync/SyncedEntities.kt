@@ -5,9 +5,15 @@ import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.common.solar.GeoCoordinates
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
+import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.client.ClientContactLinkId
+import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
+import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.contact.ContactMethod
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -146,9 +152,150 @@ sealed interface SyncedEntity<T> {
             if (entity.contacts.isEmpty()) {
                 null
             } else {
-                "contacts do not travel inside a client. They are their own rows and reconcile by " +
-                    "union on their own ids, and are not yet in the synchronised slice"
+                "contacts do not travel inside a client. They are their own rows, synchronised " +
+                    "as contact and client_contact, and reconcile by union on their own ids"
             }
+    }
+
+    /**
+     * A person. Their own row, and their own sync unit.
+     *
+     * Contacts are shared between client accounts — a planner works with several studios'
+     * couples — which is the second reason they cannot travel inside a `Client`: there is no
+     * single parent to travel inside.
+     */
+    object Contacts : SyncedEntity<Contact> {
+        override val table = "contact"
+
+        override fun identify(entity: Contact) = entity.id.value
+
+        override fun studioOf(entity: Contact) = entity.studioId.value
+
+        override fun versionOf(entity: Contact) = entity.audit.version
+
+        override fun deletedAtOf(entity: Contact) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): Contact =
+            Contact(
+                id = ContactId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                firstName = rows.getString("first_name"),
+                lastName = rows.getString("last_name"),
+                company = rows.getString("company"),
+                jobTitle = rows.getString("job_title"),
+                emails = decodeContactMethods(rows.getString("emails")),
+                phones = decodeContactMethods(rows.getString("phones")),
+                notes = rows.getString("notes"),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: Contact) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: Contact,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO contact(id, studio_id, first_name, last_name, company, job_title,
+                                        emails, phones, notes,
+                                        created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        first_name = EXCLUDED.first_name,
+                        last_name  = EXCLUDED.last_name,
+                        company    = EXCLUDED.company,
+                        job_title  = EXCLUDED.job_title,
+                        emails     = EXCLUDED.emails,
+                        phones     = EXCLUDED.phones,
+                        notes      = EXCLUDED.notes,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.firstName)
+                    statement.setString(4, entity.lastName)
+                    statement.setString(5, entity.company)
+                    statement.setString(6, entity.jobTitle)
+                    statement.setString(7, payloadJson.encodeToString(entity.emails))
+                    statement.setString(8, payloadJson.encodeToString(entity.phones))
+                    statement.setString(9, entity.notes)
+                    statement.setLong(10, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(11, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(12, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(13, version)
+                    statement.executeUpdate()
+                }
+        }
+    }
+
+    /**
+     * That a person is attached to an account, in a role.
+     *
+     * This is decision 5 in practice. Two devices each adding a contact to one client write
+     * two of these, with different ids, and both survive — where a `Client` carrying its
+     * contacts would have had the later save discard the earlier one's work.
+     */
+    object ClientContactLinks : SyncedEntity<ClientContactLink> {
+        override val table = "client_contact"
+
+        override fun identify(entity: ClientContactLink) = entity.id.value
+
+        override fun studioOf(entity: ClientContactLink) = entity.studioId.value
+
+        override fun versionOf(entity: ClientContactLink) = entity.audit.version
+
+        override fun deletedAtOf(entity: ClientContactLink) = entity.audit.deletedAt?.toEpochMilliseconds()
+
+        override fun read(rows: ResultSet): ClientContactLink =
+            ClientContactLink(
+                id = ClientContactLinkId(rows.getString("id")),
+                studioId = StudioId(rows.getString("studio_id")),
+                clientId = ClientId(rows.getString("client_id")),
+                contactId = ContactId(rows.getString("contact_id")),
+                role = enumOrDefault(rows.getString("role"), ClientContactRole.Primary),
+                audit = rows.audit(),
+            )
+
+        override fun encode(entity: ClientContactLink) = payloadJson.encodeToString(entity)
+
+        override fun upsert(
+            connection: Connection,
+            entity: ClientContactLink,
+            version: Int,
+        ) {
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO client_contact(id, studio_id, client_id, contact_id, role,
+                                               created_at, updated_at, deleted_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        client_id  = EXCLUDED.client_id,
+                        contact_id = EXCLUDED.contact_id,
+                        role       = EXCLUDED.role,
+                        updated_at = EXCLUDED.updated_at,
+                        deleted_at = EXCLUDED.deleted_at,
+                        version    = EXCLUDED.version
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, entity.id.value)
+                    statement.setString(2, entity.studioId.value)
+                    statement.setString(3, entity.clientId.value)
+                    statement.setString(4, entity.contactId.value)
+                    statement.setString(5, entity.role.name)
+                    statement.setLong(6, entity.audit.createdAt.toEpochMilliseconds())
+                    statement.setLong(7, entity.audit.updatedAt.toEpochMilliseconds())
+                    statement.setNullableLong(8, entity.audit.deletedAt?.toEpochMilliseconds())
+                    statement.setInt(9, version)
+                    statement.executeUpdate()
+                }
+        }
     }
 
     object Projects : SyncedEntity<Project> {
@@ -377,10 +524,17 @@ sealed interface SyncedEntity<T> {
 
     companion object {
         /**
-         * In the order a device must apply them, so a child never lands before its parent.
-         * Conflicts last: they refer to rows, so the rows should exist first.
+         * Every synchronised entity, in the order a device must apply them: parents before
+         * children, conflicts last because they refer to rows that should exist first.
+         *
+         * `client_contact` references `client` and `contact`, so applying the link first
+         * fails a foreign key on a studio's very first sync. Ordered here rather than by
+         * `server_seq` because an edit bumps that — a client updated after its own link was
+         * created sorts *after* it — and the ordering that matters is structural, not
+         * chronological.
          */
-        val all: List<SyncedEntity<*>> = listOf(Clients, Projects, Sessions, Conflicts)
+        val all: List<SyncedEntity<*>> =
+            listOf(Clients, Contacts, ClientContactLinks, Projects, Sessions, Conflicts)
     }
 }
 
@@ -425,6 +579,12 @@ private fun moneyOf(
     minorUnits: Long?,
     currency: String?,
 ): Money? = if (minorUnits != null && currency != null) Money(minorUnits, CurrencyCode(currency)) else null
+
+/** Contact methods live in a JSON column, the same as on the device. */
+private fun decodeContactMethods(raw: String?): List<ContactMethod> =
+    raw
+        ?.let { runCatching { payloadJson.decodeFromString<List<ContactMethod>>(it) }.getOrNull() }
+        .orEmpty()
 
 private fun decodeTags(raw: String?): List<String> =
     raw?.let { runCatching { payloadJson.decodeFromString<List<String>>(it) }.getOrNull() } ?: emptyList()

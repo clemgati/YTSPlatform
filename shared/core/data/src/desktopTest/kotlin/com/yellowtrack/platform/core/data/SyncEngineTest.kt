@@ -443,6 +443,33 @@ class SyncEngineTest {
         }
     }
 
+    /**
+     * Deletes did not travel at all until this was written.
+     *
+     * The engine re-read each queued row through the repositories, every one of which filters
+     * `deleted_at IS NULL`. A deleted row came back null, was taken for one that had never
+     * existed, and its outbox entry was dropped. The probe that found it reported
+     * `pushes=0 clientsSent=0`: a client deleted on one device stayed on every other one
+     * indefinitely, and nothing anywhere said so.
+     */
+    @Test
+    fun `a deleted client is uploaded as a tombstone`() =
+        runTest {
+            val world = world()
+            world.clients.saveClient(client("probe-1", "Probe"))
+            world.engine.sync()
+            world.transport.pushed.clear()
+
+            world.clients.deleteClient(ClientId("probe-1"))
+            world.engine.sync()
+
+            val sent = world.transport.pushed.flatMap { it.clients }
+            assertTrue(
+                sent.any { it.id.value == "probe-1" && it.audit.deletedAt != null },
+                "a delete queued to the outbox never reached the server",
+            )
+        }
+
     private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.

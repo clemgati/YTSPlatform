@@ -70,3 +70,13 @@ softDelete:
 UPDATE project
 SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included.
+--
+-- Every other selectById filters deleted_at IS NULL, which is right for a screen and wrong
+-- here: a deleted row is precisely what has to be uploaded, and reading it back as absent
+-- is how a delete stops travelling.
+selectByIdForSync:
+SELECT *
+FROM project
+WHERE id = :id;

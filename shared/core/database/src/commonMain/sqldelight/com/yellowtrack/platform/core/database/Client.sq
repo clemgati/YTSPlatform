@@ -110,3 +110,42 @@ softDeleteContactsForClient:
 UPDATE client_contact
 SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
 WHERE client_id = :clientId AND deleted_at IS NULL;
+
+-- Links as rows in their own right (ADR 0008 decision 5). Everything below addresses a
+-- link by its id rather than by the client/contact/role triple, because that id is what
+-- crosses the wire and what a second device recognises the row by.
+
+selectClientContactLinkById:
+SELECT *
+FROM client_contact
+WHERE id = :id;
+
+-- Live links only: the diff in saveClient asks what is currently attached, and a tombstone
+-- is not attached.
+selectLiveClientContactLinks:
+SELECT *
+FROM client_contact
+WHERE client_id = :clientId AND deleted_at IS NULL;
+
+updateClientContact:
+UPDATE client_contact
+SET role = :role,
+    updated_at = :updatedAt,
+    deleted_at = :deletedAt,
+    version = :version
+WHERE id = :id;
+
+softDeleteClientContactById:
+UPDATE client_contact
+SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
+WHERE id = :id AND deleted_at IS NULL;
+
+-- Re-read for synchronisation, tombstones included.
+--
+-- Every other selectById filters deleted_at IS NULL, which is right for a screen and wrong
+-- here: a deleted row is precisely what has to be uploaded, and reading it back as absent
+-- is how a delete stops travelling.
+selectByIdForSync:
+SELECT *
+FROM client
+WHERE id = :id;
