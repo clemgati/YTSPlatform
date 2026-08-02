@@ -3,6 +3,7 @@ package com.yellowtrack.platform.core.data.sync
 import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.codb.CodbProfile
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.crew.CrewMember
@@ -21,8 +22,10 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import kotlinx.serialization.json.Json
 
@@ -868,5 +871,112 @@ internal suspend fun YellowTrackDatabase.applyLightingRecipe(recipe: LightingRec
         deletedAt = recipe.audit.deletedAt?.toEpochMilliseconds(),
         version = recipe.audit.version.toLong(),
         id = recipe.id.value,
+    )
+}
+
+/** Who the studio is, on paper. One row per studio, keyed by the studio. */
+internal suspend fun YellowTrackDatabase.applyStudioProfile(profile: StudioProfile) {
+    studioProfileQueries.insertOrIgnore(
+        id = profile.id.value,
+        studio_id = profile.studioId.value,
+        name = profile.name,
+        address = profile.address,
+        email = profile.email,
+        phone = profile.phone,
+        website = profile.website,
+        tax_number = profile.taxNumber,
+        payment_instructions = profile.paymentInstructions,
+        document_footer = profile.documentFooter,
+        created_at = profile.audit.createdAt.toEpochMilliseconds(),
+        updated_at = profile.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = profile.audit.deletedAt?.toEpochMilliseconds(),
+        version = profile.audit.version.toLong(),
+        currency = profile.currency.code,
+    )
+
+    studioProfileQueries.update(
+        name = profile.name,
+        currency = profile.currency.code,
+        address = profile.address,
+        email = profile.email,
+        phone = profile.phone,
+        website = profile.website,
+        taxNumber = profile.taxNumber,
+        paymentInstructions = profile.paymentInstructions,
+        documentFooter = profile.documentFooter,
+        updatedAt = profile.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = profile.audit.deletedAt?.toEpochMilliseconds(),
+        version = profile.audit.version.toLong(),
+        id = profile.id.value,
+    )
+}
+
+/** What a day has to earn. Keyed the same way, for the same reason. */
+internal suspend fun YellowTrackDatabase.applyCodbProfile(profile: CodbProfile) {
+    codbQueries.insertOrIgnore(
+        id = profile.id.value,
+        studio_id = profile.studioId.value,
+        currency = profile.currency.code,
+        target_annual_salary_minor = profile.targetAnnualSalary.minorUnits,
+        billable_days_per_year = profile.billableDaysPerYear.toLong(),
+        tax_rate_basis_points = profile.taxRateBasisPoints.toLong(),
+        annual_overhead_minor = profile.annualOverheadOverride?.minorUnits,
+        profit_margin_basis_points = profile.desiredProfitMarginBasisPoints.toLong(),
+        created_at = profile.audit.createdAt.toEpochMilliseconds(),
+        updated_at = profile.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = profile.audit.deletedAt?.toEpochMilliseconds(),
+        version = profile.audit.version.toLong(),
+    )
+
+    codbQueries.update(
+        currency = profile.currency.code,
+        targetAnnualSalaryMinor = profile.targetAnnualSalary.minorUnits,
+        billableDaysPerYear = profile.billableDaysPerYear.toLong(),
+        taxRateBasisPoints = profile.taxRateBasisPoints.toLong(),
+        annualOverheadMinor = profile.annualOverheadOverride?.minorUnits,
+        profitMarginBasisPoints = profile.desiredProfitMarginBasisPoints.toLong(),
+        updatedAt = profile.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = profile.audit.deletedAt?.toEpochMilliseconds(),
+        version = profile.audit.version.toLong(),
+        id = profile.id.value,
+    )
+}
+
+/** What the studio sells. Seeded ones are keyed by studio and name; see migration 16. */
+internal suspend fun YellowTrackDatabase.applyServiceTemplate(template: ServiceTemplate) {
+    serviceTemplateQueries.insertOrIgnore(
+        id = template.id.value,
+        studio_id = template.studioId.value,
+        name = template.name,
+        service_line = template.serviceLine.name,
+        default_session_duration_min = template.defaultSessionDurationMinutes.toLong(),
+        default_session_count = template.defaultSessionCount.toLong(),
+        base_price_minor = template.basePrice?.minorUnits,
+        base_price_currency = template.basePrice?.currency?.code,
+        default_deliverable_count = template.defaultDeliverableCount?.toLong(),
+        default_turnaround_days = template.defaultTurnaroundDays?.toLong(),
+        default_revision_rounds = template.defaultRevisionRounds?.toLong(),
+        notes = template.notes,
+        created_at = template.audit.createdAt.toEpochMilliseconds(),
+        updated_at = template.audit.updatedAt.toEpochMilliseconds(),
+        deleted_at = template.audit.deletedAt?.toEpochMilliseconds(),
+        version = template.audit.version.toLong(),
+    )
+
+    serviceTemplateQueries.update(
+        name = template.name,
+        serviceLine = template.serviceLine.name,
+        defaultSessionDurationMin = template.defaultSessionDurationMinutes.toLong(),
+        defaultSessionCount = template.defaultSessionCount.toLong(),
+        basePriceMinor = template.basePrice?.minorUnits,
+        basePriceCurrency = template.basePrice?.currency?.code,
+        defaultDeliverableCount = template.defaultDeliverableCount?.toLong(),
+        defaultTurnaroundDays = template.defaultTurnaroundDays?.toLong(),
+        defaultRevisionRounds = template.defaultRevisionRounds?.toLong(),
+        notes = template.notes,
+        updatedAt = template.audit.updatedAt.toEpochMilliseconds(),
+        deletedAt = template.audit.deletedAt?.toEpochMilliseconds(),
+        version = template.audit.version.toLong(),
+        id = template.id.value,
     )
 }

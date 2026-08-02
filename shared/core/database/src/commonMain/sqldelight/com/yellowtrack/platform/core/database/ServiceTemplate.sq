@@ -69,3 +69,9 @@ softDelete:
 UPDATE service_template
 SET deleted_at = :deletedAt, updated_at = :deletedAt, version = version + 1
 WHERE id = :id;
+
+-- Re-read for synchronisation, tombstones included. See the note on Client.sq.
+selectByIdForSync:
+SELECT *
+FROM service_template
+WHERE id = :id;

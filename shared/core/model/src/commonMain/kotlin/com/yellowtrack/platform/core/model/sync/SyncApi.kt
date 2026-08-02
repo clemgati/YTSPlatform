@@ -2,6 +2,7 @@ package com.yellowtrack.platform.core.model.sync
 
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.codb.CodbProfile
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.crew.CrewMember
@@ -20,8 +21,10 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.studio.StudioProfile
 import kotlinx.serialization.Serializable
 
 /**
@@ -89,6 +92,17 @@ data class SyncPullResponse(
     val talentReleases: List<TalentRelease> = emptyList(),
     val lightingRecipes: List<LightingRecipe> = emptyList(),
     /**
+     * The studio's own two rows.
+     *
+     * One of each per studio, keyed by the studio itself — see migration 15. That is what
+     * lets them cross at all: a generated id would give the server two rows where its unique
+     * index allows one.
+     */
+    val studioProfiles: List<StudioProfile> = emptyList(),
+    val codbProfiles: List<CodbProfile> = emptyList(),
+    /** What the studio sells. Keyed by studio and name where the application seeded it. */
+    val serviceTemplates: List<ServiceTemplate> = emptyList(),
+    /**
      * Work reconciliation discarded, travelling down only.
      *
      * There is no matching list on [SyncPushRequest]: the server is the only party that
@@ -122,6 +136,9 @@ data class SyncPushRequest(
     val postTasks: List<PostProductionTask> = emptyList(),
     val talentReleases: List<TalentRelease> = emptyList(),
     val lightingRecipes: List<LightingRecipe> = emptyList(),
+    val studioProfiles: List<StudioProfile> = emptyList(),
+    val codbProfiles: List<CodbProfile> = emptyList(),
+    val serviceTemplates: List<ServiceTemplate> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
@@ -146,7 +163,10 @@ data class SyncPushRequest(
                 shots.isEmpty() &&
                 postTasks.isEmpty() &&
                 talentReleases.isEmpty() &&
-                lightingRecipes.isEmpty()
+                lightingRecipes.isEmpty() &&
+                studioProfiles.isEmpty() &&
+                codbProfiles.isEmpty() &&
+                serviceTemplates.isEmpty()
 }
 
 /** What became of one pushed row. */

@@ -8,6 +8,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightPackingRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightPostProductionRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightShotRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
 import com.yellowtrack.platform.core.data.internal.SyncTables
 import com.yellowtrack.platform.core.data.sync.applyClient
@@ -42,6 +43,8 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
+import com.yellowtrack.platform.core.model.studio.StudioProfile
+import com.yellowtrack.platform.core.model.studio.StudioProfileId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -92,6 +95,8 @@ class OutboxCoverageTest {
                 .saveRelease(release())
             SqlDelightPostProductionRepository(provider, studio, clock, Dispatchers.Unconfined)
                 .saveTask(task())
+            SqlDelightStudioProfileRepository(provider, studio, clock, Dispatchers.Unconfined)
+                .saveProfile(studioProfile())
 
             val queued =
                 database.outboxQueries
@@ -110,6 +115,7 @@ class OutboxCoverageTest {
                     SyncTables.SHOT,
                     SyncTables.TALENT_RELEASE,
                     SyncTables.POST_TASK,
+                    SyncTables.STUDIO_PROFILE,
                 )
 
             assertEquals(
@@ -211,6 +217,15 @@ class OutboxCoverageTest {
             studioId = STUDIO,
             sessionId = SessionId(SESSION),
             personName = "Rosa Iyer",
+            audit = AuditMetadata.createdAt(NOW),
+        )
+
+    /** Keyed by the studio, which is what makes one row of it rather than two. */
+    private fun studioProfile() =
+        StudioProfile(
+            id = StudioProfileId(STUDIO.value),
+            studioId = STUDIO,
+            name = "Harbourline Photography",
             audit = AuditMetadata.createdAt(NOW),
         )
 

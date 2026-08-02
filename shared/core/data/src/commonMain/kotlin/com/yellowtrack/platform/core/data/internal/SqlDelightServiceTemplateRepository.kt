@@ -77,6 +77,14 @@ internal class SqlDelightServiceTemplateRepository(
                 version = template.audit.version.toLong(),
                 id = template.id.value,
             )
+
+            db.enqueueForSync(
+                template.studioId.value,
+                SyncTables.SERVICE_TEMPLATE,
+                template.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 

@@ -70,4 +70,7 @@ internal object SyncTables {
     const val POST_TASK = "post_task"
     const val TALENT_RELEASE = "talent_release"
     const val LIGHTING_RECIPE = "lighting_recipe"
+    const val STUDIO_PROFILE = "studio_profile"
+    const val CODB_PROFILE = "codb_profile"
+    const val SERVICE_TEMPLATE = "service_template"
 }

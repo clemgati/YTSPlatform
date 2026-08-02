@@ -10,6 +10,8 @@ import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.client.ClientContactLinkId
 import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.codb.CodbProfile
+import com.yellowtrack.platform.core.model.codb.CodbProfileId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.contact.Contact
@@ -76,6 +78,7 @@ import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -83,6 +86,8 @@ import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
+import com.yellowtrack.platform.core.model.studio.StudioProfile
+import com.yellowtrack.platform.core.model.studio.StudioProfileId
 import com.yellowtrack.platform.server.TestDatabase
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
@@ -622,6 +627,69 @@ class SyncFieldCoverageTest {
                             ),
                         ),
                     notes = "Drop the fill for men.",
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a StudioProfile crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.StudioProfiles,
+            fixture =
+                StudioProfile(
+                    id = StudioProfileId(STUDIO),
+                    studioId = StudioId(STUDIO),
+                    name = "Harbourline Photography",
+                    address = "12 Harbour Road\nFalmouth\nTR11 3AA",
+                    email = "hello@harbourline.test",
+                    phone = "07700 900000",
+                    website = "harbourline.test",
+                    taxNumber = "GB123456789",
+                    paymentInstructions = "Bank transfer within fourteen days.",
+                    documentFooter = "Registered in England.",
+                    currency = CurrencyCode.GBP,
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a CodbProfile crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.CodbProfiles,
+            fixture =
+                CodbProfile(
+                    id = CodbProfileId(STUDIO),
+                    studioId = StudioId(STUDIO),
+                    currency = CurrencyCode.GBP,
+                    targetAnnualSalary = Money(minorUnits = 4_000_000, currency = CurrencyCode.GBP),
+                    billableDaysPerYear = 120,
+                    taxRateBasisPoints = 2_000,
+                    annualOverheadOverride = Money(minorUnits = 1_800_000, currency = CurrencyCode.GBP),
+                    desiredProfitMarginBasisPoints = 1_500,
+                    audit = audit(),
+                ),
+        )
+    }
+
+    @Test
+    fun `every field of a ServiceTemplate crosses`() {
+        assertEveryFieldCrosses(
+            entity = SyncedEntity.ServiceTemplates,
+            fixture =
+                ServiceTemplate(
+                    id = ServiceTemplateId("$STUDIO:default:Wedding — Full Day"),
+                    studioId = StudioId(STUDIO),
+                    name = "Wedding — Full Day",
+                    serviceLine = ServiceLine.Wedding,
+                    defaultSessionDurationMinutes = 600,
+                    defaultSessionCount = 2,
+                    basePrice = Money(minorUnits = 240_000, currency = CurrencyCode.GBP),
+                    defaultDeliverableCount = 600,
+                    defaultTurnaroundDays = 42,
+                    defaultRevisionRounds = 2,
+                    notes = "Includes a second shooter.",
                     audit = audit(),
                 ),
         )

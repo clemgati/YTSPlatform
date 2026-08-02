@@ -3,6 +3,7 @@ package com.yellowtrack.platform.server.sync
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContactLink
+import com.yellowtrack.platform.core.model.codb.CodbProfile
 import com.yellowtrack.platform.core.model.contact.Contact
 import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.crew.CrewMember
@@ -21,8 +22,10 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.release.TalentRelease
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
 import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
@@ -113,6 +116,16 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                             changes.rows[SyncedEntity.LightingRecipes.table]
                                 .orEmpty()
                                 .filterIsInstance<LightingRecipe>(),
+                        studioProfiles =
+                            changes.rows[SyncedEntity.StudioProfiles.table]
+                                .orEmpty()
+                                .filterIsInstance<StudioProfile>(),
+                        codbProfiles =
+                            changes.rows[SyncedEntity.CodbProfiles.table].orEmpty().filterIsInstance<CodbProfile>(),
+                        serviceTemplates =
+                            changes.rows[SyncedEntity.ServiceTemplates.table]
+                                .orEmpty()
+                                .filterIsInstance<ServiceTemplate>(),
                         conflicts =
                             changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
@@ -162,6 +175,13 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         }
                         request.lightingRecipes.forEach {
                             add(reconciler.push(studioId, SyncedEntity.LightingRecipes, it))
+                        }
+                        request.studioProfiles.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.StudioProfiles, it))
+                        }
+                        request.codbProfiles.forEach { add(reconciler.push(studioId, SyncedEntity.CodbProfiles, it)) }
+                        request.serviceTemplates.forEach {
+                            add(reconciler.push(studioId, SyncedEntity.ServiceTemplates, it))
                         }
                         request.payments.forEach { add(reconciler.push(studioId, SyncedEntity.Payments, it)) }
                     }

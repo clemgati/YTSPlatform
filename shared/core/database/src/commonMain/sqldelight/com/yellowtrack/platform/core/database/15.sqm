@@ -1,0 +1,21 @@
+-- Version 15 to 16: give the per-studio singletons an identity every device agrees on.
+--
+-- `studio_profile` and `codb_profile` hold one row per studio — both carry a unique index
+-- saying so — and both took a generated id. That was harmless while neither synchronised
+-- and stops being harmless the moment they do: the device that signed up creates one row,
+-- the device that signs in creates another with a different id, and the second push
+-- violates the unique index on the server rather than merging with the first.
+--
+-- The studio *is* the key here, so the id becomes the studio's own. Both devices then write
+-- the same row and ordinary version-based reconciliation settles it, exactly as it does for
+-- every other entity.
+--
+-- No schema change: this rewrites ids in place. Safe because the unique index guarantees at
+-- most one row per studio, so the value being written cannot collide with another row.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+UPDATE studio_profile SET id = studio_id WHERE id != studio_id;
+
+UPDATE codb_profile SET id = studio_id WHERE id != studio_id;

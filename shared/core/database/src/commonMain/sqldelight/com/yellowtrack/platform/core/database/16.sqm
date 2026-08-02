@@ -1,0 +1,28 @@
+-- Version 16 to 17: give the seeded service templates an identity every device agrees on.
+--
+-- `seedDefaultsIfEmpty` runs once per device and generated an id for each of the four
+-- defaults, so two devices produced two full sets of the same templates. Harmless while
+-- service_template did not synchronise; the moment it does, a studio sees everything twice.
+--
+-- The id becomes the studio plus the template's name — the same value
+-- `defaultTemplateId` produces, which is why that function builds a readable string rather
+-- than a hash: this statement has to reproduce it in SQL.
+--
+-- Matched on name, so a template the studio has renamed keeps the id it already had. That
+-- is deliberate: it has stopped being one of ours and become one of theirs, and giving it
+-- a derived id would merge it with another device's untouched copy.
+--
+-- No schema change. Rows are rewritten in place.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+UPDATE service_template
+SET id = studio_id || ':default:' || name
+WHERE name IN (
+    'Wedding — Full Day',
+    'Brand Video — Single Day',
+    'Real Estate — Standard Listing',
+    'Headshots — Personal Branding'
+)
+  AND id != studio_id || ':default:' || name;

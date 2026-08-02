@@ -69,6 +69,14 @@ internal class SqlDelightStudioProfileRepository(
                 version = profile.audit.version.toLong(),
                 id = profile.id.value,
             )
+
+            db.enqueueForSync(
+                profile.studioId.value,
+                SyncTables.STUDIO_PROFILE,
+                profile.id.value,
+                OutboxOperation.Upsert,
+                now,
+            )
         }
     }
 }
