@@ -7,8 +7,11 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.ContractRepository
 import com.yellowtrack.platform.core.data.DeliverableRepository
+import com.yellowtrack.platform.core.data.ExpenseRepository
+import com.yellowtrack.platform.core.data.InvoiceRepository
 import com.yellowtrack.platform.core.data.PostProductionRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
+import com.yellowtrack.platform.core.data.QuoteRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
@@ -20,22 +23,29 @@ import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
+import com.yellowtrack.platform.core.model.expense.Expense
+import com.yellowtrack.platform.core.model.expense.Mileage
+import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.post.PostProductionTaskId
 import com.yellowtrack.platform.core.model.post.PostTaskStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
+import com.yellowtrack.platform.feature.clients.presentation.project.mapper.projectRemoval
 import com.yellowtrack.platform.feature.clients.presentation.project.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewDeliverable
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewPostTask
+import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -49,15 +59,19 @@ internal class ProjectDetailsViewModel(
     private val projectId: ProjectId,
     private val projectRepository: ProjectRepository,
     private val clientRepository: ClientRepository,
-    sessionRepository: SessionRepository,
+    private val sessionRepository: SessionRepository,
     private val postProductionRepository: PostProductionRepository,
     private val deliverableRepository: DeliverableRepository,
-    contractRepository: ContractRepository,
+    private val contractRepository: ContractRepository,
+    private val invoiceRepository: InvoiceRepository,
+    private val quoteRepository: QuoteRepository,
+    private val expenseRepository: ExpenseRepository,
     private val studioContext: StudioContext,
     private val studioProfileRepository: StudioProfileRepository,
     private val clock: AppClock,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
+    private val removed = MutableStateFlow(false)
 
     /**
      * Grouped so the join stays within `combine`'s typed arity, the same way the Ledger
@@ -75,6 +89,18 @@ internal class ProjectDetailsViewModel(
         val contracts: List<Contract>,
     )
 
+    /**
+     * What this booking has cost and billed. Loaded solely to answer whether the booking
+     * can be removed — nothing else on this page shows it, and the page would be wrong to
+     * offer removal without having looked.
+     */
+    private data class Money(
+        val invoices: List<Invoice>,
+        val quotes: List<Quote>,
+        val expenses: List<Expense>,
+        val mileage: List<Mileage>,
+    )
+
     val uiState: StateFlow<ProjectDetailsUiState> =
         combine(
             combine(
@@ -89,14 +115,32 @@ internal class ProjectDetailsViewModel(
                 contractRepository.observeContractsForProject(projectId),
                 ::Work,
             ),
+            combine(
+                invoiceRepository.observeInvoicesForProject(projectId),
+                quoteRepository.observeQuotesForProject(projectId),
+                expenseRepository.observeExpensesForProject(projectId),
+                expenseRepository.observeMileageForProject(projectId),
+                ::Money,
+            ),
             studioProfileRepository.observeCurrency(),
-            retryTrigger,
-        ) { booking, work, studioCurrency, _ ->
+            combine(retryTrigger, removed) { _, isRemoved -> isRemoved },
+        ) { booking, work, money, studioCurrency, isRemoved ->
             val project = booking.project
             val clients = booking.clients
             val sessions = booking.sessions
             if (project == null) {
-                ProjectDetailsUiState(project = UiState.Error("This booking could not be found."))
+                ProjectDetailsUiState(
+                    // Removed by this screen, rather than missing. Reporting a fault for a
+                    // record the studio just asked to be rid of would be the application
+                    // blaming itself for doing as it was told.
+                    project =
+                        if (isRemoved) {
+                            UiState.Loading
+                        } else {
+                            UiState.Error("This booking could not be found.")
+                        },
+                    removed = isRemoved,
+                )
             } else {
                 ProjectDetailsUiState(
                     project =
@@ -113,6 +157,17 @@ internal class ProjectDetailsViewModel(
                                         .maxByOrNull { it.signedAt ?: it.audit.createdAt }
                                         ?: work.contracts.lastOrNull(),
                                 now = clock.now(),
+                                removal =
+                                    projectRemoval(
+                                        invoices = money.invoices.size,
+                                        quotes = money.quotes.size,
+                                        contracts = work.contracts.size,
+                                        costs = money.expenses.size,
+                                        journeys = money.mileage.size,
+                                        shootDays = sessions.size,
+                                        deliverables = work.deliverables.size,
+                                        postProductionTasks = work.tasks.size,
+                                    ),
                             ),
                         ),
                     currency = studioCurrency,
@@ -129,6 +184,36 @@ internal class ProjectDetailsViewModel(
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
             initialValue = ProjectDetailsUiState(project = UiState.Loading),
         )
+
+    /**
+     * Removes the booking, provided nothing at all is attached to it.
+     *
+     * Every count is taken again here rather than read from the screen. The layout was
+     * drawn from a snapshot, and between drawing it and pressing the control another
+     * device may have invoiced this job — which is precisely what synchronising is for. A
+     * guard that lives only in the composition is a guard that holds until two people use
+     * the application at once.
+     */
+    fun deleteProject() {
+        viewModelScope.launch {
+            val held =
+                projectRemoval(
+                    invoices = invoiceRepository.observeInvoicesForProject(projectId).first().size,
+                    quotes = quoteRepository.observeQuotesForProject(projectId).first().size,
+                    contracts = contractRepository.observeContractsForProject(projectId).first().size,
+                    costs = expenseRepository.observeExpensesForProject(projectId).first().size,
+                    journeys = expenseRepository.observeMileageForProject(projectId).first().size,
+                    shootDays = sessionRepository.observeSessionsForProject(projectId).first().size,
+                    deliverables = deliverableRepository.observeDeliverablesForProject(projectId).first().size,
+                    postProductionTasks = postProductionRepository.observeTasksForProject(projectId).first().size,
+                )
+
+            if (held !is ProjectRemoval.Available) return@launch
+
+            projectRepository.deleteProject(projectId)
+            removed.value = true
+        }
+    }
 
     /**
      * Adds a piece of post-production work, with what it is expected to take.

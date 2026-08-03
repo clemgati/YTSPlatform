@@ -339,14 +339,32 @@ and used.
 - **Account deletion and data export.** The application holds other people's clients,
   addresses and payment histories, with no way to give that back or remove it
 
-- **Nothing the studio enters can be removed.** Of the forty-five write methods the
-  repositories declare, eleven are never called from any screen — and ten of those are
-  deletes. A client, booking, shoot day, lead, quote, contract, cost, journey or **payment**
-  can be created and never removed. Gear, lighting recipes, post-production tasks,
-  deliverables and invoices *can* be, which makes it inconsistent rather than simply
-  absent: a studio can delete a lighting recipe and not a client entered by mistake. The
-  data layer has every path, and synchronisation carries tombstones correctly; nothing calls
-  any of it
+- **Most of what the studio enters still cannot be removed.** Of the forty-five write
+  methods the repositories declare, eleven were never called from any screen — and ten of
+  those were deletes. A booking, shoot day, lead, quote, contract, cost or journey can still
+  be created and never removed. Gear, lighting recipes, post-production tasks, deliverables
+  and invoices *can* be, which makes it inconsistent rather than simply absent. The data
+  layer has every path, and synchronisation carries tombstones correctly; nothing calls most
+  of it
+  - ✓ **A payment** can be taken off the invoice it was put against — the case that hid
+    itself, since a misattributed payment settles its invoice and a settled invoice leaves
+    the money-owed list
+  - ✓ **A client** can be removed when nothing is booked against it. Bookings hold the
+    account in place and say so, because `Session.projectId` and `Invoice.projectId` cannot
+    be null: shoot days, invoices and payments hang off a booking, never off the client. So
+    an account with no bookings genuinely has nothing behind it, and a cascade here would be
+    the destruction of a year's accounts by one press rather than a correction
+  - ✓ **A booking** can be removed when nothing at all is attached, and what is attached is
+    named and counted — "2 invoices and 1 shoot day on it" rather than a bare refusal.
+    Nothing cascades: eight kinds of record point at a booking and six cannot exist without
+    one, so taking its invoices and payments along would delete the record of money that
+    actually changed hands
+  - **The chain is now the constraint.** Removing a client needs its bookings gone; removing
+    a booking needs its shoot days, quotes, contracts, costs and journeys gone — and none of
+    those five can be removed from any screen yet. Deliverables, post-production tasks and
+    draft invoices already can. So the day-one mistake works end to end and the day-two one
+    does not, and **shoot days are the next link**, because opening a booking and scheduling
+    one is a single sitting
 
 - **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
   called, so a studio cannot add its own package or change a default's price — while the

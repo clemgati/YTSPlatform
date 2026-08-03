@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
+import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
@@ -39,6 +40,7 @@ import com.yellowtrack.platform.feature.clients.presentation.project.model.NewDe
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewPostTask
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostTaskItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
+import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 
 @Composable
 internal fun ProjectDetailsScreen(
@@ -55,12 +57,14 @@ internal fun ProjectDetailsScreen(
     onSetDeliverableStatus: (DeliverableId, DeliverableStatus) -> Unit,
     onAddRevision: (DeliverableId) -> Unit,
     onRemoveDeliverable: (DeliverableId) -> Unit,
+    onRemoveProject: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var addingTask by remember { mutableStateOf(false) }
     var completing by remember { mutableStateOf<PostTaskItem?>(null) }
     var editing by remember { mutableStateOf(false) }
     var promising by remember { mutableStateOf(false) }
+    var confirmRemoval by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.project,
@@ -116,6 +120,22 @@ internal fun ProjectDetailsScreen(
                     editing = false
                 },
                 onDismiss = { editing = false },
+            )
+        }
+
+        if (confirmRemoval) {
+            YTFormDialog(
+                title = "Remove ${project.name}?",
+                confirmLabel = "Remove",
+                supportingText =
+                    "The booking goes from every device. Nothing is attached to it, so " +
+                        "nothing else is lost. This cannot be undone.",
+                onConfirm = {
+                    onRemoveProject()
+                    confirmRemoval = false
+                },
+                onDismiss = { confirmRemoval = false },
+                content = {},
             )
         }
 
@@ -227,6 +247,51 @@ internal fun ProjectDetailsScreen(
                     color = YTTheme.colors.primary,
                 )
             }
+
+            RemoveBookingAction(
+                removal = project.removal,
+                onRemove = { confirmRemoval = true },
+            )
+        }
+    }
+}
+
+/**
+ * Removal, and the reason it is refused when it is.
+ *
+ * The reason is the useful half. A booking is held by anything at all attached to it, and
+ * a studio told only "no" has to guess whether it is the invoice, the shoot day or the
+ * deliverable in the way — so it is named and counted. Some of those things cannot be
+ * removed from any screen yet either, which is worth saying plainly rather than hiding: it
+ * makes the chain visible instead of leaving the control looking broken.
+ */
+@Composable
+private fun RemoveBookingAction(
+    removal: ProjectRemoval,
+    onRemove: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
+        TextButton(
+            onClick = onRemove,
+            enabled = removal is ProjectRemoval.Available,
+        ) {
+            Text(
+                text = "Remove this booking",
+                style = YTTheme.typography.labelLarge,
+                color =
+                    when (removal) {
+                        is ProjectRemoval.Available -> YTTheme.colors.error
+                        else -> YTTheme.colors.onSurfaceVariant
+                    },
+            )
+        }
+
+        if (removal is ProjectRemoval.HeldBy) {
+            Text(
+                text = "This booking has ${removal.summary} on it. Remove them first.",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
         }
     }
 }

@@ -96,6 +96,8 @@ internal data class ProjectDetailsModel(
     val sessions: List<BookingSessionItem>,
     val postProduction: PostProductionSummary,
     val delivery: DeliverySummary,
+    /** Whether this booking can be removed, and what is holding it if not. */
+    val removal: ProjectRemoval,
     /** The booking as the form takes it, so editing opens showing what is already there. */
     val editable: NewProject,
 )

@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.clients
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,6 +27,13 @@ fun ClientDetailsRoute(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    // The account this screen is about no longer exists, so there is nothing here to stay
+    // for. Leaving is part of the removal rather than a courtesy: a details screen bound to
+    // a deleted identifier can only ever show an error about itself.
+    LaunchedEffect(uiState.removed) {
+        if (uiState.removed) onBack()
+    }
+
     ClientDetailsScreen(
         uiState = uiState,
         onRetry = viewModel::retry,
@@ -34,6 +42,7 @@ fun ClientDetailsRoute(
         onAddProject = viewModel::addProject,
         onOpenBooking = onBookingSelected,
         onUpdateClient = viewModel::updateClient,
+        onRemoveClient = viewModel::deleteClient,
         modifier = modifier,
     )
 }
