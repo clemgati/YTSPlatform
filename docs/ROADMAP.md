@@ -359,12 +359,18 @@ and used.
     Nothing cascades: eight kinds of record point at a booking and six cannot exist without
     one, so taking its invoices and payments along would delete the record of money that
     actually changed hands
-  - **The chain is now the constraint.** Removing a client needs its bookings gone; removing
-    a booking needs its shoot days, quotes, contracts, costs and journeys gone — and none of
-    those five can be removed from any screen yet. Deliverables, post-production tasks and
-    draft invoices already can. So the day-one mistake works end to end and the day-two one
-    does not, and **shoot days are the next link**, because opening a booking and scheduling
-    one is a single sitting
+  - ✓ **A shoot day** can be removed when nothing was recorded on it. The refusal matters
+    more here than anywhere else: a backup row is the only record of *where the client's
+    photographs are*, and a talent release is the written permission to use somebody's face.
+    Neither is recoverable from anywhere else in the application, so both are named first
+  - **The chain now closes for a booking with shoot days on it** — remove the day, then the
+    booking, then the client — because everything a shoot day holds (backups, releases,
+    crew, shots, packed gear) already had a way off the screen. Deliverables,
+    post-production tasks and draft invoices did too
+  - **Quotes, contracts, costs and journeys still have no way off.** A booking carrying any
+    of them is stuck, and so is the client above it. These are the last four links, and
+    unlike shoot days they are each a single row with nothing beneath them — the guard
+    pattern will not be needed
 
 - **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
   called, so a studio cannot add its own package or change a default's price — while the

@@ -7,7 +7,6 @@ import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.feature.clients.presentation.details.model.BookingSummary
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
-import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientSessionHistoryItem
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientUpcomingSession
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
@@ -51,14 +50,7 @@ internal fun DomainClient.toClientDetailsModel(
                 .sortedByDescending { it.enquiredAt ?: it.audit.createdAt }
                 .map { it.toBookingSummary() },
         notes = notes?.lines().orEmpty().filter(String::isNotBlank),
-        // Measured against the bookings themselves rather than the sessions above, which
-        // are filtered to the ones worth showing: a client whose only booking was
-        // cancelled still has a booking, and removing the account would orphan it.
-        removal =
-            when {
-                projects.isEmpty() -> ClientRemoval.Available
-                else -> ClientRemoval.HeldByBookings(projects.size)
-            },
+        removal = clientRemoval(bookings = projects.size),
         editable = toEditableForm(),
     )
 }

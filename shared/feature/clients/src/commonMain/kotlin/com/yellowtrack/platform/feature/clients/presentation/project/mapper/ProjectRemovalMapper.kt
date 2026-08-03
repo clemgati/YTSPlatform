@@ -1,17 +1,22 @@
 package com.yellowtrack.platform.feature.clients.presentation.project.mapper
 
-import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
+import com.yellowtrack.platform.core.ui.removal.Removal
+import com.yellowtrack.platform.core.ui.removal.heldBy
 
 /**
- * Works out what is holding a booking in place, counting every kind of thing that points
- * at one.
+ * Works out what is holding a booking in place.
  *
- * Counts rather than the records themselves, so this stays a pure function of eight
- * numbers and a test can put a booking in any state without building eight domain objects.
+ * A booking is what everything else hangs off. Eight kinds of record point at one, and six
+ * of them cannot exist without it — their `projectId` is not nullable. Removing a booking
+ * and taking its invoices and payments along would delete the record of money that actually
+ * changed hands, so nothing cascades and anything attached at all is enough to stop it.
  *
- * Money is listed first. When several kinds are attached the first one read is the one a
+ * Money is listed first. When several kinds are attached, the first one read is the one a
  * studio weighs the decision against, and an invoice is a heavier reason to stop than a
  * post-production task.
+ *
+ * The names are the studio's rather than the tables': a photographer has shoot days and
+ * costs, not sessions and expenses.
  */
 internal fun projectRemoval(
     invoices: Int,
@@ -22,22 +27,14 @@ internal fun projectRemoval(
     shootDays: Int,
     deliverables: Int,
     postProductionTasks: Int,
-): ProjectRemoval {
-    val holds =
-        listOf(
-            ProjectRemoval.Kind.Invoice to invoices,
-            ProjectRemoval.Kind.Quote to quotes,
-            ProjectRemoval.Kind.Contract to contracts,
-            ProjectRemoval.Kind.Cost to costs,
-            ProjectRemoval.Kind.Journey to journeys,
-            ProjectRemoval.Kind.ShootDay to shootDays,
-            ProjectRemoval.Kind.Deliverable to deliverables,
-            ProjectRemoval.Kind.PostProductionTask to postProductionTasks,
-        ).filter { (_, count) -> count > 0 }
-            .map { (kind, count) -> ProjectRemoval.Hold(kind = kind, count = count) }
-
-    return when {
-        holds.isEmpty() -> ProjectRemoval.Available
-        else -> ProjectRemoval.HeldBy(holds)
-    }
-}
+): Removal =
+    heldBy(
+        Removal.Hold("invoice", "invoices", invoices),
+        Removal.Hold("quote", "quotes", quotes),
+        Removal.Hold("contract", "contracts", contracts),
+        Removal.Hold("cost", "costs", costs),
+        Removal.Hold("journey", "journeys", journeys),
+        Removal.Hold("shoot day", "shoot days", shootDays),
+        Removal.Hold("deliverable", "deliverables", deliverables),
+        Removal.Hold("post-production task", "post-production tasks", postProductionTasks),
+    )

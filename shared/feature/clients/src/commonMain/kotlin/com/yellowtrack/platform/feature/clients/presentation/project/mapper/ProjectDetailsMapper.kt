@@ -9,12 +9,12 @@ import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.post.PostTaskKind
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.project.model.BookingSessionItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostProductionSummary
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostTaskItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
-import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 import kotlinx.datetime.TimeZone
 import kotlin.math.abs
 import kotlin.time.Instant
@@ -26,7 +26,7 @@ internal fun Project.toDetailsModel(
     deliverables: List<Deliverable>,
     contract: Contract?,
     now: Instant,
-    removal: ProjectRemoval,
+    removal: Removal,
 ): ProjectDetailsModel {
     val zone = TimeZone.currentSystemDefault()
 

@@ -6,6 +6,7 @@ import com.yellowtrack.platform.core.model.post.PostTaskStatus
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.session.SessionId
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 
 /** A shoot day on this booking. */
@@ -97,7 +98,7 @@ internal data class ProjectDetailsModel(
     val postProduction: PostProductionSummary,
     val delivery: DeliverySummary,
     /** Whether this booking can be removed, and what is holding it if not. */
-    val removal: ProjectRemoval,
+    val removal: Removal,
     /** The booking as the form takes it, so editing opens showing what is already there. */
     val editable: NewProject,
 )

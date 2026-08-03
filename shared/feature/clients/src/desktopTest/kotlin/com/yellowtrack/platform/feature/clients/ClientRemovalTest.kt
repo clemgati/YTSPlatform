@@ -12,10 +12,10 @@ import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.testing.TestData
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsUiState
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsViewModel
-import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -69,7 +69,7 @@ class ClientRemovalTest {
             val clients = FakeClientRepository(listOf(client))
             val viewModel = viewModel(clients = clients)
 
-            assertEquals(ClientRemoval.Available, model(viewModel.uiState.first()).removal)
+            assertEquals(Removal.Available, model(viewModel.uiState.first()).removal)
 
             viewModel.deleteClient()
 
@@ -89,10 +89,10 @@ class ClientRemovalTest {
 
             val removal = model(viewModel.uiState.first()).removal
 
-            assertIs<ClientRemoval.HeldByBookings>(removal, "bookings carry the money; they hold the account")
+            assertIs<Removal.HeldBy>(removal, "bookings carry the money; they hold the account")
             assertEquals(
-                2,
-                removal.count,
+                "2 bookings",
+                removal.summary,
                 "the count is what makes the message concrete enough to act on",
             )
         }
@@ -126,7 +126,7 @@ class ClientRemovalTest {
                     projects = FakeProjectRepository(listOf(project("p1", ProjectStatus.Cancelled))),
                 )
 
-            assertIs<ClientRemoval.HeldByBookings>(
+            assertIs<Removal.HeldBy>(
                 model(viewModel.uiState.first()).removal,
                 "a booking that fell through is still a record with costs and possibly a " +
                     "deposit against it; cancelled is not deleted",

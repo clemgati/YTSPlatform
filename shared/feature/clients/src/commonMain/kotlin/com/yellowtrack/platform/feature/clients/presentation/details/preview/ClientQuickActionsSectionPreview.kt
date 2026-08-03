@@ -7,8 +7,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientQuickActionsSection
-import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
 
 @Preview
 @Composable
@@ -21,7 +21,7 @@ private fun ClientQuickActionsSectionPreview() {
                 onAddProject = {},
                 onScheduleSession = {},
                 onEditClient = {},
-                removal = ClientRemoval.Available,
+                removal = Removal.Available,
                 onRemoveClient = {},
                 modifier =
                     Modifier.padding(

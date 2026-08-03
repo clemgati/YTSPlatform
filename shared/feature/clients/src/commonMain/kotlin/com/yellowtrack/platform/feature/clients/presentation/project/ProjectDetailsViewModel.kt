@@ -33,13 +33,13 @@ import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.session.Session
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.project.mapper.projectRemoval
 import com.yellowtrack.platform.feature.clients.presentation.project.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewDeliverable
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewPostTask
-import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -208,7 +208,7 @@ internal class ProjectDetailsViewModel(
                     postProductionTasks = postProductionRepository.observeTasksForProject(projectId).first().size,
                 )
 
-            if (held !is ProjectRemoval.Available) return@launch
+            if (held !is Removal.Available) return@launch
 
             projectRepository.deleteProject(projectId)
             removed.value = true

@@ -17,18 +17,17 @@ import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.testing.TestData
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.component.ClientFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsScreen
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientQuickActionsSection
-import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
 import com.yellowtrack.platform.feature.clients.presentation.details.preview.ClientDetailsPreviewData
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsScreen
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsUiState
 import com.yellowtrack.platform.feature.clients.presentation.project.ProjectDetailsScreen
 import com.yellowtrack.platform.feature.clients.presentation.project.ProjectDetailsUiState
 import com.yellowtrack.platform.feature.clients.presentation.project.mapper.toDetailsModel
-import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -119,7 +118,7 @@ class ClientsScreenRenderTest {
                 onAddProject = {},
                 onScheduleSession = {},
                 onEditClient = {},
-                removal = ClientRemoval.Available,
+                removal = Removal.Available,
                 onRemoveClient = {},
             )
         }
@@ -134,7 +133,7 @@ class ClientsScreenRenderTest {
     fun `renders the booking page for a booking that can be removed`() {
         render("booking-details-removable.png", height = 2_300) {
             ProjectDetailsScreen(
-                uiState = bookingState(ProjectRemoval.Available),
+                uiState = bookingState(Removal.Available),
                 onRetry = {},
                 onBack = {},
                 onSessionSelected = {},
@@ -158,10 +157,10 @@ class ClientsScreenRenderTest {
             ProjectDetailsScreen(
                 uiState =
                     bookingState(
-                        ProjectRemoval.HeldBy(
+                        Removal.HeldBy(
                             listOf(
-                                ProjectRemoval.Hold(ProjectRemoval.Kind.Invoice, 2),
-                                ProjectRemoval.Hold(ProjectRemoval.Kind.ShootDay, 1),
+                                Removal.Hold("invoice", "invoices", 2),
+                                Removal.Hold("shoot day", "shoot days", 1),
                             ),
                         ),
                     ),
@@ -182,7 +181,7 @@ class ClientsScreenRenderTest {
         }
     }
 
-    private fun bookingState(removal: ProjectRemoval): ProjectDetailsUiState {
+    private fun bookingState(removal: Removal): ProjectDetailsUiState {
         val now = Instant.fromEpochMilliseconds(1_781_000_000_000)
         val client = TestData.couple()
         val project =
@@ -223,7 +222,7 @@ class ClientsScreenRenderTest {
                 onAddProject = {},
                 onScheduleSession = {},
                 onEditClient = {},
-                removal = ClientRemoval.HeldByBookings(count = 3),
+                removal = Removal.HeldBy(listOf(Removal.Hold("booking", "bookings", 3))),
                 onRemoveClient = {},
             )
         }

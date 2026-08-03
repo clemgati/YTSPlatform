@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.sessions
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,12 @@ fun SessionDetailsRoute(
         koinViewModel(key = sessionId.value) { parametersOf(sessionId) }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // The day is gone, so this screen has nothing left to be about. Leaving is part of the
+    // removal rather than a courtesy.
+    LaunchedEffect(uiState.removed) {
+        if (uiState.removed) onBack()
+    }
 
     // The clipboard is a Compose concern and the scope is the composition's, so both stay
     // here rather than in the ViewModel. What the ViewModel owns is the document.
@@ -73,6 +80,7 @@ fun SessionDetailsRoute(
         },
         // The message is built where the outcome is known — whether the platform offered
         // a share sheet, and where the file landed regardless.
+        onRemoveSession = viewModel::deleteSession,
         onSaveCallSheet = { viewModel.exportCallSheet { message -> callSheetMessage = message } },
         callSheetMessage = callSheetMessage,
         modifier = modifier,

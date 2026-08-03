@@ -43,6 +43,7 @@ import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsScreen
 import com.yellowtrack.platform.feature.sessions.presentation.details.SessionDetailsUiState
+import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.sessionRemoval
 import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.toDetailsModel
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
@@ -155,7 +156,7 @@ class SessionDetailsRenderTest {
             )
 
         val scene =
-            ImageComposeScene(width = 1_280, height = 4_200, density = Density(2f)) {
+            ImageComposeScene(width = 1_280, height = 7_000, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -177,6 +178,14 @@ class SessionDetailsRenderTest {
                                                 packing,
                                                 emptyList(),
                                                 zone,
+                                                removal =
+                                                    sessionRemoval(
+                                                        backups = mediaCopies.size,
+                                                        releases = releases.size,
+                                                        crew = crew.size,
+                                                        shots = shots.size,
+                                                        packedItems = packing.size,
+                                                    ),
                                             ),
                                         ),
                                     today = LocalDate(2026, 7, 28),
@@ -203,6 +212,7 @@ class SessionDetailsRenderTest {
                             onRemovePacking = {},
                             onCopyCallSheet = {},
                             onSaveCallSheet = {},
+                            onRemoveSession = {},
                             callSheetMessage = null,
                         )
                     }
