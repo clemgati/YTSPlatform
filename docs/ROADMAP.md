@@ -339,6 +339,20 @@ and used.
 - **Account deletion and data export.** The application holds other people's clients,
   addresses and payment histories, with no way to give that back or remove it
 
+- **Nothing the studio enters can be removed.** Of the forty-five write methods the
+  repositories declare, eleven are never called from any screen — and ten of those are
+  deletes. A client, booking, shoot day, lead, quote, contract, cost, journey or **payment**
+  can be created and never removed. Gear, lighting recipes, post-production tasks,
+  deliverables and invoices *can* be, which makes it inconsistent rather than simply
+  absent: a studio can delete a lighting recipe and not a client entered by mistake. The
+  data layer has every path, and synchronisation carries tombstones correctly; nothing calls
+  any of it
+
+- **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
+  called, so a studio cannot add its own package or change a default's price — while the
+  pricing floor measures packages against the floor. The one screen where a studio's own
+  offering should live has no way to put it there
+
 **In the operation**
 
 - **Nothing watches the server.** No alert when the process dies, the disk fills, renewal

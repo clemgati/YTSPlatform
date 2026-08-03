@@ -2,11 +2,13 @@ package com.yellowtrack.platform.feature.ledger.presentation.model
 
 import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.model.quote.QuoteStatus
 
 /** An invoice as the chase list needs it. */
+
 internal data class OutstandingInvoiceItem(
     val id: InvoiceId,
     val number: String,
@@ -36,6 +38,24 @@ internal data class OutstandingInvoiceItem(
 )
 
 /**
+ * A payment as received, against the invoice it was put to.
+ *
+ * Listed regardless of whether that invoice is still outstanding, which is the whole point:
+ * a payment recorded against the wrong invoice makes it look settled, and a settled invoice
+ * leaves the money-owed list — taking with it the only route back to the payment. Money is
+ * the one thing a studio must be able to find after getting it wrong.
+ */
+internal data class ReceivedPayment(
+    val id: PaymentId,
+    val date: String,
+    val amount: String,
+    /** "Invoice 2026-014 — Okafor", so it is obvious when it went to the wrong one. */
+    val against: String,
+    val method: String,
+    val reference: String?,
+)
+
+/**
  * An invoice raised but never sent.
  *
  * These exist chiefly because accepting a quote raises one, deliberately as a draft so
@@ -56,6 +76,13 @@ internal data class MoneyOwedSummary(
     val overdueAmount: String,
     val overdueCount: Int,
     val invoices: List<OutstandingInvoiceItem>,
+    /**
+     * Money actually received, newest first, whatever state its invoice is now in.
+     *
+     * Shown so a payment can be found after it was put against the wrong invoice — the case
+     * that otherwise hides itself, because the invoice it settled drops off the list above.
+     */
+    val received: List<ReceivedPayment> = emptyList(),
     /**
      * Outstanding invoices in some other currency, which the totals above cannot include.
      *

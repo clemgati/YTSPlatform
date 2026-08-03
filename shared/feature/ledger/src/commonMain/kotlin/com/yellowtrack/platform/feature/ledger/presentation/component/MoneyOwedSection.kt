@@ -16,6 +16,7 @@ import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.ReceivedPayment
 
 /** What the studio is owed, overdue first, in the order the list should be worked. */
 @Composable
@@ -26,6 +27,8 @@ internal fun MoneyOwedSection(
     onSendDraft: (DraftInvoiceItem) -> Unit,
     onDeleteDraft: (DraftInvoiceItem) -> Unit,
     onSaveInvoice: (OutstandingInvoiceItem) -> Unit,
+    /** Takes a payment off the invoice it was put against; see `ReceivedPayment`. */
+    onRemovePayment: (ReceivedPayment) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -94,6 +97,66 @@ internal fun MoneyOwedSection(
 
                 summary.drafts.forEach { DraftRow(it, onSendDraft, onDeleteDraft) }
             }
+
+            if (summary.received.isNotEmpty()) {
+                Text(
+                    text = "Payments received",
+                    style = YTTheme.typography.titleSmall,
+                    color = YTTheme.colors.onSurface,
+                )
+
+                Text(
+                    text =
+                        "Every payment, whatever its invoice now says. One put against the wrong " +
+                            "invoice settles it, and a settled invoice leaves the list above — so " +
+                            "this is where it can still be found.",
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+
+                summary.received.forEach { payment -> ReceivedPaymentRow(payment, onRemovePayment) }
+            }
+        }
+    }
+}
+
+/**
+ * One payment, and the way to take it back off.
+ *
+ * Removed rather than reassigned: the money arrived and was attributed wrongly, and the
+ * honest repair is to take it off this invoice and record it against the right one.
+ */
+@Composable
+private fun ReceivedPaymentRow(
+    payment: ReceivedPayment,
+    onRemove: (ReceivedPayment) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "${payment.amount} · ${payment.against}",
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurface,
+            )
+            Text(
+                text =
+                    listOfNotNull(payment.date, payment.method, payment.reference)
+                        .joinToString(" · "),
+                style = YTTheme.typography.labelMedium,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
+
+        TextButton(onClick = { onRemove(payment) }) {
+            Text(
+                text = "Remove",
+                style = YTTheme.typography.labelLarge,
+                color = YTTheme.colors.error,
+            )
         }
     }
 }
