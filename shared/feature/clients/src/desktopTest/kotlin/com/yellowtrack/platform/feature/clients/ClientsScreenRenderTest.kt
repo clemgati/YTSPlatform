@@ -11,10 +11,18 @@ import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
+import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.common.StudioId
+import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
+import com.yellowtrack.platform.core.model.contract.ContractStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
+import com.yellowtrack.platform.core.model.quote.QuoteStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.testing.TestData
 import com.yellowtrack.platform.core.ui.removal.Removal
@@ -147,6 +155,7 @@ class ClientsScreenRenderTest {
                 onAddRevision = {},
                 onRemoveDeliverable = {},
                 onRemoveProject = {},
+                onRemovePaperwork = {},
             )
         }
     }
@@ -177,9 +186,24 @@ class ClientsScreenRenderTest {
                 onAddRevision = {},
                 onRemoveDeliverable = {},
                 onRemoveProject = {},
+                onRemovePaperwork = {},
             )
         }
     }
+
+    private fun signedContract(
+        studioId: StudioId,
+        now: Instant,
+    ) = Contract(
+        id = ContractId("c1"),
+        studioId = studioId,
+        projectId = ProjectId("project-1"),
+        title = "Wedding coverage agreement",
+        status = ContractStatus.Signed,
+        signedAt = now,
+        retainerAmount = Money(minorUnits = 90_000, currency = CurrencyCode.GBP),
+        audit = AuditMetadata.createdAt(now),
+    )
 
     private fun bookingState(removal: Removal): ProjectDetailsUiState {
         val now = Instant.fromEpochMilliseconds(1_781_000_000_000)
@@ -206,7 +230,31 @@ class ClientsScreenRenderTest {
                         sessions = emptyList(),
                         tasks = emptyList(),
                         deliverables = emptyList(),
-                        contract = null,
+                        // The same record the list below shows. The view model derives the
+                        // one in force from the same collection, so a render where Delivery
+                        // says "no contract" beside a signed one would be a lie about the
+                        // screen rather than a picture of it.
+                        contract = signedContract(client.studioId, now),
+                        quotes =
+                            listOf(
+                                Quote(
+                                    id = QuoteId("q1"),
+                                    studioId = client.studioId,
+                                    projectId = project.id,
+                                    number = "2026-014",
+                                    status = QuoteStatus.Accepted,
+                                    currency = CurrencyCode.GBP,
+                                    lines =
+                                        listOf(
+                                            LineItem(
+                                                description = "Coverage",
+                                                unitPrice = Money(minorUnits = 450_000, currency = CurrencyCode.GBP),
+                                            ),
+                                        ),
+                                    audit = AuditMetadata.createdAt(now),
+                                ),
+                            ),
+                        contracts = listOf(signedContract(client.studioId, now)),
                         now = now,
                         removal = removal,
                     ),

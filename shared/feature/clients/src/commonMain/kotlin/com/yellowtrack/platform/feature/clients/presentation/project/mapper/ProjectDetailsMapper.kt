@@ -8,10 +8,12 @@ import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.post.PostProductionTask
 import com.yellowtrack.platform.core.model.post.PostTaskKind
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.project.model.BookingSessionItem
+import com.yellowtrack.platform.feature.clients.presentation.project.model.PaperworkItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostProductionSummary
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostTaskItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
@@ -25,6 +27,8 @@ internal fun Project.toDetailsModel(
     tasks: List<PostProductionTask>,
     deliverables: List<Deliverable>,
     contract: Contract?,
+    quotes: List<Quote>,
+    contracts: List<Contract>,
     now: Instant,
     removal: Removal,
 ): ProjectDetailsModel {
@@ -56,6 +60,27 @@ internal fun Project.toDetailsModel(
                 },
         postProduction = tasks.toSummary(),
         delivery = buildDelivery(deliverables, contract, sessions, now),
+        // Every one of them, in whatever state. A quote that was accepted and a contract
+        // that was signed and paid are exactly the ones no other screen will show.
+        paperwork =
+            quotes.map { quote ->
+                PaperworkItem(
+                    id = quote.id.value,
+                    kind = PaperworkItem.Kind.Quote,
+                    title = "Quote ${quote.number}",
+                    statusLabel = quote.status.name,
+                    amount = quote.total.formatted(),
+                )
+            } +
+                contracts.map { agreement ->
+                    PaperworkItem(
+                        id = agreement.id.value,
+                        kind = PaperworkItem.Kind.Contract,
+                        title = agreement.title,
+                        statusLabel = agreement.status.name,
+                        amount = agreement.retainerAmount?.formatted(),
+                    )
+                },
         removal = removal,
         editable =
             NewProject(

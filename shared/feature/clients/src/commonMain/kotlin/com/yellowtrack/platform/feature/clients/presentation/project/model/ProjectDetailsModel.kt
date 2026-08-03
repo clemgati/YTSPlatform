@@ -97,6 +97,8 @@ internal data class ProjectDetailsModel(
     val sessions: List<BookingSessionItem>,
     val postProduction: PostProductionSummary,
     val delivery: DeliverySummary,
+    /** Every quote and contract on this booking, whatever state it reached. */
+    val paperwork: List<PaperworkItem>,
     /** Whether this booking can be removed, and what is holding it if not. */
     val removal: Removal,
     /** The booking as the form takes it, so editing opens showing what is already there. */

@@ -9,6 +9,7 @@ import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.feature.clients.presentation.project.ProjectDetailsScreen
 import com.yellowtrack.platform.feature.clients.presentation.project.ProjectDetailsViewModel
+import com.yellowtrack.platform.feature.clients.presentation.project.model.PaperworkItem
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -47,6 +48,12 @@ fun ProjectDetailsRoute(
         onAddRevision = viewModel::addRevisionRound,
         onRemoveDeliverable = viewModel::deleteDeliverable,
         onRemoveProject = viewModel::deleteProject,
+        onRemovePaperwork = { item ->
+            when (item.kind) {
+                PaperworkItem.Kind.Quote -> viewModel.deleteQuote(item.id)
+                PaperworkItem.Kind.Contract -> viewModel.deleteContract(item.id)
+            }
+        },
         modifier = modifier,
     )
 }

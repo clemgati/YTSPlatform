@@ -20,6 +20,7 @@ import com.yellowtrack.platform.core.data.observeCurrency
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contract.Contract
+import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.delivery.Deliverable
 import com.yellowtrack.platform.core.model.delivery.DeliverableId
 import com.yellowtrack.platform.core.model.delivery.DeliverableStatus
@@ -32,6 +33,7 @@ import com.yellowtrack.platform.core.model.post.PostTaskStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.quote.Quote
+import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.core.ui.state.UiState
@@ -156,6 +158,8 @@ internal class ProjectDetailsViewModel(
                                         .filter { it.isSigned }
                                         .maxByOrNull { it.signedAt ?: it.audit.createdAt }
                                         ?: work.contracts.lastOrNull(),
+                                quotes = money.quotes,
+                                contracts = work.contracts,
                                 now = clock.now(),
                                 removal =
                                     projectRemoval(
@@ -184,6 +188,22 @@ internal class ProjectDetailsViewModel(
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
             initialValue = ProjectDetailsUiState(project = UiState.Loading),
         )
+
+    /**
+     * Takes a quote off the booking.
+     *
+     * Reachable only from here. The Ledger lists a quote while it is awaiting a decision
+     * and drops it the moment one arrives, so an accepted quote — the one most likely to be
+     * a duplicate of the quote that was actually accepted — had no screen at all.
+     */
+    fun deleteQuote(id: String) {
+        viewModelScope.launch { quoteRepository.deleteQuote(QuoteId(id)) }
+    }
+
+    /** As [deleteQuote]. A contract leaves the Ledger once it holds its date. */
+    fun deleteContract(id: String) {
+        viewModelScope.launch { contractRepository.deleteContract(ContractId(id)) }
+    }
 
     /**
      * Removes the booking, provided nothing at all is attached to it.
