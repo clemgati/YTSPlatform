@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
+import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.crew.CrewMemberId
 import com.yellowtrack.platform.core.model.gear.GearItemId
@@ -31,6 +32,7 @@ import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.sessions.presentation.component.SessionFormDialog
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.BackupSection
 import com.yellowtrack.platform.feature.sessions.presentation.details.component.CallSheetSection
@@ -76,10 +78,12 @@ internal fun SessionDetailsScreen(
     onRemovePacking: (PackingEntryId) -> Unit,
     onCopyCallSheet: () -> Unit,
     onSaveCallSheet: () -> Unit,
+    onRemoveSession: () -> Unit,
     callSheetMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf(false) }
+    var confirmRemoval by remember { mutableStateOf(false) }
     var addingShot by remember { mutableStateOf(false) }
     var addingCrew by remember { mutableStateOf(false) }
     var addingRelease by remember { mutableStateOf(false) }
@@ -97,6 +101,22 @@ internal fun SessionDetailsScreen(
             )
         },
     ) { session, contentModifier ->
+        if (confirmRemoval) {
+            YTFormDialog(
+                title = "Remove ${session.title}?",
+                confirmLabel = "Remove",
+                supportingText =
+                    "The shoot day goes from every device. Nothing was recorded on it, so " +
+                        "nothing else is lost. This cannot be undone.",
+                onConfirm = {
+                    onRemoveSession()
+                    confirmRemoval = false
+                },
+                onDismiss = { confirmRemoval = false },
+                content = {},
+            )
+        }
+
         if (editing && uiState.today != null) {
             SessionFormDialog(
                 bookings = uiState.bookings,
@@ -261,6 +281,50 @@ internal fun SessionDetailsScreen(
                     color = YTTheme.colors.primary,
                 )
             }
+
+            RemoveDayAction(
+                removal = session.removal,
+                onRemove = { confirmRemoval = true },
+            )
+        }
+    }
+}
+
+/**
+ * Removal, and the reason it is refused when it is.
+ *
+ * The reason carries most of the value. A day is held by anything recorded on it, and two
+ * of those things — the backup rows and the signed releases — are the only record anywhere
+ * of where the client's photographs are and who agreed to appear in them. A studio told
+ * only "no" cannot tell whether it is those or a leftover packing entry in the way.
+ */
+@Composable
+private fun RemoveDayAction(
+    removal: Removal,
+    onRemove: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
+        TextButton(
+            onClick = onRemove,
+            enabled = removal is Removal.Available,
+        ) {
+            Text(
+                text = "Remove this day",
+                style = YTTheme.typography.labelLarge,
+                color =
+                    when (removal) {
+                        is Removal.Available -> YTTheme.colors.error
+                        else -> YTTheme.colors.onSurfaceVariant
+                    },
+            )
+        }
+
+        if (removal is Removal.HeldBy) {
+            Text(
+                text = "This day has ${removal.summary} on it. Remove them first.",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
         }
     }
 }

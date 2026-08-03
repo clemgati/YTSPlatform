@@ -859,6 +859,53 @@ class SessionDetailsViewModelTest {
         }
 
     @Test
+    fun `a day with nothing recorded on it is removed`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+
+            viewModel.deleteSession()
+
+            assertNull(
+                sessions.observeSession(sessionId).first(),
+                "a shoot day scheduled by mistake has to be able to go, or the booking and " +
+                    "the client above it are stuck too",
+            )
+        }
+
+    @Test
+    fun `a day with a card copy logged against it is not removed`() =
+        runTest {
+            val (sessions, viewModel) = harness()
+
+            viewModel.addMediaCopy(
+                NewMediaCopy(volumeName = "Shoot SSD 1", kind = StorageKind.ExternalDrive, isOffsite = false),
+            )
+            viewModel.deleteSession()
+
+            assertNotNull(
+                sessions.observeSession(sessionId).first(),
+                "the backup row is the only record of where the client's photographs are, " +
+                    "and the guard cannot live in the layout: a second device may have " +
+                    "logged this copy since the screen was drawn",
+            )
+        }
+
+    @Test
+    fun `removing says so, rather than reporting the day is missing`() =
+        runTest {
+            val (_, viewModel) = harness()
+
+            viewModel.deleteSession()
+
+            val state = viewModel.uiState.first()
+            assertTrue(state.removed, "the screen has to know to leave")
+            assertTrue(
+                state.session !is UiState.Error,
+                "gone because it was just removed is not a failure to load it",
+            )
+        }
+
+    @Test
     fun `a copy with no name is not recorded`() =
         runTest {
             val (_, viewModel) = harness()

@@ -19,4 +19,6 @@ internal data class SessionDetailsUiState(
     val canReadDrives: Boolean = false,
     /** True where the platform has a share sheet to hand a document to. */
     val canSendDocuments: Boolean = false,
+    /** The day has gone, so there is nothing left for this screen to be about. */
+    val removed: Boolean = false,
 )

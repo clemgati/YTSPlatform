@@ -9,6 +9,7 @@ import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.shot.ShotId
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewSession
 
 /** One line of the light panel: a window, or a moment. */
@@ -177,6 +178,8 @@ internal data class SessionDetailsModel(
     val backup: BackupSummary,
     /** Gear taken to this shoot, and whether it came back. */
     val packing: PackingSummary,
+    /** Whether this day can be removed, and what is holding it if not. */
+    val removal: Removal,
     /** The session as the form takes it, so editing opens showing what is already there. */
     val editable: NewSession,
     val zoneId: String,

@@ -41,7 +41,9 @@ import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.core.ui.state.UiState
+import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.sessionRemoval
 import com.yellowtrack.platform.feature.sessions.presentation.details.mapper.toDetailsModel
 import com.yellowtrack.platform.feature.sessions.presentation.model.BookingOption
 import com.yellowtrack.platform.feature.sessions.presentation.model.NewCrewMember
@@ -95,6 +97,8 @@ internal class SessionDetailsViewModel(
     /** What the last drive read found, shown once and dismissed. */
     private val checkResult = MutableStateFlow<String?>(null)
 
+    private val removed = MutableStateFlow(false)
+
     /**
      * The day itself, grouped so the join stays within `combine`'s typed arity.
      *
@@ -142,12 +146,23 @@ internal class SessionDetailsViewModel(
                 ::Kit,
             ),
             volumeRepository.observeVolumes(),
-            checkResult,
-        ) { day, booking, kit, volumes, lastCheck ->
+            combine(checkResult, removed, ::Pair),
+        ) { day, booking, kit, volumes, (lastCheck, isRemoved) ->
             val session = day.session
 
             if (session == null) {
-                SessionDetailsUiState(session = UiState.Error("This session could not be found."))
+                SessionDetailsUiState(
+                    // Removed by this screen rather than missing. Both arrive as null, and
+                    // reporting a fault for a day the studio just asked to be rid of would
+                    // be the application blaming itself for doing as it was told.
+                    session =
+                        if (isRemoved) {
+                            UiState.Loading
+                        } else {
+                            UiState.Error("This session could not be found.")
+                        },
+                    removed = isRemoved,
+                )
             } else {
                 val project = booking.projects.firstOrNull { it.id == session.projectId }
                 val client =
@@ -167,6 +182,14 @@ internal class SessionDetailsViewModel(
                                 kit.packing,
                                 volumes,
                                 deviceZone,
+                                removal =
+                                    sessionRemoval(
+                                        backups = day.mediaCopies.size,
+                                        releases = day.releases.size,
+                                        crew = day.crew.size,
+                                        shots = day.shots.size,
+                                        packedItems = kit.packing.size,
+                                    ),
                             ),
                         ),
                     bookings =
@@ -669,6 +692,32 @@ internal class SessionDetailsViewModel(
             onSaved(
                 if (documentSink.canShare) "Sent. Also saved to ${saved.location}" else "Saved to ${saved.location}",
             )
+        }
+    }
+
+    /**
+     * Removes the shoot day, provided nothing was recorded on it.
+     *
+     * Everything is counted again here rather than read from the screen. The layout was
+     * drawn from a snapshot, and between drawing it and the press a second device may have
+     * logged a card copy off this shoot — which is exactly the case that must not lose the
+     * only record of where the client's photographs are.
+     */
+    fun deleteSession() {
+        viewModelScope.launch {
+            val held =
+                sessionRemoval(
+                    backups = mediaCopyRepository.observeCopiesForSession(sessionId).first().size,
+                    releases = releaseRepository.observeReleasesForSession(sessionId).first().size,
+                    crew = crewRepository.observeCrewForSession(sessionId).first().size,
+                    shots = shotRepository.observeShotsForSession(sessionId).first().size,
+                    packedItems = packingRepository.observePackingForSession(sessionId).first().size,
+                )
+
+            if (held !is Removal.Available) return@launch
+
+            sessionRepository.deleteSession(sessionId)
+            removed.value = true
         }
     }
 

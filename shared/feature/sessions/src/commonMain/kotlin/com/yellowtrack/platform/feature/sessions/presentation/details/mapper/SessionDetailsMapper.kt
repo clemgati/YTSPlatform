@@ -18,6 +18,7 @@ import com.yellowtrack.platform.core.model.release.ReleaseStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.BackupSummary
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.CrewItem
 import com.yellowtrack.platform.feature.sessions.presentation.details.model.LightRow
@@ -50,6 +51,7 @@ internal fun Session.toDetailsModel(
     packing: List<PackingEntry>,
     volumes: List<StorageVolume>,
     deviceZone: TimeZone,
+    removal: Removal,
 ): SessionDetailsModel {
     val zone = TimeZone.of(timeZoneId)
 
@@ -85,6 +87,7 @@ internal fun Session.toDetailsModel(
                     callTimeLabel = member.callTime?.let { DateFormats.timeOfDay(it, zone) },
                 )
             },
+        removal = removal,
         editable = toEditableForm(zone),
         zoneId = timeZoneId,
     )
