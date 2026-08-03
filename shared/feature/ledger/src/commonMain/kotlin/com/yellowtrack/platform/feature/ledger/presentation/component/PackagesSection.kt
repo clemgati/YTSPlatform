@@ -1,8 +1,9 @@
 package com.yellowtrack.platform.feature.ledger.presentation.component
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
@@ -78,6 +79,7 @@ internal fun PackagesSection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PackageRow(
     pricing: PackagePricing,
@@ -85,32 +87,23 @@ private fun PackageRow(
     onRemove: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = pricing.name,
+                modifier = Modifier.weight(1f),
                 style = YTTheme.typography.bodyLarge,
                 color = YTTheme.colors.onSurface,
             )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (pricing.isBelowCost) {
-                    YTBadge(text = "BELOW COST")
-                }
-
-                TextButton(onClick = onRemove) {
-                    Text(
-                        text = "Remove",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.error,
-                    )
-                }
+            if (pricing.isBelowCost) {
+                YTBadge(text = "BELOW COST")
             }
         }
 
@@ -131,6 +124,31 @@ private fun PackageRow(
                 style = YTTheme.typography.labelMedium,
                 color = if (pricing.isBelowCost) YTTheme.colors.error else YTTheme.colors.primary,
             )
+        }
+
+        // Named rather than hidden behind the row. The whole row used to be the edit
+        // target, which nothing on screen said: a studio that did not think to press a
+        // package could not change its price, and the application already argues elsewhere
+        // that a control nobody can see is not a control.
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            TextButton(onClick = onEdit) {
+                Text(
+                    text = "Edit",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
+            }
+
+            TextButton(onClick = onRemove) {
+                Text(
+                    text = "Remove",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.error,
+                )
+            }
         }
     }
 }

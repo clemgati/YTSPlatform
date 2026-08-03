@@ -37,6 +37,8 @@ internal fun ProposalsSection(
     onSignContract: (ContractItem) -> Unit,
     onExportQuote: (QuoteItem) -> Unit,
     onReviseQuote: (QuoteItem) -> Unit,
+    /** False when the studio has no bookings, which all three documents need. */
+    hasBookings: Boolean,
     onCorrectContract: (ContractItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -93,30 +95,47 @@ internal fun ProposalsSection(
 
             HorizontalDivider(color = YTTheme.colors.outlineVariant)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
-                TextButton(onClick = onNewQuote) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+            ) {
+                TextButton(onClick = onNewQuote, enabled = hasBookings) {
                     Text(
                         text = "Send a quote",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
+                        style = YTTheme.typography.labelMedium,
+                        color = if (hasBookings) YTTheme.colors.primary else YTTheme.colors.onSurfaceVariant,
                     )
                 }
 
-                TextButton(onClick = onNewContract) {
+                TextButton(onClick = onNewContract, enabled = hasBookings) {
                     Text(
                         text = "Draw up a contract",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
+                        style = YTTheme.typography.labelMedium,
+                        color = if (hasBookings) YTTheme.colors.primary else YTTheme.colors.onSurfaceVariant,
                     )
                 }
 
-                TextButton(onClick = onNewInvoice) {
+                TextButton(onClick = onNewInvoice, enabled = hasBookings) {
                     Text(
                         text = "Raise an invoice",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
+                        style = YTTheme.typography.labelMedium,
+                        color = if (hasBookings) YTTheme.colors.primary else YTTheme.colors.onSurfaceVariant,
                     )
                 }
+            }
+
+            // Said here rather than only inside the form. All three documents are priced
+            // against a booking, so with none the forms open and cannot be completed — the
+            // confirm sits greyed with one line of explanation, which reads as a button
+            // that does not work rather than a step not yet taken.
+            if (!hasBookings) {
+                Text(
+                    text =
+                        "A quote, contract and invoice are each priced against a booking. " +
+                            "Open one on a client first.",
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
             }
         }
     }

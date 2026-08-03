@@ -325,6 +325,9 @@ internal fun LedgerScreen(
                 onSendContract = { onSendContract(it.id) },
                 onSignContract = { signingContract = it },
                 onExportQuote = { onExportQuote(it.id) },
+                // The option list the three forms are filled from. Empty means no booking
+                // exists to price anything against.
+                hasBookings = content.projects.any { it.id != null },
             )
 
             // Where the document went, or why it could not go. A file nobody can find
