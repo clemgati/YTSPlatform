@@ -2,6 +2,8 @@ package com.yellowtrack.platform.feature.ledger.presentation.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.HorizontalDivider
@@ -162,6 +164,7 @@ private fun ReceivedPaymentRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DraftRow(
     draft: DraftInvoiceItem,
@@ -202,42 +205,53 @@ private fun DraftRow(
                         draft.projectName.ifBlank { null },
                         draft.raisedLabel,
                     ).joinToString(" • "),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 style = YTTheme.typography.bodyMedium,
                 color = YTTheme.colors.onSurfaceVariant,
             )
+        }
 
-            Row {
-                // A draft is a document still being built, so correcting it is the ordinary
-                // thing to want. Sent invoices have no such control and are voided instead.
-                TextButton(onClick = { onEdit(draft) }) {
-                    Text(
-                        text = "Edit",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
-                    )
-                }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            // A draft is a document still being built, so correcting it is the ordinary
+            // thing to want. Sent invoices have no such control and are voided instead.
+            TextButton(onClick = { onEdit(draft) }) {
+                Text(
+                    text = "Edit",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
+            }
 
-                TextButton(onClick = { onDelete(draft) }) {
-                    Text(
-                        text = "Discard",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.onSurfaceVariant,
-                    )
-                }
+            TextButton(onClick = { onDelete(draft) }) {
+                Text(
+                    text = "Discard",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
 
-                TextButton(onClick = { onSend(draft) }) {
-                    Text(
-                        text = "Send",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
-                    )
-                }
+            TextButton(onClick = { onSend(draft) }) {
+                Text(
+                    text = "Send",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
             }
         }
     }
 }
 
+/**
+ * One outstanding invoice, with its actions beneath the line that describes it.
+ *
+ * Beside it they squeezed that line to a word a row on a phone: "INV-004 · Johnson Wedding
+ * · 12 days overdue" came out over eight lines, on the screen a studio opens to find out
+ * who owes it money.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InvoiceRow(
     invoice: OutstandingInvoiceItem,
@@ -256,6 +270,7 @@ private fun InvoiceRow(
         ) {
             Text(
                 text = invoice.clientName.ifBlank { invoice.number },
+                modifier = Modifier.weight(1f),
                 style = YTTheme.typography.bodyLarge,
                 color = YTTheme.colors.onSurface,
             )
@@ -266,54 +281,51 @@ private fun InvoiceRow(
             )
         }
 
-        Row(
+        Text(
+            text = invoice.statusLine,
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = invoice.statusLine,
-                modifier = Modifier.weight(1f),
-                style = YTTheme.typography.bodyMedium,
-                color =
-                    if (invoice.state == PaymentState.Overdue) {
-                        YTTheme.colors.error
-                    } else {
-                        YTTheme.colors.onSurfaceVariant
-                    },
-            )
+            style = YTTheme.typography.bodyMedium,
+            color =
+                if (invoice.state == PaymentState.Overdue) {
+                    YTTheme.colors.error
+                } else {
+                    YTTheme.colors.onSurfaceVariant
+                },
+        )
 
-            Row {
-                // The document the client actually receives. Saved as a file rather than
-                // copied as text: an invoice is emailed as an attachment, where a call
-                // sheet is pasted into a message.
-                TextButton(onClick = { onSave(invoice) }) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            // The document the client actually receives. Saved as a file rather than
+            // copied as text: an invoice is emailed as an attachment, where a call
+            // sheet is pasted into a message.
+            TextButton(onClick = { onSave(invoice) }) {
+                Text(
+                    text = "Save",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
+
+            // Offered only while nothing has been received: see
+            // [OutstandingInvoiceItem.canVoid].
+            if (invoice.canVoid) {
+                TextButton(onClick = { onVoid(invoice) }) {
                     Text(
-                        text = "Save",
-                        style = YTTheme.typography.labelLarge,
+                        text = "Void",
+                        style = YTTheme.typography.labelMedium,
                         color = YTTheme.colors.onSurfaceVariant,
                     )
                 }
+            }
 
-                // Offered only while nothing has been received: see
-                // [OutstandingInvoiceItem.canVoid].
-                if (invoice.canVoid) {
-                    TextButton(onClick = { onVoid(invoice) }) {
-                        Text(
-                            text = "Void",
-                            style = YTTheme.typography.labelLarge,
-                            color = YTTheme.colors.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                TextButton(onClick = { onRecordPayment(invoice) }) {
-                    Text(
-                        text = "Record payment",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
-                    )
-                }
+            TextButton(onClick = { onRecordPayment(invoice) }) {
+                Text(
+                    text = "Record payment",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
             }
         }
     }

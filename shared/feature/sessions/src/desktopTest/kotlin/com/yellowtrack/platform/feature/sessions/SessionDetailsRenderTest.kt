@@ -58,11 +58,14 @@ class SessionDetailsRenderTest {
     private val zone = TimeZone.of("Europe/London")
 
     @OptIn(ExperimentalComposeUiApi::class)
-    @Test
-    fun `renders a shoot day with its light`() {
+    private fun render(
+        name: String,
+        width: Int,
+        height: Int,
+    ) {
         val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
         outputDir.mkdirs()
-        val target = File(outputDir, "session-details.png")
+        val target = File(outputDir, name)
 
         val clientId = ClientId.new()
         val projectId = ProjectId.new()
@@ -156,7 +159,7 @@ class SessionDetailsRenderTest {
             )
 
         val scene =
-            ImageComposeScene(width = 1_280, height = 7_000, density = Density(2f)) {
+            ImageComposeScene(width = width, height = height, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -228,6 +231,22 @@ class SessionDetailsRenderTest {
 
         assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
         println("Rendered ${target.absolutePath}")
+    }
+
+    @Test
+    fun `renders a shoot day with its light`() {
+        render("session-details.png", width = 1_280, height = 7_000)
+    }
+
+    /**
+     * The same day at the width of a phone.
+     *
+     * This page carries more action-bearing rows than any other — crew, shots, releases,
+     * backups and packed gear all have controls on the row. At desktop width they fit.
+     */
+    @Test
+    fun `renders a shoot day on a phone`() {
+        render("session-details-phone.png", width = 780, height = 11_000)
     }
 
     private fun shot(

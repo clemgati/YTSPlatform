@@ -61,6 +61,44 @@ class SettingsRenderTest {
         println("Rendered ${target.absolutePath}")
     }
 
+    /** Settings at the width of a phone. */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `renders the studio details on a phone`() {
+        val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
+        outputDir.mkdirs()
+        val target = File(outputDir, "settings-phone.png")
+
+        val scene =
+            ImageComposeScene(width = 780, height = 3_200, density = Density(2f)) {
+                YellowTrackTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = YTTheme.colors.background,
+                    ) {
+                        SettingsScreen(
+                            uiState = UiState.Success(sampleContent()).let(::SettingsUiState),
+                            onRetry = {},
+                            onSave = {},
+                            onDismissConflict = {},
+                            onSyncNow = {},
+                            onSignOut = {},
+                        )
+                    }
+                }
+            }
+
+        try {
+            val bytes = requireNotNull(scene.render().encodeToData()) { "Skia produced no image data" }.bytes
+            target.writeBytes(bytes)
+        } finally {
+            scene.close()
+        }
+
+        assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
+        println("Rendered ${target.absolutePath}")
+    }
+
     // Deliberately half-filled: the gaps line is the part worth looking at.
     private fun sampleContent() =
         SettingsContent(

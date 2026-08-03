@@ -57,16 +57,19 @@ import kotlin.test.assertTrue
  */
 class LedgerScreenRenderTest {
     @OptIn(ExperimentalComposeUiApi::class)
-    @Test
-    fun `renders the ledger to a png`() {
+    private fun render(
+        name: String,
+        width: Int,
+        height: Int,
+    ) {
         val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
         outputDir.mkdirs()
-        val target = File(outputDir, "ledger.png")
+        val target = File(outputDir, name)
 
         val scene =
             ImageComposeScene(
-                width = WIDTH,
-                height = HEIGHT,
+                width = width,
+                height = height,
                 density = Density(2f),
             ) {
                 YellowTrackTheme {
@@ -112,6 +115,24 @@ class LedgerScreenRenderTest {
 
         assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
         println("Rendered ${target.absolutePath}")
+    }
+
+    /** The Ledger as a desktop shows it. */
+    @Test
+    fun `renders the ledger to a png`() {
+        render("ledger.png", width = WIDTH, height = HEIGHT)
+    }
+
+    /**
+     * And as a phone does.
+     *
+     * The Ledger has the most crowded rows in the application — an outstanding invoice
+     * carries three actions, a quote four. At 640dp they all fit, which says nothing about
+     * a phone: the Studio screen fitted too, right up until it was photographed.
+     */
+    @Test
+    fun `renders the ledger on a phone`() {
+        render("ledger-phone.png", width = PHONE, height = 9_000)
     }
 
     private fun sampleContent() =
@@ -372,6 +393,9 @@ class LedgerScreenRenderTest {
             )
 
         const val WIDTH = 1_280
+
+        /** A 390pt phone at 2x. */
+        const val PHONE = 780
 
         /**
          * Tall enough that the scrolling column is captured whole rather than clipped.

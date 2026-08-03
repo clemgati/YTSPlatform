@@ -2,6 +2,8 @@ package com.yellowtrack.platform.feature.ledger.presentation.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.HorizontalDivider
@@ -120,6 +122,7 @@ internal fun ProposalsSection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QuoteRow(
     quote: QuoteItem,
@@ -156,53 +159,57 @@ private fun QuoteRow(
         ) {
             Text(
                 text = quote.statusLine,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 style = YTTheme.typography.bodyMedium,
                 color = if (quote.isExpired) YTTheme.colors.error else YTTheme.colors.onSurfaceVariant,
             )
+        }
 
-            Row {
-                // Every quote listed here is still awaiting a decision, so every one of
-                // them can be revised. Once answered it leaves this list, which is also the
-                // point at which it stops being editable.
-                TextButton(onClick = { onRevise(quote) }) {
-                    Text(
-                        text = "Revise",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
-                    )
-                }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            // Every quote listed here is still awaiting a decision, so every one of
+            // them can be revised. Once answered it leaves this list, which is also the
+            // point at which it stops being editable.
+            TextButton(onClick = { onRevise(quote) }) {
+                Text(
+                    text = "Revise",
+                    style = YTTheme.typography.labelLarge,
+                    color = YTTheme.colors.primary,
+                )
+            }
 
-                // The document the client is sent, beside the two answers it can come
-                // back with.
-                TextButton(onClick = { onSave(quote) }) {
-                    Text(
-                        text = "Save",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.onSurfaceVariant,
-                    )
-                }
+            // The document the client is sent, beside the two answers it can come
+            // back with.
+            TextButton(onClick = { onSave(quote) }) {
+                Text(
+                    text = "Save",
+                    style = YTTheme.typography.labelLarge,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
 
-                TextButton(onClick = { onDecline(quote) }) {
-                    Text(
-                        text = "Declined",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.onSurfaceVariant,
-                    )
-                }
+            TextButton(onClick = { onDecline(quote) }) {
+                Text(
+                    text = "Declined",
+                    style = YTTheme.typography.labelLarge,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
 
-                TextButton(onClick = { onAccept(quote) }) {
-                    Text(
-                        text = "Accepted",
-                        style = YTTheme.typography.labelLarge,
-                        color = YTTheme.colors.primary,
-                    )
-                }
+            TextButton(onClick = { onAccept(quote) }) {
+                Text(
+                    text = "Accepted",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ContractRow(
     contract: ContractItem,
@@ -243,42 +250,45 @@ private fun ContractRow(
                 text =
                     listOfNotNull(contract.title, contract.stageLabel, contract.waitingLabel)
                         .joinToString(" • "),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 style = YTTheme.typography.bodyMedium,
                 color = YTTheme.colors.onSurfaceVariant,
             )
+        }
 
-            Row {
-                // Absent once signed. The words are what somebody agreed to, and this list
-                // still shows a signed contract while its retainer is outstanding.
-                if (contract.canEdit) {
-                    TextButton(onClick = { onCorrect(contract) }) {
-                        Text(
-                            text = "Correct",
-                            style = YTTheme.typography.labelLarge,
-                            color = YTTheme.colors.primary,
-                        )
-                    }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            // Absent once signed. The words are what somebody agreed to, and this list
+            // still shows a signed contract while its retainer is outstanding.
+            if (contract.canEdit) {
+                TextButton(onClick = { onCorrect(contract) }) {
+                    Text(
+                        text = "Correct",
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.primary,
+                    )
                 }
+            }
 
-                if (contract.canSend) {
-                    TextButton(onClick = { onSend(contract) }) {
-                        Text(
-                            text = "Send",
-                            style = YTTheme.typography.labelLarge,
-                            color = YTTheme.colors.onSurfaceVariant,
-                        )
-                    }
+            if (contract.canSend) {
+                TextButton(onClick = { onSend(contract) }) {
+                    Text(
+                        text = "Send",
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.onSurfaceVariant,
+                    )
                 }
+            }
 
-                if (contract.canSign) {
-                    TextButton(onClick = { onSign(contract) }) {
-                        Text(
-                            text = "Signed",
-                            style = YTTheme.typography.labelLarge,
-                            color = YTTheme.colors.primary,
-                        )
-                    }
+            if (contract.canSign) {
+                TextButton(onClick = { onSign(contract) }) {
+                    Text(
+                        text = "Signed",
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.primary,
+                    )
                 }
             }
         }

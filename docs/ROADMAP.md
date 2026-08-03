@@ -393,11 +393,10 @@ and used.
     grep
 
 
-- **Narrow screens are barely looked at.** Every render was 640dp or wider until the Studio
-  screen was photographed on a real phone: three row actions took the width they needed and
-  left the gear name about eighty pixels, so an item arrived over three lines with its serial
-  number one character wide. The Studio screen has a phone-width render now. No other screen
-  does
+- ✓ **Every screen now renders at phone width as well as desktop.** Adding those renders
+  found the same fault on the Ledger that the Studio screen was photographed with, and worse:
+  "INV-004 · Johnson Wedding · 12 days overdue" came out over eight lines on the screen a
+  studio opens to find out who owes it money. Row actions sit under their row throughout now
 
 **In the operation**
 
