@@ -26,6 +26,14 @@ internal data class GearItemUi(
     val isUninsurable: Boolean,
     val isLongUnserviced: Boolean,
     val notes: String?,
+    /**
+     * The item as the form takes it, so correcting one opens on what is there.
+     *
+     * Carried alongside the labels rather than parsed back out of them. "Bought 3 Mar 2024"
+     * and "SN 04127634" are written for reading; recovering a date and a serial from their
+     * own presentation is how a serial ends up prefixed "SN SN".
+     */
+    val editable: NewGearItem,
 )
 
 internal data class GearGroup(

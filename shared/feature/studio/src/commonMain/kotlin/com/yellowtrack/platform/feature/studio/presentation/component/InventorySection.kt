@@ -31,6 +31,7 @@ internal fun InventorySection(
     onAddGear: () -> Unit,
     onMarkServiced: (GearItemId) -> Unit,
     onDeleteGear: (GearItemId) -> Unit,
+    onEditGear: (GearItemUi) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -60,7 +61,7 @@ internal fun InventorySection(
         InsuranceHeadline(inventory)
 
         inventory.groups.forEach { group ->
-            GearGroupBlock(group, onMarkServiced, onDeleteGear)
+            GearGroupBlock(group, onMarkServiced, onDeleteGear, onEditGear)
         }
     }
 }
@@ -129,6 +130,7 @@ private fun GearGroupBlock(
     group: GearGroup,
     onMarkServiced: (GearItemId) -> Unit,
     onDeleteGear: (GearItemId) -> Unit,
+    onEditGear: (GearItemUi) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
         Text(
@@ -138,7 +140,7 @@ private fun GearGroupBlock(
         )
 
         group.items.forEach { item ->
-            GearRow(item, onMarkServiced, onDeleteGear)
+            GearRow(item, onMarkServiced, onDeleteGear, onEditGear)
         }
     }
 }
@@ -148,6 +150,7 @@ private fun GearRow(
     item: GearItemUi,
     onMarkServiced: (GearItemId) -> Unit,
     onDeleteGear: (GearItemId) -> Unit,
+    onEditGear: (GearItemUi) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -183,6 +186,14 @@ private fun GearRow(
 
         // Labelled as the action it is. "Serviced today" reads as a statement of fact, and
         // a row that appears to already assert something is not a row anyone clicks.
+        TextButton(onClick = { onEditGear(item) }) {
+            Text(
+                text = "Edit",
+                style = YTTheme.typography.labelLarge,
+                color = YTTheme.colors.primary,
+            )
+        }
+
         TextButton(onClick = { onMarkServiced(item.id) }) {
             Text(
                 text = "Mark serviced",

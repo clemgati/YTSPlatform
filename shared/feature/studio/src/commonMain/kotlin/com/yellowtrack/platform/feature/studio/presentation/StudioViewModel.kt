@@ -100,13 +100,31 @@ internal class StudioViewModel(
         retryTrigger.value += 1
     }
 
-    fun addGearItem(form: NewGearItem) {
+    /**
+     * Records a piece of gear, or corrects one already recorded.
+     *
+     * One path for both, because a correction is the same item stated better. Gear could be
+     * added and removed but never edited, so a mistyped serial number — the field an
+     * insurer needs and the one nobody checks twice — could only be fixed by deleting the
+     * item and entering it again, losing its service history in the process.
+     *
+     * With [existingId] the stored item is loaded and its audit touched, so the version
+     * rises and the change reaches the other devices. Everything the form does not show is
+     * carried across from it untouched.
+     */
+    fun saveGearItem(
+        form: NewGearItem,
+        existingId: GearItemId? = null,
+    ) {
         viewModelScope.launch {
+            if (form.name.isBlank()) return@launch
+
             val now = clock.now()
+            val existing = existingId?.let { gearRepository.getGearItem(it) }
 
             gearRepository.saveGearItem(
                 GearItem(
-                    id = GearItemId.new(),
+                    id = existing?.id ?: GearItemId.new(),
                     studioId = studioContext.studioId,
                     name = form.name.trim(),
                     category = form.category,
@@ -116,9 +134,21 @@ internal class StudioViewModel(
                     purchasedOn = form.purchasedOn?.toLocalDateOrNull(),
                     // Stored as an instant because a service is an event, but entered as a
                     // date because nobody remembers the hour they dropped a body off.
-                    lastServicedAt = form.lastServicedOn?.toLocalDateOrNull()?.atStartOfDayIn(timeZone),
+                    //
+                    // The stored instant is kept when the date has not moved. Marking gear
+                    // serviced records a real time; rebuilding it from the form's date
+                    // would drag that back to midnight every time somebody corrected the
+                    // name, quietly rewriting a fact nobody was editing.
+                    lastServicedAt =
+                        form.lastServicedOn?.toLocalDateOrNull()?.let { entered ->
+                            val stored = existing?.lastServicedAt
+                            when (entered) {
+                                stored?.toLocalDateTime(timeZone)?.date -> stored
+                                else -> entered.atStartOfDayIn(timeZone)
+                            }
+                        },
                     notes = form.notes?.trim()?.ifBlank { null },
-                    audit = AuditMetadata.createdAt(now),
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }

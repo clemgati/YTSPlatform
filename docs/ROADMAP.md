@@ -375,8 +375,15 @@ and used.
     accepting a quote or signing a contract removed it from the one screen that showed it.
     Both are now listed on the booking they belong to, in whatever state they reached, which
     is also the page where the refusal to remove that booking is read
-  - **Every delete the sweep found is now reachable.** Ten of the eleven unreached write
-    methods are done; `saveTemplate` is the eleventh and is not a delete
+  - ✓ **A studio can have its own packages.** `saveTemplate` was never called, so the four
+    seeded ones were the only packages that could ever exist — while the pricing floor, whose
+    job is to say which packages fall short, measured packages nobody had agreed to. Adding,
+    correcting and removing all work now
+  - ✓ **Gear can be corrected**, rather than only added and thrown away. A mistyped serial
+    number — the field an insurer needs — previously had to be fixed by deleting the item and
+    entering it again, losing its service history with the mistake
+  - **`deleteLead` is the last unreached write method.** An enquiry can be recorded and never
+    removed; it is the one remaining hole from the sweep
 
 - **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
   called, so a studio cannot add its own package or change a default's price — while the

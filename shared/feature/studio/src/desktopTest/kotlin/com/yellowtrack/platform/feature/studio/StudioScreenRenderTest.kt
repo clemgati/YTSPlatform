@@ -68,7 +68,7 @@ class StudioScreenRenderTest {
                         StudioScreen(
                             uiState = StudioUiState(content = UiState.Success(sampleContent())),
                             onRetry = {},
-                            onAddGear = {},
+                            onSaveGear = { _, _ -> },
                             onMarkServiced = {},
                             onDeleteGear = {},
                             onAddRecipe = {},
