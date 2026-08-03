@@ -2,6 +2,8 @@ package com.yellowtrack.platform.feature.studio.presentation.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
@@ -145,6 +147,18 @@ private fun GearGroupBlock(
     }
 }
 
+/**
+ * One item, with its actions beneath rather than beside it.
+ *
+ * They were beside it, and on a phone that left the name a word per line: three text
+ * buttons take a fixed width, and the column holding the name had whatever was left, which
+ * was about eighty pixels. "Sony A6700m3" arrived over three lines and the serial number —
+ * the reason the row exists — was unreadable.
+ *
+ * Below and wrapping works at every width without a breakpoint, and costs one line of
+ * height on a desktop where there was room anyway.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GearRow(
     item: GearItemUi,
@@ -152,62 +166,68 @@ private fun GearRow(
     onDeleteGear: (GearItemId) -> Unit,
     onEditGear: (GearItemUi) -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
-        verticalAlignment = Alignment.Top,
+        verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = item.name,
+                modifier = Modifier.weight(1f),
                 style = YTTheme.typography.bodyLarge,
                 color = YTTheme.colors.onSurface,
             )
 
-            Text(
-                text = item.detailLine(),
-                style = YTTheme.typography.bodySmall,
-                color = if (item.isUninsurable) YTTheme.colors.error else YTTheme.colors.onSurfaceVariant,
-            )
+            if (!item.status.isAvailable) YTBadge(text = item.statusLabel)
+        }
 
-            item.notes?.let { note ->
+        Text(
+            text = item.detailLine(),
+            style = YTTheme.typography.bodySmall,
+            color = if (item.isUninsurable) YTTheme.colors.error else YTTheme.colors.onSurfaceVariant,
+        )
+
+        item.notes?.let { note ->
+            Text(
+                text = note,
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
+
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            TextButton(onClick = { onEditGear(item) }) {
                 Text(
-                    text = note,
-                    style = YTTheme.typography.bodySmall,
-                    color = YTTheme.colors.onSurfaceVariant,
+                    text = "Edit",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
                 )
             }
-        }
 
-        if (!item.status.isAvailable) YTBadge(text = item.statusLabel)
+            // Labelled as the action it is. "Serviced today" reads as a statement of fact,
+            // and a row that appears to already assert something is not a row anyone clicks.
+            TextButton(onClick = { onMarkServiced(item.id) }) {
+                Text(
+                    text = "Mark serviced",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
+            }
 
-        // Labelled as the action it is. "Serviced today" reads as a statement of fact, and
-        // a row that appears to already assert something is not a row anyone clicks.
-        TextButton(onClick = { onEditGear(item) }) {
-            Text(
-                text = "Edit",
-                style = YTTheme.typography.labelLarge,
-                color = YTTheme.colors.primary,
-            )
-        }
-
-        TextButton(onClick = { onMarkServiced(item.id) }) {
-            Text(
-                text = "Mark serviced",
-                style = YTTheme.typography.labelMedium,
-                color = YTTheme.colors.primary,
-            )
-        }
-
-        TextButton(onClick = { onDeleteGear(item.id) }) {
-            Text(
-                text = "Remove",
-                style = YTTheme.typography.labelMedium,
-                color = YTTheme.colors.error,
-            )
+            TextButton(onClick = { onDeleteGear(item.id) }) {
+                Text(
+                    text = "Remove",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.error,
+                )
+            }
         }
     }
 }

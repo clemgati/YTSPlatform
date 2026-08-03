@@ -386,7 +386,18 @@ and used.
     only screen that showed leads at all. Spam somebody answered could never be reached
   - ✓ **The sweep is closed.** All forty-five write methods the repositories declare are
     reachable from a screen
+  - **The sweep asked the wrong question once.** It checked whether a method was called from
+    anywhere, not whether it was reachable in every state a record can be in. Editing and
+    removing a drive sat inside the branch for a *failed* drive, so a working one could be
+    neither — and the audit counted `deleteVolume` as reached. Found on a phone, not by the
+    grep
 
+
+- **Narrow screens are barely looked at.** Every render was 640dp or wider until the Studio
+  screen was photographed on a real phone: three row actions took the width they needed and
+  left the gear name about eighty pixels, so an item arrived over three lines with its serial
+  number one character wide. The Studio screen has a phone-width render now. No other screen
+  does
 
 **In the operation**
 

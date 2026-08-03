@@ -2,6 +2,8 @@ package com.yellowtrack.platform.feature.studio.presentation.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
@@ -60,6 +62,7 @@ internal fun RecipesSection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RecipeBlock(
     recipe: LightingRecipeItem,
@@ -80,22 +83,6 @@ private fun RecipeBlock(
             )
 
             YTBadge(text = recipe.lightCountLabel)
-
-            TextButton(onClick = { onEdit(recipe) }) {
-                Text(
-                    text = "Edit",
-                    style = YTTheme.typography.labelLarge,
-                    color = YTTheme.colors.primary,
-                )
-            }
-
-            TextButton(onClick = { onDelete(recipe.id) }) {
-                Text(
-                    text = "Remove",
-                    style = YTTheme.typography.labelMedium,
-                    color = YTTheme.colors.error,
-                )
-            }
         }
 
         recipe.lights.forEach { light ->
@@ -114,6 +101,27 @@ private fun RecipeBlock(
                 style = YTTheme.typography.bodySmall,
                 color = YTTheme.colors.onSurfaceVariant,
             )
+        }
+
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            TextButton(onClick = { onEdit(recipe) }) {
+                Text(
+                    text = "Edit",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
+            }
+
+            TextButton(onClick = { onDelete(recipe.id) }) {
+                Text(
+                    text = "Remove",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.error,
+                )
+            }
         }
     }
 }

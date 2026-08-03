@@ -2,6 +2,8 @@ package com.yellowtrack.platform.feature.studio.presentation.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
@@ -89,6 +91,18 @@ private fun VolumeRegister.warnings(): List<String> =
         }
     }
 
+/**
+ * One drive, with its actions beneath rather than beside it.
+ *
+ * Two faults, both only visible on a phone. The actions squeezed the label into a word per
+ * line, as gear did — and Edit and Remove were inside the branch for a drive that had
+ * failed, so a working drive could be neither corrected nor removed.
+ *
+ * That second one is a hole the sweep missed: it asked whether `deleteVolume` was called
+ * from anywhere, and it was — just not in the state a drive is normally in. Reachable from
+ * one branch is not reachable.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun VolumeRow(
     volume: VolumeItem,
@@ -97,75 +111,86 @@ private fun VolumeRow(
     onDelete: (StorageVolumeId) -> Unit,
     onEdit: (VolumeItem) -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
-        verticalAlignment = Alignment.Top,
+        verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = volume.label,
+                modifier = Modifier.weight(1f),
                 style = YTTheme.typography.bodyLarge,
                 color = YTTheme.colors.onSurface,
             )
 
-            Text(
-                text =
-                    listOfNotNull(
-                        volume.kindLabel,
-                        volume.whereLabel,
-                        volume.checkedLabel,
-                        volume.shootsLabel(),
-                    ).joinToString(" · "),
-                style = YTTheme.typography.bodySmall,
-                color = if (volume.isDependable) YTTheme.colors.onSurfaceVariant else YTTheme.colors.error,
-            )
-
-            volume.notes?.let { note ->
-                Text(
-                    text = note,
-                    style = YTTheme.typography.bodySmall,
-                    color = YTTheme.colors.onSurfaceVariant,
-                )
-            }
+            if (!volume.isDependable) YTBadge(text = volume.statusLabel)
         }
 
-        if (!volume.isDependable) YTBadge(text = volume.statusLabel)
+        Text(
+            text =
+                listOfNotNull(
+                    volume.kindLabel,
+                    volume.whereLabel,
+                    volume.checkedLabel,
+                    volume.shootsLabel(),
+                ).joinToString(" · "),
+            style = YTTheme.typography.bodySmall,
+            color = if (volume.isDependable) YTTheme.colors.onSurfaceVariant else YTTheme.colors.error,
+        )
 
-        if (volume.isDependable) {
-            TextButton(onClick = { onMarkChecked(volume.id) }) {
-                Text(
-                    text = "Checked",
-                    style = YTTheme.typography.labelMedium,
-                    color = YTTheme.colors.primary,
-                )
+        volume.notes?.let { note ->
+            Text(
+                text = note,
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
+
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            // Only these two depend on the state of the drive. Reading a working drive is
+            // the act that proves it; declaring a failed one back in use is the act that
+            // undoes it.
+            if (volume.isDependable) {
+                TextButton(onClick = { onMarkChecked(volume.id) }) {
+                    Text(
+                        text = "Checked",
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
+                // The action the register exists for. Every shoot with a copy here reports
+                // one fewer copy the moment it is pressed.
+                TextButton(onClick = { onSetStatus(volume.id, VolumeStatus.Failed) }) {
+                    Text(
+                        text = "Failed",
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.error,
+                    )
+                }
+            } else {
+                TextButton(onClick = { onSetStatus(volume.id, VolumeStatus.InUse) }) {
+                    Text(
+                        text = "Back in use",
+                        style = YTTheme.typography.labelMedium,
+                        color = YTTheme.colors.primary,
+                    )
+                }
             }
 
-            // The action the register exists for. Every shoot with a copy here reports one
-            // fewer copy the moment it is pressed.
-            TextButton(onClick = { onSetStatus(volume.id, VolumeStatus.Failed) }) {
-                Text(
-                    text = "Failed",
-                    style = YTTheme.typography.labelMedium,
-                    color = YTTheme.colors.error,
-                )
-            }
-        } else {
-            TextButton(onClick = { onSetStatus(volume.id, VolumeStatus.InUse) }) {
-                Text(
-                    text = "Back in use",
-                    style = YTTheme.typography.labelMedium,
-                    color = YTTheme.colors.primary,
-                )
-            }
-
+            // These two do not. A drive is relabelled and thrown out whatever state it is
+            // in, and a dead one is the likeliest to be thrown out.
             TextButton(onClick = { onEdit(volume) }) {
                 Text(
                     text = "Edit",
-                    style = YTTheme.typography.labelLarge,
+                    style = YTTheme.typography.labelMedium,
                     color = YTTheme.colors.primary,
                 )
             }
@@ -174,7 +199,7 @@ private fun VolumeRow(
                 Text(
                     text = "Remove",
                     style = YTTheme.typography.labelMedium,
-                    color = YTTheme.colors.onSurfaceVariant,
+                    color = YTTheme.colors.error,
                 )
             }
         }

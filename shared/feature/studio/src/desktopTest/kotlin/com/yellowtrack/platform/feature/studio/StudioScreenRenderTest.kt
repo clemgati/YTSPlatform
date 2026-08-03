@@ -59,7 +59,7 @@ class StudioScreenRenderTest {
         val target = File(outputDir, "studio.png")
 
         val scene =
-            ImageComposeScene(width = 1_280, height = 3_400, density = Density(2f)) {
+            ImageComposeScene(width = WIDE, height = 3_400, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -91,6 +91,63 @@ class StudioScreenRenderTest {
 
         assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
         println("Rendered ${target.absolutePath}")
+    }
+
+    /**
+     * The same screen at the width of a phone.
+     *
+     * Rendered at 640dp everything fitted and nothing looked wrong. On a real phone the row
+     * actions took the width they needed and left the item name about eighty pixels, so
+     * "Sony A6700m3" arrived over three lines and the serial number underneath it was one
+     * character wide. Only a narrow render catches that, so there is one now.
+     */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `renders the studio at the width of a phone`() {
+        val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
+        outputDir.mkdirs()
+        val target = File(outputDir, "studio-phone.png")
+
+        val scene =
+            ImageComposeScene(width = NARROW, height = 5_600, density = Density(2f)) {
+                YellowTrackTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = YTTheme.colors.background,
+                    ) {
+                        StudioScreen(
+                            uiState = StudioUiState(content = UiState.Success(sampleContent())),
+                            onRetry = {},
+                            onSaveGear = { _, _ -> },
+                            onMarkServiced = {},
+                            onDeleteGear = {},
+                            onSaveRecipe = { _, _ -> },
+                            onDeleteRecipe = {},
+                            onSaveVolume = { _, _ -> },
+                            onMarkVolumeChecked = {},
+                            onSetVolumeStatus = { _, _ -> },
+                            onDeleteVolume = {},
+                        )
+                    }
+                }
+            }
+
+        try {
+            val bytes = requireNotNull(scene.render().encodeToData()) { "Skia produced no image data" }.bytes
+            target.writeBytes(bytes)
+        } finally {
+            scene.close()
+        }
+
+        assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
+        println("Rendered ${target.absolutePath}")
+    }
+
+    private companion object {
+        const val WIDE = 1_280
+
+        /** A 390pt phone at 2x, which is what the screenshots that found this came from. */
+        const val NARROW = 780
     }
 
     private fun sampleContent(): StudioContent {
