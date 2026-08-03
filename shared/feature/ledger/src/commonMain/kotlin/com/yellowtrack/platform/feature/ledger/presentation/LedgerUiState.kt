@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
@@ -19,6 +20,8 @@ internal data class LedgerContent(
     val proposals: ProposalsSummary,
     /** Null until the studio has stated its pricing basis. */
     val pricing: PricingSummary?,
+    /** What the studio sells. Present whether or not there is a floor to measure it against. */
+    val packages: List<PackagePricing>,
     val expenses: ExpenseSummary,
     /** Bookings a cost can be charged to. */
     val projects: List<ProjectOption>,

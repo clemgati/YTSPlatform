@@ -24,6 +24,7 @@ import com.yellowtrack.platform.feature.studio.presentation.component.RecipeForm
 import com.yellowtrack.platform.feature.studio.presentation.component.RecipesSection
 import com.yellowtrack.platform.feature.studio.presentation.component.RegisterSection
 import com.yellowtrack.platform.feature.studio.presentation.component.VolumeFormDialog
+import com.yellowtrack.platform.feature.studio.presentation.model.GearItemUi
 import com.yellowtrack.platform.feature.studio.presentation.model.NewGearItem
 import com.yellowtrack.platform.feature.studio.presentation.model.NewLightingRecipe
 import com.yellowtrack.platform.feature.studio.presentation.model.NewVolume
@@ -32,7 +33,7 @@ import com.yellowtrack.platform.feature.studio.presentation.model.NewVolume
 internal fun StudioScreen(
     uiState: StudioUiState,
     onRetry: () -> Unit,
-    onAddGear: (NewGearItem) -> Unit,
+    onSaveGear: (NewGearItem, GearItemId?) -> Unit,
     onMarkServiced: (GearItemId) -> Unit,
     onDeleteGear: (GearItemId) -> Unit,
     onAddRecipe: (NewLightingRecipe) -> Unit,
@@ -44,6 +45,7 @@ internal fun StudioScreen(
     modifier: Modifier = Modifier,
 ) {
     var showGearForm by remember { mutableStateOf(false) }
+    var editingGear by remember { mutableStateOf<GearItemUi?>(null) }
     var showRecipeForm by remember { mutableStateOf(false) }
     var showVolumeForm by remember { mutableStateOf(false) }
 
@@ -57,10 +59,23 @@ internal fun StudioScreen(
                 today = content.today,
                 currency = content.currency,
                 onSave = {
-                    onAddGear(it)
+                    onSaveGear(it, null)
                     showGearForm = false
                 },
                 onDismiss = { showGearForm = false },
+            )
+        }
+
+        editingGear?.let { item ->
+            GearFormDialog(
+                today = content.today,
+                currency = content.currency,
+                onSave = {
+                    onSaveGear(it, item.id)
+                    editingGear = null
+                },
+                onDismiss = { editingGear = null },
+                initial = item.editable,
             )
         }
 
@@ -95,6 +110,7 @@ internal fun StudioScreen(
             InventorySection(
                 inventory = content.inventory,
                 onAddGear = { showGearForm = true },
+                onEditGear = { editingGear = it },
                 onMarkServiced = onMarkServiced,
                 onDeleteGear = onDeleteGear,
             )

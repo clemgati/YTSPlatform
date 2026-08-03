@@ -16,7 +16,7 @@ fun StudioRoute(modifier: Modifier = Modifier) {
     StudioScreen(
         uiState = uiState,
         onRetry = viewModel::retry,
-        onAddGear = viewModel::addGearItem,
+        onSaveGear = viewModel::saveGearItem,
         onMarkServiced = viewModel::markServiced,
         onDeleteGear = viewModel::deleteGearItem,
         onAddRecipe = viewModel::addRecipe,

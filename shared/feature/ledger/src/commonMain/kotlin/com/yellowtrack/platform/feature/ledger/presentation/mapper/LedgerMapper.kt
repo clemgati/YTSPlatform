@@ -23,6 +23,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
@@ -202,6 +203,41 @@ private fun raisedLabel(
     }
 }
 
+/**
+ * The studio's packages, with the floor comparison when there is a floor.
+ *
+ * Built apart from [buildPricing] because a package exists whether or not a pricing basis
+ * has been stated. Folded into the pricing summary, as it was, the entire list vanished
+ * until a studio entered a salary target — so the four seeded packages could not be seen,
+ * corrected or removed by exactly the studio that had just installed the application.
+ */
+internal fun buildPackages(
+    templates: List<ServiceTemplate>,
+    breakdown: CodbBreakdown?,
+    measuredFactor: Double? = null,
+): List<PackagePricing> {
+    val factor = measuredFactor ?: ASSUMED_POST_PRODUCTION_FACTOR
+
+    return templates.map { template ->
+        val days = template.estimatedDaysConsumed(factor)
+        val price = template.basePrice
+        val assessment = if (price != null && breakdown != null) breakdown.assess(price, days) else null
+
+        PackagePricing(
+            id = template.id.value,
+            name = template.name,
+            serviceLine = template.serviceLine.name,
+            price = price?.display() ?: "—",
+            minimumPrice = breakdown?.minimumPriceFor(days)?.display(),
+            difference = assessment?.difference?.displaySigned(),
+            estimatedDays = days.dayLabel(),
+            isBelowCost = assessment?.isBelowCost == true,
+            hasPrice = price != null,
+            editable = template.toForm(),
+        )
+    }
+}
+
 internal fun buildPricing(
     breakdown: CodbBreakdown,
     templates: List<ServiceTemplate>,
@@ -217,37 +253,6 @@ internal fun buildPricing(
         taxAllowance = breakdown.taxAllowance.display(),
         totalAnnualRequirement = breakdown.totalAnnualRequirement.display(),
         billableDaysPerYear = breakdown.billableDaysPerYear,
-        packages =
-            templates.map { template ->
-                val days = template.estimatedDaysConsumed(measuredFactor ?: ASSUMED_POST_PRODUCTION_FACTOR)
-                val price = template.basePrice
-
-                if (price == null) {
-                    PackagePricing(
-                        name = template.name,
-                        serviceLine = template.serviceLine.name,
-                        price = "—",
-                        minimumPrice = breakdown.minimumPriceFor(days).display(),
-                        difference = "—",
-                        estimatedDays = days.dayLabel(),
-                        isBelowCost = false,
-                        hasPrice = false,
-                    )
-                } else {
-                    val assessment = breakdown.assess(price, days)
-
-                    PackagePricing(
-                        name = template.name,
-                        serviceLine = template.serviceLine.name,
-                        price = price.display(),
-                        minimumPrice = assessment.minimumPrice.display(),
-                        difference = assessment.difference.displaySigned(),
-                        estimatedDays = days.dayLabel(),
-                        isBelowCost = assessment.isBelowCost,
-                        hasPrice = true,
-                    )
-                }
-            },
     )
 
 internal fun buildExpenseSummary(
@@ -353,6 +358,7 @@ internal fun buildExpenseSummary(
  * Deliberately visible in the UI rather than buried: a floor computed from a hidden
  * assumption is a floor nobody should trust.
  */
+
 internal fun ServiceTemplate.estimatedDaysConsumed(postProductionFactor: Double): Double {
     val shootDays =
         (defaultSessionCount * defaultSessionDurationMinutes / 60.0 / HOURS_IN_WORKING_DAY)
@@ -360,6 +366,25 @@ internal fun ServiceTemplate.estimatedDaysConsumed(postProductionFactor: Double)
 
     return shootDays * (1 + postProductionFactor)
 }
+
+/**
+ * The package's own values, as the form holds them.
+ *
+ * Digits rather than renderings: a form opening on "£1,240.00" makes somebody delete
+ * punctuation before they can change a figure.
+ */
+private fun ServiceTemplate.toForm() =
+    NewServiceTemplate(
+        name = name,
+        serviceLine = serviceLine,
+        sessionDurationMinutes = defaultSessionDurationMinutes.toString(),
+        sessionCount = defaultSessionCount.toString(),
+        basePrice = basePrice?.toPlainString().orEmpty(),
+        deliverableCount = defaultDeliverableCount?.toString().orEmpty(),
+        turnaroundDays = defaultTurnaroundDays?.toString().orEmpty(),
+        revisionRounds = defaultRevisionRounds?.toString().orEmpty(),
+        notes = notes.orEmpty(),
+    )
 
 private fun Double.dayLabel(): String {
     val rounded = (this * 10).toLong() / 10.0

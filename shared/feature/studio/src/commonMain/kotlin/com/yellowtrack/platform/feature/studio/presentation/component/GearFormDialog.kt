@@ -31,23 +31,25 @@ internal fun GearFormDialog(
     currency: CurrencyCode,
     onSave: (NewGearItem) -> Unit,
     onDismiss: () -> Unit,
+    /** The item being corrected, or null when this is a new one. */
+    initial: NewGearItem? = null,
 ) {
-    var name by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(GearCategory.Camera) }
-    var status by remember { mutableStateOf(GearStatus.InService) }
-    var serialNumber by remember { mutableStateOf("") }
-    var price by remember { mutableStateOf("") }
-    var purchasedOn by remember { mutableStateOf("") }
-    var servicedOn by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var category by remember { mutableStateOf(initial?.category ?: GearCategory.Camera) }
+    var status by remember { mutableStateOf(initial?.status ?: GearStatus.InService) }
+    var serialNumber by remember { mutableStateOf(initial?.serialNumber.orEmpty()) }
+    var price by remember { mutableStateOf(initial?.purchasePrice.orEmpty()) }
+    var purchasedOn by remember { mutableStateOf(initial?.purchasedOn.orEmpty()) }
+    var servicedOn by remember { mutableStateOf(initial?.lastServicedOn.orEmpty()) }
+    var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
 
     val priceValid = price.isBlank() || parseMoney(price, currency) != null
     val purchasedValid = purchasedOn.isBlank() || purchasedOn.isDate()
     val servicedValid = servicedOn.isBlank() || servicedOn.isDate()
 
     YTFormDialog(
-        title = "Add gear",
-        confirmLabel = "Save",
+        title = if (initial == null) "Add gear" else "Edit this gear",
+        confirmLabel = if (initial == null) "Save" else "Save changes",
         confirmEnabled = name.isNotBlank() && priceValid && purchasedValid && servicedValid,
         onConfirm = {
             onSave(

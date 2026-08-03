@@ -38,6 +38,17 @@ SELECT COUNT(*)
 FROM service_template
 WHERE studio_id = :studioId AND deleted_at IS NULL;
 
+-- Counts tombstones too, and is what seeding asks.
+--
+-- Seeding runs at every launch and stops when the studio already has templates. Asked
+-- against live rows only, a studio that deliberately removed all four would be given them
+-- back on the next start, with new identifiers, and would have to remove them again. A
+-- tombstone is evidence the studio has been seeded and has an opinion.
+countEverForStudio:
+SELECT COUNT(*)
+FROM service_template
+WHERE studio_id = :studioId;
+
 -- See the note in Contact.sq on why upsert is INSERT OR IGNORE plus UPDATE.
 insertOrIgnore:
 INSERT OR IGNORE INTO service_template(

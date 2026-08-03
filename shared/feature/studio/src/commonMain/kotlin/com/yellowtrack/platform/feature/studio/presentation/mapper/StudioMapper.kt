@@ -19,9 +19,11 @@ import com.yellowtrack.platform.feature.studio.presentation.model.GearItemUi
 import com.yellowtrack.platform.feature.studio.presentation.model.InventorySummary
 import com.yellowtrack.platform.feature.studio.presentation.model.LightSetupUi
 import com.yellowtrack.platform.feature.studio.presentation.model.LightingRecipeItem
+import com.yellowtrack.platform.feature.studio.presentation.model.NewGearItem
 import com.yellowtrack.platform.feature.studio.presentation.model.VolumeItem
 import com.yellowtrack.platform.feature.studio.presentation.model.VolumeRegister
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
@@ -104,6 +106,19 @@ private fun GearItem.toUi(
         isUninsurable = isUninsurable,
         isLongUnserviced = isLongUnserviced(now),
         notes = notes,
+        editable =
+            NewGearItem(
+                name = name,
+                category = category,
+                status = status,
+                serialNumber = serialNumber,
+                // Digits, not a rendering: a form opening on "£1,899.00" makes somebody
+                // delete punctuation before they can change a figure.
+                purchasePrice = purchasePrice?.toPlainString(),
+                purchasedOn = purchasedOn?.toString(),
+                lastServicedOn = lastServicedAt?.toLocalDateTime(zone)?.date?.toString(),
+                notes = notes,
+            ),
     )
 
 internal fun LightingRecipe.toItem(): LightingRecipeItem =

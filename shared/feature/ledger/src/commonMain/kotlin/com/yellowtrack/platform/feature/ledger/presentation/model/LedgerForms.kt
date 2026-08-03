@@ -8,6 +8,7 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
 import com.yellowtrack.platform.core.model.invoice.PaymentMethod
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.service.ServiceLine
 
 /**
  * What the expense form collected.
@@ -42,6 +43,28 @@ internal data class NewMileage(
     val purpose: String?,
     val fromLocation: String?,
     val toLocation: String?,
+)
+
+/**
+ * What the package form collected.
+ *
+ * Numbers stay as text for the reason amounts do elsewhere: a half-typed figure is a
+ * legitimate state to be in, and a form that refuses to hold one fights the person filling
+ * it in. They are parsed once, on save.
+ *
+ * A blank price is allowed and means something — a package a studio has not decided a
+ * figure for yet still has a floor, and seeing that floor is how the figure gets decided.
+ */
+internal data class NewServiceTemplate(
+    val name: String,
+    val serviceLine: ServiceLine,
+    val sessionDurationMinutes: String,
+    val sessionCount: String,
+    val basePrice: String,
+    val deliverableCount: String,
+    val turnaroundDays: String,
+    val revisionRounds: String,
+    val notes: String,
 )
 
 internal data class NewPayment(
