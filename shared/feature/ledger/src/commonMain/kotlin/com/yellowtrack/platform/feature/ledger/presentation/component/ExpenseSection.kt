@@ -21,6 +21,7 @@ internal fun ExpenseSection(
     onAddExpense: () -> Unit,
     /** Called for a cost the studio can correct; journeys pass nothing, having no form. */
     onCorrectCost: (RecordedCost) -> Unit = {},
+    onRemoveCost: (RecordedCost) -> Unit = {},
     onAddMileage: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -73,7 +74,11 @@ internal fun ExpenseSection(
                 )
 
                 summary.items.forEach { cost ->
-                    RecordedCostRow(cost = cost, onCorrect = { onCorrectCost(cost) })
+                    RecordedCostRow(
+                        cost = cost,
+                        onCorrect = { onCorrectCost(cost) },
+                        onRemove = { onRemoveCost(cost) },
+                    )
                 }
             }
 
@@ -110,6 +115,7 @@ internal fun ExpenseSection(
 private fun RecordedCostRow(
     cost: RecordedCost,
     onCorrect: () -> Unit,
+    onRemove: () -> Unit,
 ) {
     Row(
         modifier =
@@ -132,11 +138,27 @@ private fun RecordedCostRow(
             )
         }
 
-        Text(
-            text = cost.amount,
-            style = YTTheme.typography.bodyMedium,
-            color = YTTheme.colors.onSurface,
-        )
+        // Grouped so the figure and the control sit on one line. Left as two children of
+        // the outer row they did not: the amount took the first line and "Remove" dropped
+        // to the second, which reads as though it belongs to the date underneath it.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = cost.amount,
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurface,
+            )
+
+            // Removal rather than a correction to zero. The row itself is clickable to
+            // correct, so this is deliberately its own target: nothing here should be
+            // reachable by mis-tapping the thing beside it.
+            TextButton(onClick = onRemove) {
+                Text(
+                    text = "Remove",
+                    style = YTTheme.typography.labelLarge,
+                    color = YTTheme.colors.error,
+                )
+            }
+        }
     }
 }
 

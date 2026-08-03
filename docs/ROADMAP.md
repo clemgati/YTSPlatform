@@ -367,10 +367,16 @@ and used.
     booking, then the client — because everything a shoot day holds (backups, releases,
     crew, shots, packed gear) already had a way off the screen. Deliverables,
     post-production tasks and draft invoices did too
-  - **Quotes, contracts, costs and journeys still have no way off.** A booking carrying any
-    of them is stuck, and so is the client above it. These are the last four links, and
-    unlike shoot days they are each a single row with nothing beneath them — the guard
-    pattern will not be needed
+  - ✓ **A cost or a journey** can be taken off the year. Correcting one was already
+    possible; the two are different admissions, and correcting a duplicate to zero leaves a
+    phantom row the studio meets again at tax time
+  - ✓ **A quote or a contract** can be removed — and, first, *found*. The Ledger lists a
+    quote only while it awaits a decision and a contract only until it holds its date, so
+    accepting a quote or signing a contract removed it from the one screen that showed it.
+    Both are now listed on the booking they belong to, in whatever state they reached, which
+    is also the page where the refusal to remove that booking is read
+  - **Every delete the sweep found is now reachable.** Ten of the eleven unreached write
+    methods are done; `saveTemplate` is the eleventh and is not a delete
 
 - **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
   called, so a studio cannot add its own package or change a default's price — while the

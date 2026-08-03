@@ -68,6 +68,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildProposal
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.measuredPostProductionFactor
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.nextNumber
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
+import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
@@ -76,6 +77,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
+import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 import com.yellowtrack.platform.feature.ledger.presentation.model.toLineItems
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -421,6 +423,28 @@ internal class LedgerViewModel(
                     audit = AuditMetadata.createdAt(clock.now()),
                 ),
             )
+        }
+    }
+
+    /**
+     * Takes a cost back off the year.
+     *
+     * Separate from correcting because the two are different admissions: a correction says
+     * the figure was wrong, a removal says the cost was not this studio's — a personal card
+     * used by accident, or the same receipt entered twice. Correcting a duplicate to zero
+     * would leave a phantom row in the itemised year that the studio would meet again at
+     * tax time and have to work out afresh.
+     */
+    fun removeCost(cost: RecordedCost) {
+        viewModelScope.launch {
+            // Which table the row came from is already settled by the form it reopens, so
+            // it is read from there rather than decided again. Costs and journeys share a
+            // repository and an identifier shape, and sending one to the other's delete is
+            // a silent no-op — nothing throws, nothing goes, and the studio presses again.
+            when (cost.editable) {
+                is CostEdit.OfExpense -> expenseRepository.deleteExpense(ExpenseId(cost.id))
+                is CostEdit.OfJourney -> expenseRepository.deleteMileage(MileageId(cost.id))
+            }
         }
     }
 

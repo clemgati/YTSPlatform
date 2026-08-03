@@ -39,6 +39,7 @@ import com.yellowtrack.platform.feature.clients.presentation.project.component.P
 import com.yellowtrack.platform.feature.clients.presentation.project.component.PostTaskFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewDeliverable
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewPostTask
+import com.yellowtrack.platform.feature.clients.presentation.project.model.PaperworkItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostTaskItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
 
@@ -58,6 +59,7 @@ internal fun ProjectDetailsScreen(
     onAddRevision: (DeliverableId) -> Unit,
     onRemoveDeliverable: (DeliverableId) -> Unit,
     onRemoveProject: () -> Unit,
+    onRemovePaperwork: (PaperworkItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var addingTask by remember { mutableStateOf(false) }
@@ -240,6 +242,11 @@ internal fun ProjectDetailsScreen(
                 }
             }
 
+            PaperworkSection(
+                paperwork = project.paperwork,
+                onRemove = onRemovePaperwork,
+            )
+
             TextButton(onClick = { editing = true }) {
                 Text(
                     text = "Edit this booking",
@@ -252,6 +259,59 @@ internal fun ProjectDetailsScreen(
                 removal = project.removal,
                 onRemove = { confirmRemoval = true },
             )
+        }
+    }
+}
+
+/**
+ * Every quote and contract on this booking, whatever became of them.
+ *
+ * The Ledger shows a quote only while it awaits a decision and a contract only until it
+ * holds its date, which means the successful ones — accepted, signed, paid — leave the
+ * application entirely. They still exist, they still hold the booking in place, and until
+ * now nothing anywhere would show them.
+ *
+ * The state is spelled out on every row rather than only the ones needing attention,
+ * because "Accepted" next to "Draft" is how a studio spots the duplicate quote it raised
+ * twice and accepted once.
+ */
+@Composable
+private fun PaperworkSection(
+    paperwork: List<PaperworkItem>,
+    onRemove: (PaperworkItem) -> Unit,
+) {
+    if (paperwork.isEmpty()) return
+
+    YTDetailSection(title = "Quotes and contracts") {
+        Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
+            paperwork.forEach { item ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.title,
+                            style = YTTheme.typography.bodyMedium,
+                            color = YTTheme.colors.onSurface,
+                        )
+                        Text(
+                            text = listOfNotNull(item.statusLabel, item.amount).joinToString(" · "),
+                            style = YTTheme.typography.labelMedium,
+                            color = YTTheme.colors.onSurfaceVariant,
+                        )
+                    }
+
+                    TextButton(onClick = { onRemove(item) }) {
+                        Text(
+                            text = "Remove",
+                            style = YTTheme.typography.labelLarge,
+                            color = YTTheme.colors.error,
+                        )
+                    }
+                }
+            }
         }
     }
 }
