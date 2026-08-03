@@ -10,6 +10,7 @@ import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetai
 import com.yellowtrack.platform.feature.clients.presentation.details.model.BookingSummary
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientContact
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
+import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientSessionHistoryItem
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientUpcomingSession
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
@@ -80,6 +81,9 @@ internal object ClientDetailsPreviewData {
                             ),
                     ),
                 ),
+            // One booking, so the preview shows the held case and its explanation — the
+            // state worth looking at, since the available one is just a button.
+            removal = ClientRemoval.HeldByBookings(count = 1),
             editable =
                 NewClient(
                     accountName = "Sarah & Michael Johnson",

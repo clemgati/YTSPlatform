@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -43,6 +44,7 @@ internal class ClientDetailsViewModel(
     private val clock: AppClock,
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
+    private val removed = MutableStateFlow(false)
 
     val uiState: StateFlow<ClientDetailsUiState> =
         combine(
@@ -50,10 +52,16 @@ internal class ClientDetailsViewModel(
             projectRepository.observeProjectsForClient(clientId),
             sessionRepository.observeSessions(),
             studioProfileRepository.observeCurrency(),
-            retryTrigger,
-        ) { client, projects, allSessions, studioCurrency, _ ->
+            combine(retryTrigger, removed) { _, isRemoved -> isRemoved },
+        ) { client, projects, allSessions, studioCurrency, isRemoved ->
             if (client == null) {
-                ClientDetailsUiState(client = UiState.Error("Client could not be found."))
+                ClientDetailsUiState(
+                    // A client this screen removed itself is not a client that could not be
+                    // found. Both arrive here as null, and telling a studio its account is
+                    // missing one frame after it asked for it to go would read as a fault.
+                    client = if (isRemoved) UiState.Loading else UiState.Error("Client could not be found."),
+                    removed = isRemoved,
+                )
             } else {
                 // A session belongs to a project and a project belongs to a client, so a
                 // client's sessions are reached through their projects.
@@ -185,6 +193,24 @@ internal class ClientDetailsViewModel(
                     audit = existing.audit.touched(now),
                 ),
             )
+        }
+    }
+
+    /**
+     * Removes the account, provided nothing is booked against it.
+     *
+     * The bookings are counted again here rather than trusted from the screen. What the
+     * studio pressed was drawn from a snapshot, and a second device may have opened a
+     * booking on this client since — the whole point of synchronising. A guard that lives
+     * only in the layout is a guard that holds until two people use the application at
+     * once.
+     */
+    fun deleteClient() {
+        viewModelScope.launch {
+            if (projectRepository.observeProjectsForClient(clientId).first().isNotEmpty()) return@launch
+
+            clientRepository.deleteClient(clientId)
+            removed.value = true
         }
     }
 

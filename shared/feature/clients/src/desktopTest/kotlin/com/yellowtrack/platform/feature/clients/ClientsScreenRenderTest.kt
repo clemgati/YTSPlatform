@@ -12,6 +12,8 @@ import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.component.ClientFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsScreen
+import com.yellowtrack.platform.feature.clients.presentation.details.component.ClientQuickActionsSection
+import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
 import com.yellowtrack.platform.feature.clients.presentation.details.preview.ClientDetailsPreviewData
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsScreen
 import com.yellowtrack.platform.feature.clients.presentation.list.ClientsUiState
@@ -78,7 +80,7 @@ class ClientsScreenRenderTest {
 
     @Test
     fun `renders the client detail page`() {
-        render("client-details.png", height = 2_200) {
+        render("client-details.png", height = 2_400) {
             ClientDetailsScreen(
                 uiState = ClientDetailsPreviewData.successState,
                 onRetry = {},
@@ -87,6 +89,38 @@ class ClientsScreenRenderTest {
                 onAddProject = {},
                 onOpenBooking = {},
                 onUpdateClient = {},
+                onRemoveClient = {},
+            )
+        }
+    }
+
+    /**
+     * Both states of the removal control, on their own so the difference is the whole
+     * picture: live for an account nothing is booked against, and held — with the reason
+     * written underneath — for one that carries bookings.
+     */
+    @Test
+    fun `renders the quick actions for a client that can be removed`() {
+        render("client-actions-removable.png", height = 700) {
+            ClientQuickActionsSection(
+                onAddProject = {},
+                onScheduleSession = {},
+                onEditClient = {},
+                removal = ClientRemoval.Available,
+                onRemoveClient = {},
+            )
+        }
+    }
+
+    @Test
+    fun `renders the quick actions for a client held by bookings`() {
+        render("client-actions-held.png", height = 700) {
+            ClientQuickActionsSection(
+                onAddProject = {},
+                onScheduleSession = {},
+                onEditClient = {},
+                removal = ClientRemoval.HeldByBookings(count = 3),
+                onRemoveClient = {},
             )
         }
     }

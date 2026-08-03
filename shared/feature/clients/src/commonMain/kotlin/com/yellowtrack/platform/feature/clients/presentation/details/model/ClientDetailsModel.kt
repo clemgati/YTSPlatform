@@ -14,6 +14,8 @@ internal data class ClientDetailsModel(
     /** Every booking on this account, newest enquiry first. */
     val bookings: List<BookingSummary>,
     val notes: List<String>,
+    /** Whether this account can be removed, and what is holding it if not. */
+    val removal: ClientRemoval,
     /**
      * The account as the form takes it, so editing opens showing what is already there.
      *

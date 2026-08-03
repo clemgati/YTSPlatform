@@ -339,14 +339,24 @@ and used.
 - **Account deletion and data export.** The application holds other people's clients,
   addresses and payment histories, with no way to give that back or remove it
 
-- **Nothing the studio enters can be removed.** Of the forty-five write methods the
-  repositories declare, eleven are never called from any screen — and ten of those are
-  deletes. A client, booking, shoot day, lead, quote, contract, cost, journey or **payment**
-  can be created and never removed. Gear, lighting recipes, post-production tasks,
-  deliverables and invoices *can* be, which makes it inconsistent rather than simply
-  absent: a studio can delete a lighting recipe and not a client entered by mistake. The
-  data layer has every path, and synchronisation carries tombstones correctly; nothing calls
-  any of it
+- **Most of what the studio enters still cannot be removed.** Of the forty-five write
+  methods the repositories declare, eleven were never called from any screen — and ten of
+  those were deletes. A booking, shoot day, lead, quote, contract, cost or journey can still
+  be created and never removed. Gear, lighting recipes, post-production tasks, deliverables
+  and invoices *can* be, which makes it inconsistent rather than simply absent. The data
+  layer has every path, and synchronisation carries tombstones correctly; nothing calls most
+  of it
+  - ✓ **A payment** can be taken off the invoice it was put against — the case that hid
+    itself, since a misattributed payment settles its invoice and a settled invoice leaves
+    the money-owed list
+  - ✓ **A client** can be removed when nothing is booked against it. Bookings hold the
+    account in place and say so, because `Session.projectId` and `Invoice.projectId` cannot
+    be null: shoot days, invoices and payments hang off a booking, never off the client. So
+    an account with no bookings genuinely has nothing behind it, and a cascade here would be
+    the destruction of a year's accounts by one press rather than a correction
+  - **A booking is the next one worth doing**, and it is the harder shape: unlike a client
+    it *is* the thing money hangs off, so either it refuses while invoices exist or it takes
+    them with it. Until it exists, a client with a booking entered by mistake stays stuck
 
 - **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
   called, so a studio cannot add its own package or change a default's price — while the

@@ -17,6 +17,7 @@ private fun ClientDetailsScreenPreview() {
             onAddProject = {},
             onOpenBooking = {},
             onScheduleSession = {},
+            onRemoveClient = {},
         )
     }
 }
@@ -33,6 +34,7 @@ private fun ClientDetailsScreenLoadingPreview() {
             onAddProject = {},
             onOpenBooking = {},
             onScheduleSession = {},
+            onRemoveClient = {},
         )
     }
 }
@@ -49,6 +51,7 @@ private fun ClientDetailsScreenEmptyPreview() {
             onAddProject = {},
             onOpenBooking = {},
             onScheduleSession = {},
+            onRemoveClient = {},
         )
     }
 }
@@ -65,6 +68,7 @@ private fun ClientDetailsScreenErrorPreview() {
             onAddProject = {},
             onOpenBooking = {},
             onScheduleSession = {},
+            onRemoveClient = {},
         )
     }
 }

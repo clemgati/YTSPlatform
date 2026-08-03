@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.yellowtrack.platform.core.designsystem.component.YTButton
+import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
@@ -44,10 +45,12 @@ internal fun ClientDetailsScreen(
     onAddProject: (NewProject) -> Unit,
     onOpenBooking: (ProjectId) -> Unit,
     onUpdateClient: (NewClient) -> Unit,
+    onRemoveClient: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showProjectForm by remember { mutableStateOf(false) }
     var showEditForm by remember { mutableStateOf(false) }
+    var confirmRemoval by remember { mutableStateOf(false) }
 
     StatefulContent(
         state = uiState.client,
@@ -84,6 +87,24 @@ internal fun ClientDetailsScreen(
             )
         }
 
+        // Asked for rather than assumed, and this is the one action on the screen that
+        // cannot be walked back by pressing it again. Everything else here edits.
+        if (confirmRemoval) {
+            YTFormDialog(
+                title = "Remove ${client.displayName}?",
+                confirmLabel = "Remove",
+                supportingText =
+                    "The account, the people on it and its notes go from every device. " +
+                        "This cannot be undone.",
+                onConfirm = {
+                    onRemoveClient()
+                    confirmRemoval = false
+                },
+                onDismiss = { confirmRemoval = false },
+                content = {},
+            )
+        }
+
         ClientDetailsContent(
             client = client,
             onBack = onBack,
@@ -91,6 +112,7 @@ internal fun ClientDetailsScreen(
             onOpenBooking = { onOpenBooking(it.id) },
             onScheduleSession = onScheduleSession,
             onEditClient = { showEditForm = true },
+            onRemoveClient = { confirmRemoval = true },
             modifier = contentModifier,
         )
     }
@@ -104,6 +126,7 @@ private fun ClientDetailsContent(
     onOpenBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
+    onRemoveClient: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -136,6 +159,7 @@ private fun ClientDetailsContent(
                     onOpenBooking = onOpenBooking,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
+                    onRemoveClient = onRemoveClient,
                 )
             } else {
                 CompactClientDetailsContent(
@@ -144,6 +168,7 @@ private fun ClientDetailsContent(
                     onOpenBooking = onOpenBooking,
                     onScheduleSession = onScheduleSession,
                     onEditClient = onEditClient,
+                    onRemoveClient = onRemoveClient,
                 )
             }
         }
@@ -157,6 +182,7 @@ private fun CompactClientDetailsContent(
     onOpenBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
+    onRemoveClient: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -191,6 +217,8 @@ private fun CompactClientDetailsContent(
             onAddProject = onAddProject,
             onScheduleSession = onScheduleSession,
             onEditClient = onEditClient,
+            removal = client.removal,
+            onRemoveClient = onRemoveClient,
         )
     }
 }
@@ -202,6 +230,7 @@ private fun ExpandedClientDetailsContent(
     onOpenBooking: (BookingSummary) -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
+    onRemoveClient: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -235,6 +264,8 @@ private fun ExpandedClientDetailsContent(
                 onAddProject = onAddProject,
                 onScheduleSession = onScheduleSession,
                 onEditClient = onEditClient,
+                removal = client.removal,
+                onRemoveClient = onRemoveClient,
             )
         }
 
