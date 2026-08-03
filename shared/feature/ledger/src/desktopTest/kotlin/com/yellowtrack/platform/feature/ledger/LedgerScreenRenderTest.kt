@@ -37,6 +37,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
+import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
@@ -61,6 +62,7 @@ class LedgerScreenRenderTest {
         name: String,
         width: Int,
         height: Int,
+        bookings: Boolean = true,
     ) {
         val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
         outputDir.mkdirs()
@@ -78,7 +80,7 @@ class LedgerScreenRenderTest {
                     // and the heading disappears.
                     Surface(color = YTTheme.colors.background) {
                         LedgerScreen(
-                            uiState = LedgerUiState(content = UiState.Success(sampleContent())),
+                            uiState = LedgerUiState(content = UiState.Success(sampleContent(bookings))),
                             onRetry = {},
                             onSavePricingBasis = { _, _, _ -> },
                             onSaveExpense = { _, _ -> },
@@ -135,7 +137,19 @@ class LedgerScreenRenderTest {
         render("ledger-phone.png", width = PHONE, height = 9_000)
     }
 
-    private fun sampleContent() =
+    /**
+     * A studio with no bookings yet, on a phone.
+     *
+     * The state the screenshots that found this were taken in. All three documents are
+     * priced against a booking, so with none the forms open and cannot be completed — which
+     * reads as three buttons that do not work unless the screen says otherwise.
+     */
+    @Test
+    fun `renders the ledger for a studio with no bookings`() {
+        render("ledger-no-bookings-phone.png", width = PHONE, height = 9_000, bookings = false)
+    }
+
+    private fun sampleContent(bookings: Boolean = true) =
         LedgerContent(
             moneyOwed =
                 MoneyOwedSummary(
@@ -315,7 +329,12 @@ class LedgerScreenRenderTest {
                         editable = samplePackageForm,
                     ),
                 ),
-            projects = emptyList(),
+            projects =
+                if (bookings) {
+                    listOf(ProjectOption(id = ProjectId("project-1"), label = "Okafor — Wedding"))
+                } else {
+                    emptyList()
+                },
             today = LocalDate(2026, 7, 28),
             currency = CurrencyCode.USD,
             pricingBasis = PricingBasisFields(currency = CurrencyCode.USD),

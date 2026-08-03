@@ -1,6 +1,5 @@
 package com.yellowtrack.platform.feature.ledger.presentation.component
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -118,10 +117,7 @@ private fun RecordedCostRow(
     onRemove: () -> Unit,
 ) {
     Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onCorrect),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
         verticalAlignment = Alignment.Top,
     ) {
@@ -138,26 +134,30 @@ private fun RecordedCostRow(
             )
         }
 
-        // Grouped so the figure and the control sit on one line. Left as two children of
-        // the outer row they did not: the amount took the first line and "Remove" dropped
-        // to the second, which reads as though it belongs to the date underneath it.
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = cost.amount,
-                style = YTTheme.typography.bodyMedium,
-                color = YTTheme.colors.onSurface,
-            )
+        Text(
+            text = cost.amount,
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurface,
+        )
 
-            // Removal rather than a correction to zero. The row itself is clickable to
-            // correct, so this is deliberately its own target: nothing here should be
-            // reachable by mis-tapping the thing beside it.
-            TextButton(onClick = onRemove) {
-                Text(
-                    text = "Remove",
-                    style = YTTheme.typography.labelLarge,
-                    color = YTTheme.colors.error,
-                )
-            }
+        // Both named. Correcting used to be the whole row being clickable and nothing said
+        // so, which is the same fault the packages had: a studio that did not think to
+        // press a cost could not fix a figure it had mistyped.
+        TextButton(onClick = onCorrect) {
+            Text(
+                text = "Edit",
+                style = YTTheme.typography.labelMedium,
+                color = YTTheme.colors.primary,
+            )
+        }
+
+        // Removal rather than a correction to zero.
+        TextButton(onClick = onRemove) {
+            Text(
+                text = "Remove",
+                style = YTTheme.typography.labelMedium,
+                color = YTTheme.colors.error,
+            )
         }
     }
 }
