@@ -9,6 +9,14 @@ import com.yellowtrack.platform.core.model.gear.GearCategory
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.gear.GearItemId
 import com.yellowtrack.platform.core.model.gear.GearStatus
+import com.yellowtrack.platform.core.model.gear.LightRole
+import com.yellowtrack.platform.core.model.gear.LightSetup
+import com.yellowtrack.platform.core.model.gear.LightingRecipe
+import com.yellowtrack.platform.core.model.gear.LightingRecipeId
+import com.yellowtrack.platform.core.model.media.StorageKind
+import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.media.StorageVolumeId
+import com.yellowtrack.platform.core.model.media.VolumeStatus
 import com.yellowtrack.platform.core.testing.FakeGearRepository
 import com.yellowtrack.platform.core.testing.FakeLightingRecipeRepository
 import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
@@ -17,6 +25,9 @@ import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.studio.presentation.StudioViewModel
 import com.yellowtrack.platform.feature.studio.presentation.model.NewGearItem
+import com.yellowtrack.platform.feature.studio.presentation.model.NewLightSetup
+import com.yellowtrack.platform.feature.studio.presentation.model.NewLightingRecipe
+import com.yellowtrack.platform.feature.studio.presentation.model.NewVolume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -161,6 +172,136 @@ class GearEditingTest {
             )
         }
 
+    // -- Drives and lighting set-ups ---------------------------------------------------------
+
+    /**
+     * Relabelling a drive must not say nobody has ever read it.
+     *
+     * `lastCheckedAt` is set by a different button entirely and is the only thing separating
+     * a backup a studio has from one it believes it has.
+     */
+    @Test
+    fun `correcting a drive keeps when it was last read`() =
+        runTest {
+            val checked = TestAppClock.DEFAULT_NOW
+            val volumes =
+                FakeStorageVolumeRepository(
+                    listOf(
+                        StorageVolume(
+                            id = VOLUME,
+                            studioId = STUDIO,
+                            label = "Shoot SSD 1",
+                            kind = StorageKind.ExternalDrive,
+                            status = VolumeStatus.InUse,
+                            lastCheckedAt = checked,
+                            audit = AuditMetadata.createdAt(checked),
+                        ),
+                    ),
+                )
+            val viewModel = viewModel(FakeGearRepository(), volumes)
+
+            viewModel.saveVolume(volumeForm(label = "Shoot SSD 1 (blue)"), existingId = VOLUME)
+
+            val stored = volumes.observeVolumes().first().single()
+            assertEquals("Shoot SSD 1 (blue)", stored.label)
+            assertEquals(checked, stored.lastCheckedAt, "a rename is not a claim that it was never read")
+        }
+
+    /**
+     * And must not revive it either.
+     *
+     * The form has no status field — failing a drive is a separate action on the register —
+     * so a status built from the form would report a dead drive as in use, and every shoot
+     * with a copy on it would go back to counting it.
+     */
+    @Test
+    fun `correcting a drive does not revive a failed one`() =
+        runTest {
+            val volumes =
+                FakeStorageVolumeRepository(
+                    listOf(
+                        StorageVolume(
+                            id = VOLUME,
+                            studioId = STUDIO,
+                            label = "Shoot SSD 1",
+                            kind = StorageKind.ExternalDrive,
+                            status = VolumeStatus.Failed,
+                            audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+                        ),
+                    ),
+                )
+            val viewModel = viewModel(FakeGearRepository(), volumes)
+
+            // The form has no status field, so what it carries is whatever the dialog
+            // defaulted to. That is exactly the case: the stored status must win.
+            viewModel.saveVolume(
+                volumeForm(label = "Shoot SSD 1", status = VolumeStatus.InUse),
+                existingId = VOLUME,
+            )
+
+            assertEquals(
+                VolumeStatus.Failed,
+                volumes
+                    .observeVolumes()
+                    .first()
+                    .single()
+                    .status,
+            )
+        }
+
+    @Test
+    fun `a lighting set-up can be corrected`() =
+        runTest {
+            val recipes =
+                FakeLightingRecipeRepository(
+                    listOf(
+                        LightingRecipe(
+                            id = RECIPE,
+                            studioId = STUDIO,
+                            name = "Clamshell",
+                            lights = listOf(LightSetup(role = LightRole.Key, instrument = "Profoto B10")),
+                            audit = AuditMetadata.createdAt(TestAppClock.DEFAULT_NOW),
+                        ),
+                    ),
+                )
+            val viewModel = viewModel(FakeGearRepository(), recipes = recipes)
+
+            viewModel.saveRecipe(
+                NewLightingRecipe(
+                    name = "Clamshell, tightened",
+                    lights =
+                        listOf(
+                            NewLightSetup(
+                                role = LightRole.Key,
+                                instrument = "Profoto B10",
+                                modifier = "3ft octabox",
+                                power = null,
+                                position = null,
+                                distance = null,
+                            ),
+                        ),
+                    notes = null,
+                ),
+                existingId = RECIPE,
+            )
+
+            val stored = recipes.observeRecipes().first().single()
+            assertEquals(RECIPE, stored.id, "a set-up worked out once is corrected, not duplicated")
+            assertEquals("Clamshell, tightened", stored.name)
+            assertEquals("3ft octabox", stored.lights.single().modifier)
+        }
+
+    private fun volumeForm(
+        label: String,
+        status: VolumeStatus = VolumeStatus.InUse,
+    ) = NewVolume(
+        label = label,
+        kind = StorageKind.ExternalDrive,
+        status = status,
+        isOffsite = false,
+        notes = null,
+    )
+
     // -- Fixtures ----------------------------------------------------------------------------
 
     private suspend fun StudioViewModel.gearItem() =
@@ -173,16 +314,19 @@ class GearEditingTest {
             .flatMap { group -> group.items }
             .single()
 
-    private fun viewModel(gear: FakeGearRepository) =
-        StudioViewModel(
-            gearRepository = gear,
-            recipeRepository = FakeLightingRecipeRepository(),
-            volumeRepository = FakeStorageVolumeRepository(),
-            studioProfileRepository = FakeStudioProfileRepository(),
-            studioContext = LocalStudioContext(),
-            clock = TestAppClock(),
-            timeZone = TimeZone.UTC,
-        )
+    private fun viewModel(
+        gear: FakeGearRepository,
+        volumes: FakeStorageVolumeRepository = FakeStorageVolumeRepository(),
+        recipes: FakeLightingRecipeRepository = FakeLightingRecipeRepository(),
+    ) = StudioViewModel(
+        gearRepository = gear,
+        recipeRepository = recipes,
+        volumeRepository = volumes,
+        studioProfileRepository = FakeStudioProfileRepository(),
+        studioContext = LocalStudioContext(),
+        clock = TestAppClock(),
+        timeZone = TimeZone.UTC,
+    )
 
     private fun form(
         name: String = "Canon R5 body",
@@ -214,6 +358,8 @@ class GearEditingTest {
 
     private companion object {
         val STUDIO = StudioId("studio-1")
+        val VOLUME = StorageVolumeId("volume-1")
+        val RECIPE = LightingRecipeId("recipe-1")
         val ID = GearItemId("gear-1")
     }
 }

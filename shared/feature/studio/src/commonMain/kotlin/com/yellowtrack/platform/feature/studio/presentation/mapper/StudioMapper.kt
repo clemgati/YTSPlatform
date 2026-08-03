@@ -20,6 +20,9 @@ import com.yellowtrack.platform.feature.studio.presentation.model.InventorySumma
 import com.yellowtrack.platform.feature.studio.presentation.model.LightSetupUi
 import com.yellowtrack.platform.feature.studio.presentation.model.LightingRecipeItem
 import com.yellowtrack.platform.feature.studio.presentation.model.NewGearItem
+import com.yellowtrack.platform.feature.studio.presentation.model.NewLightSetup
+import com.yellowtrack.platform.feature.studio.presentation.model.NewLightingRecipe
+import com.yellowtrack.platform.feature.studio.presentation.model.NewVolume
 import com.yellowtrack.platform.feature.studio.presentation.model.VolumeItem
 import com.yellowtrack.platform.feature.studio.presentation.model.VolumeRegister
 import kotlinx.datetime.TimeZone
@@ -133,6 +136,22 @@ internal fun LightingRecipe.toItem(): LightingRecipeItem =
                 else -> "$lightCount lights"
             },
         notes = notes,
+        editable =
+            NewLightingRecipe(
+                name = name,
+                lights =
+                    lights.map { light ->
+                        NewLightSetup(
+                            role = light.role,
+                            instrument = light.instrument,
+                            modifier = light.modifier,
+                            power = light.power,
+                            position = light.position,
+                            distance = light.distance,
+                        )
+                    },
+                notes = notes,
+            ),
     )
 
 private fun LightSetup.toUi(): LightSetupUi =
@@ -217,6 +236,14 @@ internal fun buildRegister(
                 copyCount = copyCounts[volume.id] ?: 0,
                 isDependable = volume.isDependable,
                 notes = volume.notes,
+                editable =
+                    NewVolume(
+                        label = volume.label,
+                        kind = volume.kind,
+                        status = volume.status,
+                        isOffsite = volume.isAwayFromStudio,
+                        notes = volume.notes,
+                    ),
             )
         }
 

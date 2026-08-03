@@ -33,22 +33,27 @@ import com.yellowtrack.platform.feature.studio.presentation.model.NewVolume
 internal fun VolumeFormDialog(
     onSave: (NewVolume) -> Unit,
     onDismiss: () -> Unit,
+    /** The drive being corrected, or null when this is a new one. */
+    initial: NewVolume? = null,
 ) {
-    var label by remember { mutableStateOf("") }
-    var kind by remember { mutableStateOf(StorageKind.ExternalDrive) }
-    var isOffsite by remember { mutableStateOf(false) }
-    var notes by remember { mutableStateOf("") }
+    var label by remember { mutableStateOf(initial?.label.orEmpty()) }
+    var kind by remember { mutableStateOf(initial?.kind ?: StorageKind.ExternalDrive) }
+    var isOffsite by remember { mutableStateOf(initial?.isOffsite ?: false) }
+    var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
 
     YTFormDialog(
-        title = "Add a drive",
-        confirmLabel = "Save",
+        title = if (initial == null) "Add a drive" else "Edit this drive",
+        confirmLabel = if (initial == null) "Save" else "Save changes",
         confirmEnabled = label.isNotBlank(),
         onConfirm = {
             onSave(
                 NewVolume(
                     label = label,
                     kind = kind,
-                    status = VolumeStatus.InUse,
+                    // Carried across rather than reset. The form has no status field —
+                    // failing a drive is a separate action on the register — so building
+                    // one here would quietly revive a drive somebody marked dead.
+                    status = initial?.status ?: VolumeStatus.InUse,
                     // Cloud and offsite drives are away by definition, so the tick is not
                     // asked for twice.
                     isOffsite = isOffsite && !kind.isInherentlyOffsite,
