@@ -57,12 +57,14 @@ import com.yellowtrack.platform.core.model.quote.accepted
 import com.yellowtrack.platform.core.model.quote.declined
 import com.yellowtrack.platform.core.model.quote.toInvoice
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
+import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.INVOICE_PREFIX
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildMoneyOwed
+import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildPackages
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildPricing
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.buildProposals
 import com.yellowtrack.platform.feature.ledger.presentation.mapper.measuredPostProductionFactor
@@ -75,6 +77,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
@@ -216,6 +219,15 @@ internal class LedgerViewModel(
                                                 ),
                                             )
                                         },
+                                    packages =
+                                        buildPackages(
+                                            books.templates,
+                                            books.breakdown,
+                                            measuredPostProductionFactor(
+                                                completedTasks = work.completedTasks,
+                                                shootHours = work.sessions.shootHours(),
+                                            ),
+                                        ),
                                     expenses =
                                         buildExpenseSummary(
                                             costs.expenses,
@@ -424,6 +436,78 @@ internal class LedgerViewModel(
                 ),
             )
         }
+    }
+
+    /**
+     * Adds a package, or corrects one already there.
+     *
+     * One path for both, as costs use, because a correction is the same package stated
+     * better rather than a different kind of thing.
+     *
+     * This is the first time a studio can touch its own packages at all. The four seeded
+     * ones were the only packages that could ever exist, which made the pricing floor —
+     * whose whole purpose is to say which packages fall short — an assessment of packages
+     * nobody had agreed to.
+     */
+    fun saveServiceTemplate(
+        form: NewServiceTemplate,
+        existingId: String? = null,
+    ) {
+        viewModelScope.launch {
+            val name = form.name.trim().ifBlank { return@launch }
+            val duration =
+                form.sessionDurationMinutes
+                    .trim()
+                    .toIntOrNull()
+                    ?.takeIf { it > 0 } ?: return@launch
+            val sessions =
+                form.sessionCount
+                    .trim()
+                    .toIntOrNull()
+                    ?.takeIf { it > 0 } ?: return@launch
+
+            val currency = studioProfileRepository.currency()
+
+            // Blank means undecided and is kept as null. A figure that will not parse is a
+            // different matter: saving it as "no price" would discard what somebody meant,
+            // so nothing is written at all.
+            val price =
+                when {
+                    form.basePrice.isBlank() -> null
+                    else -> parseMoney(form.basePrice, currency)?.takeIf { it.isPositive } ?: return@launch
+                }
+
+            val existing = existingId?.let { serviceTemplateRepository.getTemplate(ServiceTemplateId(it)) }
+            val now = clock.now()
+
+            serviceTemplateRepository.saveTemplate(
+                ServiceTemplate(
+                    id = existing?.id ?: ServiceTemplateId.new(),
+                    studioId = studioContext.studioId,
+                    name = name,
+                    serviceLine = form.serviceLine,
+                    defaultSessionDurationMinutes = duration,
+                    defaultSessionCount = sessions,
+                    basePrice = price,
+                    defaultDeliverableCount = form.deliverableCount.trim().toIntOrNull(),
+                    defaultTurnaroundDays = form.turnaroundDays.trim().toIntOrNull(),
+                    defaultRevisionRounds = form.revisionRounds.trim().toIntOrNull(),
+                    notes = form.notes.trim().ifBlank { null },
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
+                ),
+            )
+        }
+    }
+
+    /**
+     * Takes a package off the list.
+     *
+     * A studio that does not sell a seeded default should not have to see it measured
+     * against its floor for ever. Nothing else refers to a template — a quote copies its
+     * figures rather than pointing at it — so there is nothing here to hold it in place.
+     */
+    fun removeServiceTemplate(id: String) {
+        viewModelScope.launch { serviceTemplateRepository.deleteTemplate(ServiceTemplateId(id)) }
     }
 
     /**

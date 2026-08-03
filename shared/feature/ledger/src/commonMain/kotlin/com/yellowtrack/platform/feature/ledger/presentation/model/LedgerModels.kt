@@ -118,21 +118,28 @@ internal data class PricingSummary(
     val taxAllowance: String,
     val totalAnnualRequirement: String,
     val billableDaysPerYear: Int,
-    val packages: List<PackagePricing>,
-) {
-    val underpricedPackages: List<PackagePricing> get() = packages.filter(PackagePricing::isBelowCost)
-}
+)
 
-/** A service template measured against the floor. */
+/**
+ * A package the studio sells, and how it stands against the floor.
+ *
+ * The floor is optional because the package is not. A studio that has not stated a pricing
+ * basis yet still has packages, still needs to add the one it actually sells, and would
+ * otherwise be unable to reach any of them — which is the state every new studio starts in.
+ */
 internal data class PackagePricing(
+    val id: String,
     val name: String,
     val serviceLine: String,
     val price: String,
-    val minimumPrice: String,
-    val difference: String,
+    /** Null until the studio has stated a pricing basis for the floor to be computed from. */
+    val minimumPrice: String?,
+    val difference: String?,
     val estimatedDays: String,
     val isBelowCost: Boolean,
     val hasPrice: Boolean,
+    /** The package as the form takes it, so correcting one opens on what is there. */
+    val editable: NewServiceTemplate,
 )
 
 /** A quote as the follow-up list needs it. */

@@ -14,6 +14,7 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.PaymentState
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.model.quote.QuoteStatus
+import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerContent
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerScreen
@@ -27,7 +28,9 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
@@ -72,6 +75,8 @@ class LedgerScreenRenderTest {
                             onSaveExpense = { _, _ -> },
                             onSaveMileage = { _, _ -> },
                             onRemoveCost = {},
+                            onSavePackage = { _, _ -> },
+                            onRemovePackage = {},
                             onRemovePayment = {},
                             onRecordPayment = {},
                             onAddQuote = {},
@@ -247,6 +252,36 @@ class LedgerScreenRenderTest {
                             ),
                         ),
                 ),
+            // No pricing basis is set in this fixture, which is the case worth looking at:
+            // the packages have to be reachable before a floor exists, or a new studio can
+            // never touch the four it was given.
+            packages =
+                listOf(
+                    PackagePricing(
+                        id = "t1",
+                        name = "Full-day wedding",
+                        serviceLine = "Wedding",
+                        price = "$2,400.00",
+                        minimumPrice = null,
+                        difference = null,
+                        estimatedDays = "3.0 days",
+                        isBelowCost = false,
+                        hasPrice = true,
+                        editable = samplePackageForm,
+                    ),
+                    PackagePricing(
+                        id = "t2",
+                        name = "Headshot session",
+                        serviceLine = "Headshot",
+                        price = "—",
+                        minimumPrice = null,
+                        difference = null,
+                        estimatedDays = "0.5 days",
+                        isBelowCost = false,
+                        hasPrice = false,
+                        editable = samplePackageForm,
+                    ),
+                ),
             projects = emptyList(),
             today = LocalDate(2026, 7, 28),
             currency = CurrencyCode.USD,
@@ -254,6 +289,19 @@ class LedgerScreenRenderTest {
         )
 
     private companion object {
+        val samplePackageForm =
+            NewServiceTemplate(
+                name = "Full-day wedding",
+                serviceLine = ServiceLine.Wedding,
+                sessionDurationMinutes = "600",
+                sessionCount = "1",
+                basePrice = "2400.00",
+                deliverableCount = "",
+                turnaroundDays = "",
+                revisionRounds = "",
+                notes = "",
+            )
+
         val sampleExpenseForm =
             NewExpense(
                 description = "Second shooter — Okafor wedding",
@@ -286,6 +334,6 @@ class LedgerScreenRenderTest {
          * short of them — which is a render test that does not cover the section it is
          * supposed to.
          */
-        const val HEIGHT = 4_600
+        const val HEIGHT = 5_400
     }
 }

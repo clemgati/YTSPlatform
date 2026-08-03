@@ -27,10 +27,12 @@ import com.yellowtrack.platform.feature.ledger.presentation.component.ExpenseSec
 import com.yellowtrack.platform.feature.ledger.presentation.component.InvoiceFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.MileageFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.MoneyOwedSection
+import com.yellowtrack.platform.feature.ledger.presentation.component.PackagesSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.PaymentFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.component.PricingSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.ProposalsSection
 import com.yellowtrack.platform.feature.ledger.presentation.component.QuoteFormDialog
+import com.yellowtrack.platform.feature.ledger.presentation.component.ServiceTemplateFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
 import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
@@ -40,7 +42,9 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 
 @Composable
@@ -52,6 +56,8 @@ internal fun LedgerScreen(
     onSaveExpense: (NewExpense, String?) -> Unit,
     onSaveMileage: (NewMileage, String?) -> Unit,
     onRemoveCost: (RecordedCost) -> Unit,
+    onSavePackage: (NewServiceTemplate, String?) -> Unit,
+    onRemovePackage: (String) -> Unit,
     onRemovePayment: (PaymentId) -> Unit,
     onRecordPayment: (NewPayment) -> Unit,
     onAddQuote: (NewQuote) -> Unit,
@@ -72,6 +78,8 @@ internal fun LedgerScreen(
     var showExpenseForm by remember { mutableStateOf(false) }
     var showMileageForm by remember { mutableStateOf(false) }
     var correctingCost by remember { mutableStateOf<RecordedCost?>(null) }
+    var addingPackage by remember { mutableStateOf(false) }
+    var editingPackage by remember { mutableStateOf<PackagePricing?>(null) }
     var showQuoteForm by remember { mutableStateOf(false) }
     var showInvoiceForm by remember { mutableStateOf(false) }
     var showContractForm by remember { mutableStateOf(false) }
@@ -106,6 +114,29 @@ internal fun LedgerScreen(
                     showMileageForm = false
                 },
                 onDismiss = { showMileageForm = false },
+            )
+        }
+
+        if (addingPackage) {
+            ServiceTemplateFormDialog(
+                currency = content.currency,
+                onSave = {
+                    onSavePackage(it, null)
+                    addingPackage = false
+                },
+                onDismiss = { addingPackage = false },
+            )
+        }
+
+        editingPackage?.let { item ->
+            ServiceTemplateFormDialog(
+                currency = content.currency,
+                onSave = {
+                    onSavePackage(it, item.id)
+                    editingPackage = null
+                },
+                onDismiss = { editingPackage = null },
+                initial = item.editable,
             )
         }
 
@@ -254,6 +285,13 @@ internal fun LedgerScreen(
                 )
             }
 
+            PackagesSection(
+                packages = content.packages,
+                onAddPackage = { addingPackage = true },
+                onEditPackage = { editingPackage = it },
+                onRemovePackage = { onRemovePackage(it.id) },
+            )
+
             PricingSection(
                 pricing = content.pricing,
                 basis = content.pricingBasis,
@@ -280,7 +318,7 @@ private fun LedgerHeader(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
     ) {
-        val underpriced = content.pricing?.underpricedPackages?.size ?: 0
+        val underpriced = content.packages.count { it.isBelowCost }
 
         // One badge, showing the most costly thing outstanding: money already earned and
         // unpaid beats a price that has lapsed, which beats a package sold below cost.
