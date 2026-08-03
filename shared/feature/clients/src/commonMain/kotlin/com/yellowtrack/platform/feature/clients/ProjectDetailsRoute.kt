@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.clients
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +26,12 @@ fun ProjectDetailsRoute(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    // The booking is gone, so this screen has nothing left to be about. Leaving is part of
+    // the removal rather than a courtesy.
+    LaunchedEffect(uiState.removed) {
+        if (uiState.removed) onBack()
+    }
+
     ProjectDetailsScreen(
         uiState = uiState,
         onRetry = viewModel::retry,
@@ -39,6 +46,7 @@ fun ProjectDetailsRoute(
         onSetDeliverableStatus = viewModel::setDeliverableStatus,
         onAddRevision = viewModel::addRevisionRound,
         onRemoveDeliverable = viewModel::deleteDeliverable,
+        onRemoveProject = viewModel::deleteProject,
         modifier = modifier,
     )
 }

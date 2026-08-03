@@ -354,9 +354,17 @@ and used.
     be null: shoot days, invoices and payments hang off a booking, never off the client. So
     an account with no bookings genuinely has nothing behind it, and a cascade here would be
     the destruction of a year's accounts by one press rather than a correction
-  - **A booking is the next one worth doing**, and it is the harder shape: unlike a client
-    it *is* the thing money hangs off, so either it refuses while invoices exist or it takes
-    them with it. Until it exists, a client with a booking entered by mistake stays stuck
+  - ✓ **A booking** can be removed when nothing at all is attached, and what is attached is
+    named and counted — "2 invoices and 1 shoot day on it" rather than a bare refusal.
+    Nothing cascades: eight kinds of record point at a booking and six cannot exist without
+    one, so taking its invoices and payments along would delete the record of money that
+    actually changed hands
+  - **The chain is now the constraint.** Removing a client needs its bookings gone; removing
+    a booking needs its shoot days, quotes, contracts, costs and journeys gone — and none of
+    those five can be removed from any screen yet. Deliverables, post-production tasks and
+    draft invoices already can. So the day-one mistake works end to end and the day-two one
+    does not, and **shoot days are the next link**, because opening a booking and scheduling
+    one is a single sitting
 
 - **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
   called, so a studio cannot add its own package or change a default's price — while the

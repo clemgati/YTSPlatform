@@ -8,8 +8,11 @@ import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.testing.FakeClientRepository
 import com.yellowtrack.platform.core.testing.FakeContractRepository
 import com.yellowtrack.platform.core.testing.FakeDeliverableRepository
+import com.yellowtrack.platform.core.testing.FakeExpenseRepository
+import com.yellowtrack.platform.core.testing.FakeInvoiceRepository
 import com.yellowtrack.platform.core.testing.FakePostProductionRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
+import com.yellowtrack.platform.core.testing.FakeQuoteRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
@@ -72,6 +75,9 @@ class ProjectDetailsViewModelTest {
             postProductionRepository = tasks,
             deliverableRepository = deliverables,
             contractRepository = FakeContractRepository(),
+            invoiceRepository = FakeInvoiceRepository(),
+            quoteRepository = FakeQuoteRepository(),
+            expenseRepository = FakeExpenseRepository(),
             studioProfileRepository = FakeStudioProfileRepository(),
             studioContext = LocalStudioContext(),
             clock = clock,

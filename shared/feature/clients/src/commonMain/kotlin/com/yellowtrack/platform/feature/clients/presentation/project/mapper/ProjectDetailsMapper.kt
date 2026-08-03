@@ -14,6 +14,7 @@ import com.yellowtrack.platform.feature.clients.presentation.project.model.Booki
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostProductionSummary
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostTaskItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
+import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 import kotlinx.datetime.TimeZone
 import kotlin.math.abs
 import kotlin.time.Instant
@@ -25,6 +26,7 @@ internal fun Project.toDetailsModel(
     deliverables: List<Deliverable>,
     contract: Contract?,
     now: Instant,
+    removal: ProjectRemoval,
 ): ProjectDetailsModel {
     val zone = TimeZone.currentSystemDefault()
 
@@ -54,6 +56,7 @@ internal fun Project.toDetailsModel(
                 },
         postProduction = tasks.toSummary(),
         delivery = buildDelivery(deliverables, contract, sessions, now),
+        removal = removal,
         editable =
             NewProject(
                 name = name,
