@@ -31,6 +31,7 @@ internal fun RegisterSection(
     onMarkChecked: (StorageVolumeId) -> Unit,
     onSetStatus: (StorageVolumeId, VolumeStatus) -> Unit,
     onDeleteVolume: (StorageVolumeId) -> Unit,
+    onEditVolume: (VolumeItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -66,7 +67,7 @@ internal fun RegisterSection(
         }
 
         register.volumes.forEach { volume ->
-            VolumeRow(volume, onMarkChecked, onSetStatus, onDeleteVolume)
+            VolumeRow(volume, onMarkChecked, onSetStatus, onDeleteVolume, onEditVolume)
         }
     }
 }
@@ -94,6 +95,7 @@ private fun VolumeRow(
     onMarkChecked: (StorageVolumeId) -> Unit,
     onSetStatus: (StorageVolumeId, VolumeStatus) -> Unit,
     onDelete: (StorageVolumeId) -> Unit,
+    onEdit: (VolumeItem) -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -156,6 +158,14 @@ private fun VolumeRow(
                 Text(
                     text = "Back in use",
                     style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
+                )
+            }
+
+            TextButton(onClick = { onEdit(volume) }) {
+                Text(
+                    text = "Edit",
+                    style = YTTheme.typography.labelLarge,
                     color = YTTheme.colors.primary,
                 )
             }

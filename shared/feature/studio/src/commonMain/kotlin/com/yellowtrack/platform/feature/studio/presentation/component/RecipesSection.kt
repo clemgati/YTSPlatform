@@ -27,6 +27,7 @@ internal fun RecipesSection(
     recipes: List<LightingRecipeItem>,
     onAddRecipe: () -> Unit,
     onDeleteRecipe: (LightingRecipeId) -> Unit,
+    onEditRecipe: (LightingRecipeItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -54,7 +55,7 @@ internal fun RecipesSection(
         }
 
         recipes.forEach { recipe ->
-            RecipeBlock(recipe, onDeleteRecipe)
+            RecipeBlock(recipe, onDeleteRecipe, onEditRecipe)
         }
     }
 }
@@ -63,6 +64,7 @@ internal fun RecipesSection(
 private fun RecipeBlock(
     recipe: LightingRecipeItem,
     onDelete: (LightingRecipeId) -> Unit,
+    onEdit: (LightingRecipeItem) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
         Row(
@@ -78,6 +80,14 @@ private fun RecipeBlock(
             )
 
             YTBadge(text = recipe.lightCountLabel)
+
+            TextButton(onClick = { onEdit(recipe) }) {
+                Text(
+                    text = "Edit",
+                    style = YTTheme.typography.labelLarge,
+                    color = YTTheme.colors.primary,
+                )
+            }
 
             TextButton(onClick = { onDelete(recipe.id) }) {
                 Text(

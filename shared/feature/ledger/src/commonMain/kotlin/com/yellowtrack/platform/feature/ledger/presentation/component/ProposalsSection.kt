@@ -33,7 +33,9 @@ internal fun ProposalsSection(
     onDeclineQuote: (QuoteItem) -> Unit,
     onSendContract: (ContractItem) -> Unit,
     onSignContract: (ContractItem) -> Unit,
-    onSaveQuote: (QuoteItem) -> Unit,
+    onExportQuote: (QuoteItem) -> Unit,
+    onReviseQuote: (QuoteItem) -> Unit,
+    onCorrectContract: (ContractItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     YTSectionCard(
@@ -65,7 +67,7 @@ internal fun ProposalsSection(
             if (summary.awaitingDecision.isNotEmpty()) {
                 HorizontalDivider(color = YTTheme.colors.outlineVariant)
                 summary.awaitingDecision.forEach { quote ->
-                    QuoteRow(quote, onAcceptQuote, onDeclineQuote, onSaveQuote)
+                    QuoteRow(quote, onAcceptQuote, onDeclineQuote, onExportQuote, onReviseQuote)
                 }
             }
 
@@ -84,7 +86,7 @@ internal fun ProposalsSection(
                     color = YTTheme.colors.onSurfaceVariant,
                 )
 
-                summary.datesNotHeld.forEach { ContractRow(it, onSendContract, onSignContract) }
+                summary.datesNotHeld.forEach { ContractRow(it, onSendContract, onSignContract, onCorrectContract) }
             }
 
             HorizontalDivider(color = YTTheme.colors.outlineVariant)
@@ -124,6 +126,7 @@ private fun QuoteRow(
     onAccept: (QuoteItem) -> Unit,
     onDecline: (QuoteItem) -> Unit,
     onSave: (QuoteItem) -> Unit,
+    onRevise: (QuoteItem) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -159,6 +162,17 @@ private fun QuoteRow(
             )
 
             Row {
+                // Every quote listed here is still awaiting a decision, so every one of
+                // them can be revised. Once answered it leaves this list, which is also the
+                // point at which it stops being editable.
+                TextButton(onClick = { onRevise(quote) }) {
+                    Text(
+                        text = "Revise",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
                 // The document the client is sent, beside the two answers it can come
                 // back with.
                 TextButton(onClick = { onSave(quote) }) {
@@ -194,6 +208,7 @@ private fun ContractRow(
     contract: ContractItem,
     onSend: (ContractItem) -> Unit,
     onSign: (ContractItem) -> Unit,
+    onCorrect: (ContractItem) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -234,6 +249,18 @@ private fun ContractRow(
             )
 
             Row {
+                // Absent once signed. The words are what somebody agreed to, and this list
+                // still shows a signed contract while its retainer is outstanding.
+                if (contract.canEdit) {
+                    TextButton(onClick = { onCorrect(contract) }) {
+                        Text(
+                            text = "Correct",
+                            style = YTTheme.typography.labelLarge,
+                            color = YTTheme.colors.primary,
+                        )
+                    }
+                }
+
                 if (contract.canSend) {
                     TextButton(onClick = { onSend(contract) }) {
                         Text(

@@ -16,6 +16,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.component.ContractSi
 import com.yellowtrack.platform.feature.ledger.presentation.component.QuoteFormDialog
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProjectOption
 import kotlinx.datetime.LocalDate
 import java.io.File
@@ -39,6 +40,22 @@ import kotlin.test.assertTrue
  */
 class ContractFormRenderTest {
     private val today = LocalDate(2026, 7, 28)
+
+    /** Only needed so a ContractItem can be built; the signature dialog never opens it. */
+    private val contractForm =
+        NewContract(
+            projectId = ProjectId("project-1"),
+            title = "Sandhu Wedding Agreement",
+            retainerAmount = "2700.00",
+            isRetainerRefundable = false,
+            turnaroundDays = "",
+            revisionRounds = "",
+            cancellationTerms = null,
+            rescheduleTerms = null,
+            weatherClause = null,
+            license = null,
+            sendNow = false,
+        )
 
     private fun outputDir(): File =
         File(System.getProperty("yellowtrack.render.dir") ?: "build/render").also { it.mkdirs() }
@@ -126,6 +143,7 @@ class ContractFormRenderTest {
                         retainer = "$2,700.00",
                         stage = ContractStage.AwaitingSignature,
                         waitingLabel = "sent 9 days ago",
+                        editable = contractForm,
                     ),
                 today = today,
                 onSave = {},

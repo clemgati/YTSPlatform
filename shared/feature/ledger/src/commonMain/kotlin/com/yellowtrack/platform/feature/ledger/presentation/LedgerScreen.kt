@@ -36,6 +36,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.component.ServiceTem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractSignature
 import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
+import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
@@ -45,6 +46,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
+import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
 
 @Composable
@@ -60,9 +62,9 @@ internal fun LedgerScreen(
     onRemovePackage: (String) -> Unit,
     onRemovePayment: (PaymentId) -> Unit,
     onRecordPayment: (NewPayment) -> Unit,
-    onAddQuote: (NewQuote) -> Unit,
-    onAddInvoice: (NewInvoice) -> Unit,
-    onAddContract: (NewContract) -> Unit,
+    onSaveQuote: (NewQuote, QuoteId?) -> Unit,
+    onSaveInvoice: (NewInvoice, InvoiceId?) -> Unit,
+    onSaveContract: (NewContract, ContractId?) -> Unit,
     onAcceptQuote: (QuoteId) -> Unit,
     onDeclineQuote: (QuoteId) -> Unit,
     onSendContract: (ContractId) -> Unit,
@@ -70,8 +72,8 @@ internal fun LedgerScreen(
     onSendInvoice: (InvoiceId) -> Unit,
     onVoidInvoice: (InvoiceId) -> Unit,
     onDeleteInvoice: (InvoiceId) -> Unit,
-    onSaveInvoice: (InvoiceId) -> Unit,
-    onSaveQuote: (QuoteId) -> Unit,
+    onExportInvoice: (InvoiceId) -> Unit,
+    onExportQuote: (QuoteId) -> Unit,
     documentMessage: String?,
     modifier: Modifier = Modifier,
 ) {
@@ -82,6 +84,9 @@ internal fun LedgerScreen(
     var editingPackage by remember { mutableStateOf<PackagePricing?>(null) }
     var showQuoteForm by remember { mutableStateOf(false) }
     var showInvoiceForm by remember { mutableStateOf(false) }
+    var editingDraft by remember { mutableStateOf<DraftInvoiceItem?>(null) }
+    var revisingQuote by remember { mutableStateOf<QuoteItem?>(null) }
+    var correctingContract by remember { mutableStateOf<ContractItem?>(null) }
     var showContractForm by remember { mutableStateOf(false) }
     var payingInvoice by remember { mutableStateOf<OutstandingInvoiceItem?>(null) }
     var signingContract by remember { mutableStateOf<ContractItem?>(null) }
@@ -179,7 +184,7 @@ internal fun LedgerScreen(
                 currency = content.currency,
                 projects = content.projects,
                 onSave = {
-                    onAddQuote(it)
+                    onSaveQuote(it, null)
                     showQuoteForm = false
                 },
                 onDismiss = { showQuoteForm = false },
@@ -193,10 +198,54 @@ internal fun LedgerScreen(
                 currency = content.currency,
                 projects = content.projects,
                 onSave = {
-                    onAddInvoice(it)
+                    onSaveInvoice(it, null)
                     showInvoiceForm = false
                 },
                 onDismiss = { showInvoiceForm = false },
+            )
+        }
+
+        editingDraft?.let { draft ->
+            InvoiceFormDialog(
+                suggestedNumber = draft.number,
+                today = content.today,
+                currency = content.currency,
+                projects = content.projects,
+                onSave = {
+                    onSaveInvoice(it, draft.id)
+                    editingDraft = null
+                },
+                onDismiss = { editingDraft = null },
+                initial = draft.editable,
+            )
+        }
+
+        revisingQuote?.let { quote ->
+            QuoteFormDialog(
+                suggestedNumber = quote.number,
+                today = content.today,
+                currency = content.currency,
+                projects = content.projects,
+                onSave = {
+                    onSaveQuote(it, quote.id)
+                    revisingQuote = null
+                },
+                onDismiss = { revisingQuote = null },
+                initial = quote.editable,
+            )
+        }
+
+        correctingContract?.let { agreement ->
+            ContractFormDialog(
+                today = content.today,
+                currency = content.currency,
+                projects = content.projects,
+                onSave = {
+                    onSaveContract(it, agreement.id)
+                    correctingContract = null
+                },
+                onDismiss = { correctingContract = null },
+                initial = agreement.editable,
             )
         }
 
@@ -206,7 +255,7 @@ internal fun LedgerScreen(
                 currency = content.currency,
                 projects = content.projects,
                 onSave = {
-                    onAddContract(it)
+                    onSaveContract(it, null)
                     showContractForm = false
                 },
                 onDismiss = { showContractForm = false },
@@ -259,7 +308,8 @@ internal fun LedgerScreen(
                 onVoidInvoice = { onVoidInvoice(it.id) },
                 onSendDraft = { onSendInvoice(it.id) },
                 onDeleteDraft = { onDeleteInvoice(it.id) },
-                onSaveInvoice = { onSaveInvoice(it.id) },
+                onEditDraft = { editingDraft = it },
+                onExportInvoice = { onExportInvoice(it.id) },
                 onRemovePayment = { onRemovePayment(it.id) },
             )
 
@@ -268,11 +318,13 @@ internal fun LedgerScreen(
                 onNewQuote = { showQuoteForm = true },
                 onNewInvoice = { showInvoiceForm = true },
                 onNewContract = { showContractForm = true },
+                onReviseQuote = { revisingQuote = it },
+                onCorrectContract = { correctingContract = it },
                 onAcceptQuote = { onAcceptQuote(it.id) },
                 onDeclineQuote = { onDeclineQuote(it.id) },
                 onSendContract = { onSendContract(it.id) },
                 onSignContract = { signingContract = it },
-                onSaveQuote = { onSaveQuote(it.id) },
+                onExportQuote = { onExportQuote(it.id) },
             )
 
             // Where the document went, or why it could not go. A file nobody can find

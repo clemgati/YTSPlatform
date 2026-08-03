@@ -34,6 +34,19 @@ internal data class LightFields(
     val position: String = "",
     val distance: String = "",
 ) {
+    companion object {
+        /** The stored light as the editor holds it, so a set-up reopens on what was written. */
+        fun of(light: NewLightSetup) =
+            LightFields(
+                role = light.role,
+                instrument = light.instrument,
+                modifier = light.modifier.orEmpty(),
+                power = light.power.orEmpty(),
+                position = light.position.orEmpty(),
+                distance = light.distance.orEmpty(),
+            )
+    }
+
     fun asNew(): NewLightSetup =
         NewLightSetup(
             role = role,
@@ -59,15 +72,27 @@ internal data class LightFields(
 internal fun RecipeFormDialog(
     onSave: (NewLightingRecipe) -> Unit,
     onDismiss: () -> Unit,
+    /** The set-up being corrected, or null when this is a new one. */
+    initial: NewLightingRecipe? = null,
 ) {
-    var name by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
-    val lights = remember { mutableStateListOf(LightFields()) }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
+    val lights =
+        remember {
+            mutableStateListOf(
+                *initial
+                    ?.lights
+                    .orEmpty()
+                    .map(LightFields::of)
+                    .ifEmpty { listOf(LightFields()) }
+                    .toTypedArray(),
+            )
+        }
 
     val namedLights = lights.filter { it.instrument.isNotBlank() }
 
     YTFormDialog(
-        title = "Save a lighting set-up",
+        title = if (initial == null) "Save a lighting set-up" else "Edit this set-up",
         confirmLabel = "Save",
         confirmEnabled = name.isNotBlank() && namedLights.isNotEmpty(),
         onConfirm = {

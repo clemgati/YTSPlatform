@@ -26,7 +26,8 @@ internal fun MoneyOwedSection(
     onVoidInvoice: (OutstandingInvoiceItem) -> Unit,
     onSendDraft: (DraftInvoiceItem) -> Unit,
     onDeleteDraft: (DraftInvoiceItem) -> Unit,
-    onSaveInvoice: (OutstandingInvoiceItem) -> Unit,
+    onEditDraft: (DraftInvoiceItem) -> Unit,
+    onExportInvoice: (OutstandingInvoiceItem) -> Unit,
     /** Takes a payment off the invoice it was put against; see `ReceivedPayment`. */
     onRemovePayment: (ReceivedPayment) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -77,7 +78,7 @@ internal fun MoneyOwedSection(
                 )
             } else {
                 HorizontalDivider(color = YTTheme.colors.outlineVariant)
-                summary.invoices.forEach { InvoiceRow(it, onRecordPayment, onVoidInvoice, onSaveInvoice) }
+                summary.invoices.forEach { InvoiceRow(it, onRecordPayment, onVoidInvoice, onExportInvoice) }
             }
 
             if (summary.drafts.isNotEmpty()) {
@@ -95,7 +96,7 @@ internal fun MoneyOwedSection(
                     color = YTTheme.colors.onSurfaceVariant,
                 )
 
-                summary.drafts.forEach { DraftRow(it, onSendDraft, onDeleteDraft) }
+                summary.drafts.forEach { DraftRow(it, onSendDraft, onDeleteDraft, onEditDraft) }
             }
 
             if (summary.received.isNotEmpty()) {
@@ -166,6 +167,7 @@ private fun DraftRow(
     draft: DraftInvoiceItem,
     onSend: (DraftInvoiceItem) -> Unit,
     onDelete: (DraftInvoiceItem) -> Unit,
+    onEdit: (DraftInvoiceItem) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -206,6 +208,16 @@ private fun DraftRow(
             )
 
             Row {
+                // A draft is a document still being built, so correcting it is the ordinary
+                // thing to want. Sent invoices have no such control and are voided instead.
+                TextButton(onClick = { onEdit(draft) }) {
+                    Text(
+                        text = "Edit",
+                        style = YTTheme.typography.labelLarge,
+                        color = YTTheme.colors.primary,
+                    )
+                }
+
                 TextButton(onClick = { onDelete(draft) }) {
                     Text(
                         text = "Discard",

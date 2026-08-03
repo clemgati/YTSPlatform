@@ -206,7 +206,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(newQuote())
+            harness.viewModel.saveQuote(newQuote())
 
             val stored =
                 harness.quotes
@@ -223,7 +223,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(newQuote(validUntil = ""))
+            harness.viewModel.saveQuote(newQuote(validUntil = ""))
 
             assertNull(
                 harness.quotes
@@ -239,7 +239,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(newQuote(amount = "four thousand"))
+            harness.viewModel.saveQuote(newQuote(amount = "four thousand"))
 
             assertTrue(
                 harness.quotes
@@ -254,7 +254,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(newQuote(taxRate = ""))
+            harness.viewModel.saveQuote(newQuote(taxRate = ""))
 
             val stored =
                 harness.quotes
@@ -270,7 +270,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(newQuote(taxRate = "8.25"))
+            harness.viewModel.saveQuote(newQuote(taxRate = "8.25"))
 
             val stored =
                 harness.quotes
@@ -288,7 +288,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(
+            harness.viewModel.saveQuote(
                 newQuote(
                     lines =
                         listOf(
@@ -317,7 +317,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(
+            harness.viewModel.saveQuote(
                 newQuote(
                     lines = listOf(NewLineItem(description = "Extra hour", quantity = "3", unitPrice = "250")),
                 ),
@@ -339,7 +339,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(
+            harness.viewModel.saveQuote(
                 newQuote(
                     lines =
                         listOf(
@@ -364,7 +364,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(
+            harness.viewModel.saveQuote(
                 newQuote(
                     lines =
                         listOf(
@@ -388,7 +388,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(
+            harness.viewModel.saveQuote(
                 newQuote(lines = listOf(NewLineItem(description = "  ", unitPrice = "4000"))),
             )
 
@@ -405,8 +405,8 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addQuote(newQuote(lines = emptyList()))
-            harness.viewModel.addInvoice(newInvoice(lines = emptyList()))
+            harness.viewModel.saveQuote(newQuote(lines = emptyList()))
+            harness.viewModel.saveInvoice(newInvoice(lines = emptyList()))
 
             assertTrue(
                 harness.quotes
@@ -427,7 +427,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addInvoice(
+            harness.viewModel.saveInvoice(
                 newInvoice(
                     lines =
                         listOf(
@@ -604,7 +604,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addInvoice(newInvoice(sendNow = true))
+            harness.viewModel.saveInvoice(newInvoice(sendNow = true))
 
             val stored =
                 harness.invoices
@@ -621,7 +621,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addInvoice(newInvoice(sendNow = false, dueOn = "2026-06-01"))
+            harness.viewModel.saveInvoice(newInvoice(sendNow = false, dueOn = "2026-06-01"))
 
             val stored =
                 harness.invoices
@@ -641,7 +641,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addInvoice(newInvoice(dueOn = "next Friday"))
+            harness.viewModel.saveInvoice(newInvoice(dueOn = "next Friday"))
 
             assertTrue(
                 harness.invoices
@@ -656,7 +656,7 @@ class ProposalActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addInvoice(newInvoice(amount = "0"))
+            harness.viewModel.saveInvoice(newInvoice(amount = "0"))
 
             assertTrue(
                 harness.invoices

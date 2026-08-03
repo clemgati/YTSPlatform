@@ -168,13 +168,25 @@ internal class StudioViewModel(
         viewModelScope.launch { gearRepository.deleteGearItem(gearItemId) }
     }
 
-    fun addRecipe(form: NewLightingRecipe) {
+    /**
+     * Writes down a lighting set-up, or corrects one already written.
+     *
+     * The lights are replaced wholesale rather than reconciled, unlike a client's contacts.
+     * They can be, because the form shows every one of them: a recipe is its lights, and
+     * there is nothing off-screen for a rebuild to discard.
+     */
+    fun saveRecipe(
+        form: NewLightingRecipe,
+        existingId: LightingRecipeId? = null,
+    ) {
         viewModelScope.launch {
+            if (form.name.isBlank()) return@launch
+            val existing = existingId?.let { recipeRepository.getRecipe(it) }
             val now = clock.now()
 
             recipeRepository.saveRecipe(
                 LightingRecipe(
-                    id = LightingRecipeId.new(),
+                    id = existing?.id ?: LightingRecipeId.new(),
                     studioId = studioContext.studioId,
                     name = form.name.trim(),
                     lights =
@@ -189,26 +201,45 @@ internal class StudioViewModel(
                             )
                         },
                     notes = form.notes?.trim()?.ifBlank { null },
-                    audit = AuditMetadata.createdAt(now),
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }
     }
 
-    fun addVolume(form: NewVolume) {
+    /**
+     * Records a drive, or corrects one already recorded.
+     *
+     * What the form does not show is carried across. `lastCheckedAt` in particular: it is
+     * set by a different button entirely, and it is the only thing separating a backup a
+     * studio has from one it believes it has — so relabelling a drive must not quietly say
+     * nobody has ever read it.
+     */
+    fun saveVolume(
+        form: NewVolume,
+        existingId: StorageVolumeId? = null,
+    ) {
         viewModelScope.launch {
+            if (form.label.isBlank()) return@launch
+
             val now = clock.now()
+            val existing = existingId?.let { volumeRepository.getVolume(it) }
 
             volumeRepository.saveVolume(
                 StorageVolume(
-                    id = StorageVolumeId.new(),
+                    id = existing?.id ?: StorageVolumeId.new(),
                     studioId = studioContext.studioId,
                     label = form.label.trim(),
                     kind = form.kind,
-                    status = form.status,
+                    // Both carried across rather than taken from the form, which shows
+                    // neither. Failing a drive and reading a drive are separate actions on
+                    // the register, and a relabel that quietly revived a dead drive would
+                    // put every shoot with a copy on it back to counting it.
+                    status = existing?.status ?: form.status,
                     isOffsite = form.isOffsite,
+                    lastCheckedAt = existing?.lastCheckedAt,
                     notes = form.notes?.trim()?.ifBlank { null },
-                    audit = AuditMetadata.createdAt(now),
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }

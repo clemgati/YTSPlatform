@@ -46,26 +46,32 @@ internal fun ContractFormDialog(
     projects: List<ProjectOption>,
     onSave: (NewContract) -> Unit,
     onDismiss: () -> Unit,
+    /** The contract being corrected, or null when this is a new one. */
+    initial: NewContract? = null,
 ) {
     val bookings = remember(projects) { projects.filter { it.id != null } }
 
-    var title by remember { mutableStateOf("") }
-    var retainer by remember { mutableStateOf("") }
-    var refundable by remember { mutableStateOf(false) }
-    var turnaroundDays by remember { mutableStateOf("") }
-    var revisionRounds by remember { mutableStateOf("") }
-    var cancellationTerms by remember { mutableStateOf(DEFAULT_CANCELLATION_TERMS) }
-    var rescheduleTerms by remember { mutableStateOf(DEFAULT_RESCHEDULE_TERMS) }
-    var weatherClause by remember { mutableStateOf(DEFAULT_WEATHER_CLAUSE) }
-    var sendNow by remember { mutableStateOf(true) }
-    var selectedProject by remember(bookings) { mutableStateOf(bookings.firstOrNull()) }
+    var title by remember { mutableStateOf(initial?.title.orEmpty()) }
+    var retainer by remember { mutableStateOf(initial?.retainerAmount.orEmpty()) }
+    var refundable by remember { mutableStateOf(initial?.isRetainerRefundable ?: false) }
+    var turnaroundDays by remember { mutableStateOf(initial?.turnaroundDays.orEmpty()) }
+    var revisionRounds by remember { mutableStateOf(initial?.revisionRounds.orEmpty()) }
+    var cancellationTerms by remember { mutableStateOf(initial?.cancellationTerms ?: DEFAULT_CANCELLATION_TERMS) }
+    var rescheduleTerms by remember { mutableStateOf(initial?.rescheduleTerms ?: DEFAULT_RESCHEDULE_TERMS) }
+    var weatherClause by remember { mutableStateOf(initial?.weatherClause ?: DEFAULT_WEATHER_CLAUSE) }
+    var sendNow by remember { mutableStateOf(initial == null) }
+    var selectedProject by
+        remember(bookings) {
+            mutableStateOf(bookings.firstOrNull { it.id == initial?.projectId } ?: bookings.firstOrNull())
+        }
 
-    var licensing by remember { mutableStateOf(false) }
-    var media by remember { mutableStateOf(emptySet<LicenseMedium>()) }
-    var territory by remember { mutableStateOf(DEFAULT_TERRITORY) }
-    var durationMonths by remember { mutableStateOf(DEFAULT_LICENSE_MONTHS.toString()) }
-    var exclusive by remember { mutableStateOf(false) }
-    var licenseStartsOn by remember { mutableStateOf(today.toString()) }
+    var licensing by remember { mutableStateOf(initial?.license != null) }
+    var media by remember { mutableStateOf(initial?.license?.media ?: emptySet()) }
+    var territory by remember { mutableStateOf(initial?.license?.territory ?: DEFAULT_TERRITORY) }
+    var durationMonths by
+        remember { mutableStateOf(initial?.license?.durationMonths ?: DEFAULT_LICENSE_MONTHS.toString()) }
+    var exclusive by remember { mutableStateOf(initial?.license?.isExclusive ?: false) }
+    var licenseStartsOn by remember { mutableStateOf(initial?.license?.startsOn ?: today.toString()) }
 
     val retainerValid = retainer.isBlank() || parseMoney(retainer, currency)?.isPositive == true
     val turnaroundValid = turnaroundDays.isPositiveCountOrBlank
@@ -76,7 +82,7 @@ internal fun ContractFormDialog(
     val booking = selectedProject
 
     YTFormDialog(
-        title = "Draw up a contract",
+        title = if (initial == null) "Draw up a contract" else "Correct this contract",
         confirmLabel = if (sendNow) "Save and send" else "Save",
         supportingText =
             if (bookings.isEmpty()) {

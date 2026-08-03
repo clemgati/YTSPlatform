@@ -25,9 +25,11 @@ import com.yellowtrack.platform.feature.studio.presentation.component.RecipesSec
 import com.yellowtrack.platform.feature.studio.presentation.component.RegisterSection
 import com.yellowtrack.platform.feature.studio.presentation.component.VolumeFormDialog
 import com.yellowtrack.platform.feature.studio.presentation.model.GearItemUi
+import com.yellowtrack.platform.feature.studio.presentation.model.LightingRecipeItem
 import com.yellowtrack.platform.feature.studio.presentation.model.NewGearItem
 import com.yellowtrack.platform.feature.studio.presentation.model.NewLightingRecipe
 import com.yellowtrack.platform.feature.studio.presentation.model.NewVolume
+import com.yellowtrack.platform.feature.studio.presentation.model.VolumeItem
 
 @Composable
 internal fun StudioScreen(
@@ -36,9 +38,9 @@ internal fun StudioScreen(
     onSaveGear: (NewGearItem, GearItemId?) -> Unit,
     onMarkServiced: (GearItemId) -> Unit,
     onDeleteGear: (GearItemId) -> Unit,
-    onAddRecipe: (NewLightingRecipe) -> Unit,
+    onSaveRecipe: (NewLightingRecipe, LightingRecipeId?) -> Unit,
     onDeleteRecipe: (LightingRecipeId) -> Unit,
-    onAddVolume: (NewVolume) -> Unit,
+    onSaveVolume: (NewVolume, StorageVolumeId?) -> Unit,
     onMarkVolumeChecked: (StorageVolumeId) -> Unit,
     onSetVolumeStatus: (StorageVolumeId, VolumeStatus) -> Unit,
     onDeleteVolume: (StorageVolumeId) -> Unit,
@@ -46,6 +48,8 @@ internal fun StudioScreen(
 ) {
     var showGearForm by remember { mutableStateOf(false) }
     var editingGear by remember { mutableStateOf<GearItemUi?>(null) }
+    var editingRecipe by remember { mutableStateOf<LightingRecipeItem?>(null) }
+    var editingVolume by remember { mutableStateOf<VolumeItem?>(null) }
     var showRecipeForm by remember { mutableStateOf(false) }
     var showVolumeForm by remember { mutableStateOf(false) }
 
@@ -82,20 +86,42 @@ internal fun StudioScreen(
         if (showVolumeForm) {
             VolumeFormDialog(
                 onSave = {
-                    onAddVolume(it)
+                    onSaveVolume(it, null)
                     showVolumeForm = false
                 },
                 onDismiss = { showVolumeForm = false },
             )
         }
 
+        editingVolume?.let { volume ->
+            VolumeFormDialog(
+                onSave = {
+                    onSaveVolume(it, volume.id)
+                    editingVolume = null
+                },
+                onDismiss = { editingVolume = null },
+                initial = volume.editable,
+            )
+        }
+
         if (showRecipeForm) {
             RecipeFormDialog(
                 onSave = {
-                    onAddRecipe(it)
+                    onSaveRecipe(it, null)
                     showRecipeForm = false
                 },
                 onDismiss = { showRecipeForm = false },
+            )
+        }
+
+        editingRecipe?.let { recipe ->
+            RecipeFormDialog(
+                onSave = {
+                    onSaveRecipe(it, recipe.id)
+                    editingRecipe = null
+                },
+                onDismiss = { editingRecipe = null },
+                initial = recipe.editable,
             )
         }
 
@@ -118,6 +144,7 @@ internal fun StudioScreen(
             RegisterSection(
                 register = content.register,
                 onAddVolume = { showVolumeForm = true },
+                onEditVolume = { editingVolume = it },
                 onMarkChecked = onMarkVolumeChecked,
                 onSetStatus = onSetVolumeStatus,
                 onDeleteVolume = onDeleteVolume,
@@ -126,6 +153,7 @@ internal fun StudioScreen(
             RecipesSection(
                 recipes = content.recipes,
                 onAddRecipe = { showRecipeForm = true },
+                onEditRecipe = { editingRecipe = it },
                 onDeleteRecipe = onDeleteRecipe,
             )
         }

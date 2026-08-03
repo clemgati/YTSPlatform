@@ -28,9 +28,9 @@ fun LedgerRoute(modifier: Modifier = Modifier) {
         onRemovePackage = viewModel::removeServiceTemplate,
         onRemovePayment = viewModel::removePayment,
         onRecordPayment = viewModel::recordPayment,
-        onAddQuote = viewModel::addQuote,
-        onAddInvoice = viewModel::addInvoice,
-        onAddContract = viewModel::addContract,
+        onSaveQuote = viewModel::saveQuote,
+        onSaveInvoice = viewModel::saveInvoice,
+        onSaveContract = viewModel::saveContract,
         onAcceptQuote = viewModel::acceptQuote,
         onDeclineQuote = viewModel::declineQuote,
         onSendContract = viewModel::sendContract,
@@ -38,10 +38,10 @@ fun LedgerRoute(modifier: Modifier = Modifier) {
         onSendInvoice = viewModel::sendInvoice,
         onVoidInvoice = viewModel::voidInvoice,
         onDeleteInvoice = viewModel::deleteInvoice,
-        onSaveInvoice = { invoiceId ->
+        onExportInvoice = { invoiceId ->
             viewModel.saveDocument({ viewModel.invoiceSheet(invoiceId) }) { documentMessage = it }
         },
-        onSaveQuote = { quoteId ->
+        onExportQuote = { quoteId ->
             viewModel.saveDocument({ viewModel.quoteSheet(quoteId) }) { documentMessage = it }
         },
         documentMessage = documentMessage,

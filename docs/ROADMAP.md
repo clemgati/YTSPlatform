@@ -325,9 +325,12 @@ and used.
 
 **In the product**
 
-- **Editing a saved record.** Carried from 0.4.0 and now the largest functional hole: a
-  studio can raise an invoice but not correct a mistyped amount, or fix a payment recorded
-  against the wrong booking. Someone will need this on their first day
+- ✓ **Editing a saved record.** Everything a studio enters can now be corrected. The rule
+  for the three documents is that one may be corrected until it becomes the record of
+  something that happened — an invoice sent is a demand made, a quote answered is a decision
+  recorded, a contract signed is an agreement struck. A sent invoice is deliberately *not*
+  editable; `voidInvoice` is the remedy, and this entry previously named that as the case to
+  fix, which was wrong
 - **Emailing a document.** Quotes and invoices render and can be shared; sending one from
   inside the application is wiring, since the mail transport exists
 - **The share sheet on Android and iOS** is compiled and has never been run. Sign-in has
@@ -339,13 +342,9 @@ and used.
 - **Account deletion and data export.** The application holds other people's clients,
   addresses and payment histories, with no way to give that back or remove it
 
-- **Most of what the studio enters still cannot be removed.** Of the forty-five write
-  methods the repositories declare, eleven were never called from any screen — and ten of
-  those were deletes. A booking, shoot day, lead, quote, contract, cost or journey can still
-  be created and never removed. Gear, lighting recipes, post-production tasks, deliverables
-  and invoices *can* be, which makes it inconsistent rather than simply absent. The data
-  layer has every path, and synchronisation carries tombstones correctly; nothing calls most
-  of it
+- **What the studio enters can now be removed.** Of the forty-five write methods the
+  repositories declare, eleven were never called from any screen — and ten of those were
+  deletes. All but one are reachable now; `deleteLead` is the exception
   - ✓ **A payment** can be taken off the invoice it was put against — the case that hid
     itself, since a misattributed payment settles its invoice and a settled invoice leaves
     the money-owed list
@@ -385,10 +384,6 @@ and used.
   - **`deleteLead` is the last unreached write method.** An enquiry can be recorded and never
     removed; it is the one remaining hole from the sweep
 
-- **Service templates can only ever be the four that are seeded.** `saveTemplate` is never
-  called, so a studio cannot add its own package or change a default's price — while the
-  pricing floor measures packages against the floor. The one screen where a studio's own
-  offering should live has no way to put it there
 
 **In the operation**
 

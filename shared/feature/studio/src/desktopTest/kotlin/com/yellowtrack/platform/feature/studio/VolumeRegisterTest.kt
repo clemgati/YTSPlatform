@@ -225,7 +225,7 @@ class VolumeRegisterTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addVolume(
+            harness.viewModel.saveVolume(
                 NewVolume(
                     label = "Red Samsung T7",
                     kind = StorageKind.ExternalDrive,

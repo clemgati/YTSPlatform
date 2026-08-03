@@ -74,6 +74,14 @@ internal data class LightingRecipeItem(
     val lights: List<LightSetupUi>,
     val lightCountLabel: String,
     val notes: String?,
+    /**
+     * The set-up as the form takes it, so correcting one opens on what was written down.
+     *
+     * A lighting recipe is a set-up somebody worked out once and wants back. Rebuilding it
+     * from the labels would be recovering "Profoto B10 through a 3ft octabox" into two
+     * fields by splitting on the word "through".
+     */
+    val editable: NewLightingRecipe,
 )
 
 // --- Form output --------------------------------------------------------------------
@@ -117,6 +125,8 @@ internal data class VolumeItem(
     val copyCount: Int,
     val isDependable: Boolean,
     val notes: String?,
+    /** The drive as the form takes it, so correcting one opens on what is there. */
+    val editable: NewVolume,
 )
 
 /**

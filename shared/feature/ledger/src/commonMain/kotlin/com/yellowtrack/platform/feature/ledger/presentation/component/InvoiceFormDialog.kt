@@ -40,16 +40,42 @@ internal fun InvoiceFormDialog(
     projects: List<ProjectOption>,
     onSave: (NewInvoice) -> Unit,
     onDismiss: () -> Unit,
+    /** The draft being corrected, or null when this is a new invoice. */
+    initial: NewInvoice? = null,
 ) {
     val bookings = remember(projects) { projects.filter { it.id != null } }
 
-    var number by remember { mutableStateOf(suggestedNumber) }
-    var kind by remember { mutableStateOf(InvoiceKind.Full) }
-    var dueOn by remember { mutableStateOf(today.plus(DEFAULT_PAYMENT_TERM_DAYS, DateTimeUnit.DAY).toString()) }
-    var sendNow by remember { mutableStateOf(true) }
-    var selectedProject by remember(bookings) { mutableStateOf(bookings.firstOrNull()) }
+    var number by remember { mutableStateOf(initial?.number ?: suggestedNumber) }
+    var kind by remember { mutableStateOf(initial?.kind ?: InvoiceKind.Full) }
+    var dueOn by
+        remember {
+            mutableStateOf(
+                initial?.dueOn?.ifBlank { null }
+                    ?: today.plus(DEFAULT_PAYMENT_TERM_DAYS, DateTimeUnit.DAY).toString(),
+            )
+        }
 
-    val lines = remember { mutableStateListOf(LineFields()) }
+    // False for a correction whatever the draft was raised as: sending is an instruction
+    // about what to do now, not a property of the document being corrected.
+    var sendNow by remember { mutableStateOf(initial == null) }
+    var selectedProject by
+        remember(bookings) {
+            mutableStateOf(
+                bookings.firstOrNull { it.id == initial?.projectId } ?: bookings.firstOrNull(),
+            )
+        }
+
+    val lines =
+        remember {
+            mutableStateListOf(
+                *initial
+                    ?.lines
+                    .orEmpty()
+                    .map(LineFields::of)
+                    .ifEmpty { listOf(LineFields()) }
+                    .toTypedArray(),
+            )
+        }
 
     val dueValid = runCatching { LocalDate.parse(dueOn) }.isSuccess
     val booking = selectedProject
