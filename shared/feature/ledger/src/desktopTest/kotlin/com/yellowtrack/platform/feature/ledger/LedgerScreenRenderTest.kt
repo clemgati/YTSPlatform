@@ -11,7 +11,9 @@ import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.expense.DistanceUnit
 import com.yellowtrack.platform.core.model.expense.ExpenseCategory
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
+import com.yellowtrack.platform.core.model.invoice.InvoiceKind
 import com.yellowtrack.platform.core.model.invoice.PaymentState
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.model.quote.QuoteStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
@@ -26,8 +28,12 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.CostEdit
 import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewLineItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
@@ -79,9 +85,9 @@ class LedgerScreenRenderTest {
                             onRemovePackage = {},
                             onRemovePayment = {},
                             onRecordPayment = {},
-                            onAddQuote = {},
-                            onAddInvoice = {},
-                            onAddContract = {},
+                            onSaveQuote = { _, _ -> },
+                            onSaveInvoice = { _, _ -> },
+                            onSaveContract = { _, _ -> },
                             onAcceptQuote = {},
                             onDeclineQuote = {},
                             onSendContract = {},
@@ -89,8 +95,8 @@ class LedgerScreenRenderTest {
                             onSendInvoice = {},
                             onVoidInvoice = {},
                             onDeleteInvoice = {},
-                            onSaveInvoice = {},
-                            onSaveQuote = {},
+                            onExportInvoice = {},
+                            onExportQuote = {},
                             documentMessage = null,
                         )
                     }
@@ -152,6 +158,7 @@ class LedgerScreenRenderTest {
                                 projectName = "Okafor Portraits",
                                 total = "$300.00",
                                 raisedLabel = "raised 5 days ago",
+                                editable = sampleInvoiceForm,
                             ),
                         ),
                 ),
@@ -168,6 +175,7 @@ class LedgerScreenRenderTest {
                                 status = QuoteStatus.Expired,
                                 waitingLabel = "sent 6 weeks ago",
                                 validUntilLabel = "30 Jun 2026",
+                                editable = sampleQuoteForm,
                             ),
                             QuoteItem(
                                 id = QuoteId.new(),
@@ -178,6 +186,7 @@ class LedgerScreenRenderTest {
                                 status = QuoteStatus.Sent,
                                 waitingLabel = "sent 4 days ago",
                                 validUntilLabel = "24 Aug 2026",
+                                editable = sampleQuoteForm,
                             ),
                         ),
                     // One at each stage, so the image shows every action the row can offer.
@@ -190,6 +199,7 @@ class LedgerScreenRenderTest {
                                 retainer = "$300.00",
                                 stage = ContractStage.NotSent,
                                 waitingLabel = "drawn up 3 days ago",
+                                editable = sampleContractForm,
                             ),
                             ContractItem(
                                 id = ContractId.new(),
@@ -198,6 +208,7 @@ class LedgerScreenRenderTest {
                                 retainer = "$2,700.00",
                                 stage = ContractStage.AwaitingSignature,
                                 waitingLabel = "sent 9 days ago",
+                                editable = sampleContractForm,
                             ),
                             ContractItem(
                                 id = ContractId.new(),
@@ -206,6 +217,7 @@ class LedgerScreenRenderTest {
                                 retainer = "$1,500.00",
                                 stage = ContractStage.AwaitingRetainer,
                                 waitingLabel = "signed 2 days ago",
+                                editable = sampleContractForm,
                             ),
                         ),
                     quotedValue = "$7,250.00",
@@ -289,6 +301,40 @@ class LedgerScreenRenderTest {
         )
 
     private companion object {
+        val sampleInvoiceForm =
+            NewInvoice(
+                number = "2026-014",
+                projectId = ProjectId("project-1"),
+                kind = InvoiceKind.Balance,
+                lines = listOf(NewLineItem(description = "Coverage", unitPrice = "1200.00")),
+                dueOn = "2026-09-01",
+                sendNow = false,
+            )
+
+        val sampleQuoteForm =
+            NewQuote(
+                number = "Q-2026-014",
+                projectId = ProjectId("project-1"),
+                lines = listOf(NewLineItem(description = "Coverage", unitPrice = "1200.00")),
+                validUntil = "",
+                terms = null,
+            )
+
+        val sampleContractForm =
+            NewContract(
+                projectId = ProjectId("project-1"),
+                title = "Wedding coverage",
+                retainerAmount = "",
+                isRetainerRefundable = false,
+                turnaroundDays = "",
+                revisionRounds = "",
+                cancellationTerms = null,
+                rescheduleTerms = null,
+                weatherClause = null,
+                license = null,
+                sendNow = false,
+            )
+
         val samplePackageForm =
             NewServiceTemplate(
                 name = "Full-day wedding",

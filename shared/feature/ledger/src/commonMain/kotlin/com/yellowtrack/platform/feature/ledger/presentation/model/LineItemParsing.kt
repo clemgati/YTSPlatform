@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.ledger.presentation.model
 
 import com.yellowtrack.platform.core.common.money.CurrencyCode
+import com.yellowtrack.platform.core.common.money.basisPointsAsPercentage
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.money.parsePercentageToBasisPoints
 import com.yellowtrack.platform.core.model.billing.LineItem
@@ -35,6 +36,22 @@ internal fun NewLineItem.toLineItem(currency: CurrencyCode): LineItem? {
         taxRateBasisPoints = basisPoints,
     )
 }
+
+/**
+ * And back again, for a draft being corrected.
+ *
+ * Beside its inverse for the same reason that one is here: two functions that disagree
+ * about what a blank tax rate means would let a line open showing "0" where the studio
+ * typed nothing, or nothing where it typed zero, and neither is what was entered.
+ */
+internal fun LineItem.toForm(): NewLineItem =
+    NewLineItem(
+        description = description,
+        quantity = quantity.toString(),
+        // Digits rather than a rendering, as every other reopened form does.
+        unitPrice = unitPrice.toPlainString(),
+        taxRate = if (taxRateBasisPoints == 0) "" else taxRateBasisPoints.basisPointsAsPercentage(),
+    )
 
 /**
  * Every line, or null if any single one of them does not hold up.

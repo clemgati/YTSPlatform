@@ -22,6 +22,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.DraftInvoiceIt
 import com.yellowtrack.platform.feature.ledger.presentation.model.ExpenseSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.MoneyOwedSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewExpense
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewInvoice
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewMileage
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewServiceTemplate
 import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInvoiceItem
@@ -29,7 +30,9 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.ReceivedPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
+import com.yellowtrack.platform.feature.ledger.presentation.model.toForm
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
 /**
@@ -141,6 +144,7 @@ internal fun buildMoneyOwed(
                     projectName = project?.name.orEmpty(),
                     total = invoice.total.display(),
                     raisedLabel = raisedLabel(invoice.audit.createdAt, now),
+                    editable = invoice.toForm(),
                 )
             }
 
@@ -366,6 +370,29 @@ internal fun ServiceTemplate.estimatedDaysConsumed(postProductionFactor: Double)
 
     return shootDays * (1 + postProductionFactor)
 }
+
+/**
+ * A draft invoice's own values, as the form holds them.
+ *
+ * `sendNow` comes back false whatever the draft was raised as. It is not a property of the
+ * invoice but an instruction about what to do on saving, and a correction that re-issued
+ * the document because the tick was remembered from last time would be a demand nobody
+ * meant to send.
+ */
+private fun Invoice.toForm(): NewInvoice =
+    NewInvoice(
+        number = number,
+        projectId = projectId,
+        kind = kind,
+        lines = lines.map { it.toForm() },
+        dueOn =
+            dueAt
+                ?.toLocalDateTime(TimeZone.currentSystemDefault())
+                ?.date
+                ?.toString()
+                .orEmpty(),
+        sendNow = false,
+    )
 
 /**
  * The package's own values, as the form holds them.

@@ -633,12 +633,25 @@ internal class LedgerViewModel(
     }
 
     /**
-     * Raises a quote and sends it in one step.
+     * Sends a quote, or revises one the client has not answered yet.
      *
-     * There is no draft state in the form because a quote nobody has seen is not yet a
-     * proposal, and a draft that is never sent is the commonest way an enquiry goes cold.
+     * A new quote is sent in one step: a quote nobody has seen is not yet a proposal, and a
+     * draft that is never sent is the commonest way an enquiry goes cold.
+     *
+     * The rule across all three documents is the same: a thing may be corrected until it
+     * becomes the record of something that happened. An invoice sent is a demand made; a
+     * contract signed is an agreement struck; a quote answered is a decision recorded. Up
+     * to that point it is a proposal, and revising a proposal before the client replies is
+     * ordinary practice rather than a rewriting of history.
+     *
+     * Checked against the stored status rather than the screen's, because another device
+     * may have marked this quote accepted while the revision was being typed — and an
+     * accepted quote is what the invoice collecting it was raised from.
      */
-    fun addQuote(quote: NewQuote) {
+    fun saveQuote(
+        quote: NewQuote,
+        existingId: QuoteId? = null,
+    ) {
         viewModelScope.launch {
             val currency = studioProfileRepository.currency()
             val lines = quote.lines.toLineItems(currency) ?: return@launch
@@ -651,19 +664,25 @@ internal class LedgerViewModel(
                         ?: return@launch
                 }
 
+            val existing = existingId?.let { quoteRepository.getQuote(it) }
+            if (existingId != null && existing?.status?.isAwaitingDecision != true) return@launch
+
             quoteRepository.saveQuote(
                 Quote(
-                    id = QuoteId.new(),
+                    id = existing?.id ?: QuoteId.new(),
                     studioId = studioContext.studioId,
                     projectId = quote.projectId,
                     number = quote.number.trim(),
                     status = QuoteStatus.Sent,
                     currency = currency,
                     lines = lines,
-                    issuedAt = now,
+                    // The original issue date stands. A revision is the same proposal
+                    // restated, and moving the date would quietly restart the clock on how
+                    // long the client has been sitting on it.
+                    issuedAt = existing?.issuedAt ?: now,
                     validUntil = validUntil,
                     terms = quote.terms,
-                    audit = AuditMetadata.createdAt(now),
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }
@@ -703,13 +722,20 @@ internal class LedgerViewModel(
     }
 
     /**
-     * Draws up a contract, and sends it if asked.
+     * Draws up a contract, or corrects one that has not been signed.
      *
      * A contract may be saved unsent, unlike a quote: the terms are usually settled before
-     * anyone is willing to put them in front of a client, and an unsent contract is
-     * visible on the Ledger as the studio's own outstanding step rather than lost.
+     * anyone is willing to put them in front of a client, and an unsent contract is visible
+     * on the Ledger as the studio's own outstanding step rather than lost.
+     *
+     * Signed is the line, for the reason given on [saveQuote]: a signature is somebody
+     * agreeing to particular words, and changing the words afterwards while keeping the
+     * agreement is the one thing a contract exists to prevent.
      */
-    fun addContract(contract: NewContract) {
+    fun saveContract(
+        contract: NewContract,
+        existingId: ContractId? = null,
+    ) {
         viewModelScope.launch {
             val currency = studioProfileRepository.currency()
             val retainer =
@@ -723,14 +749,25 @@ internal class LedgerViewModel(
             val license = contract.license?.let { form -> usageLicenseOf(form) ?: return@launch }
             val now = clock.now()
 
+            val existing = existingId?.let { contractRepository.getContract(it) }
+            if (existingId != null && (existing == null || existing.isSigned)) return@launch
+
             contractRepository.saveContract(
                 Contract(
-                    id = ContractId.new(),
+                    id = existing?.id ?: ContractId.new(),
                     studioId = studioContext.studioId,
                     projectId = contract.projectId,
                     title = contract.title.trim(),
-                    status = if (contract.sendNow) ContractStatus.Sent else ContractStatus.Draft,
-                    sentAt = now.takeIf { contract.sendNow },
+                    // Already sent stays sent. Correcting the wording of a contract the
+                    // client is looking at does not un-send it, and reverting it to a draft
+                    // would lose the date it went out.
+                    status =
+                        when {
+                            existing?.status == ContractStatus.Sent -> ContractStatus.Sent
+                            contract.sendNow -> ContractStatus.Sent
+                            else -> ContractStatus.Draft
+                        },
+                    sentAt = existing?.sentAt ?: now.takeIf { contract.sendNow },
                     retainerAmount = retainer,
                     isRetainerRefundable = contract.isRetainerRefundable,
                     turnaroundDays = turnaroundDays.value,
@@ -739,7 +776,7 @@ internal class LedgerViewModel(
                     rescheduleTerms = contract.rescheduleTerms,
                     weatherClause = contract.weatherClause,
                     usageLicense = license,
-                    audit = AuditMetadata.createdAt(now),
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }
@@ -839,16 +876,35 @@ internal class LedgerViewModel(
         }
     }
 
-    fun addInvoice(invoice: NewInvoice) {
+    /**
+     * Raises an invoice, or corrects a draft already raised.
+     *
+     * Only a draft. A sent invoice is a demand somebody holds a copy of, and correcting one
+     * in place would leave the studio's record and the client's copy disagreeing while
+     * carrying the same number — which is the thing invoice numbering exists to prevent. The
+     * remedy for a wrong figure on a sent invoice is [voidInvoice] and a fresh one, and that
+     * is deliberate rather than an omission.
+     *
+     * The guard is here rather than only in the layout because the screen was drawn from a
+     * snapshot: another device may have sent this invoice between the draft being opened for
+     * correction and the correction being saved.
+     */
+    fun saveInvoice(
+        invoice: NewInvoice,
+        existingId: InvoiceId? = null,
+    ) {
         viewModelScope.launch {
             val currency = studioProfileRepository.currency()
             val lines = invoice.lines.toLineItems(currency) ?: return@launch
             val dueOn = runCatching { LocalDate.parse(invoice.dueOn) }.getOrNull() ?: return@launch
             val now = clock.now()
 
+            val existing = existingId?.let { invoiceRepository.getInvoice(it) }
+            if (existingId != null && existing?.status != InvoiceStatus.Draft) return@launch
+
             invoiceRepository.saveInvoice(
                 Invoice(
-                    id = InvoiceId.new(),
+                    id = existing?.id ?: InvoiceId.new(),
                     studioId = studioContext.studioId,
                     projectId = invoice.projectId,
                     number = invoice.number.trim(),
@@ -860,7 +916,11 @@ internal class LedgerViewModel(
                     // inventing one would make a draft look like a demand already made.
                     issuedAt = now.takeIf { invoice.sendNow },
                     dueAt = dueOn.atStartOfDayIn(timeZone),
-                    audit = AuditMetadata.createdAt(now),
+                    // The payments stay with it. A draft cannot hold any, but reading them
+                    // off the stored row rather than assuming keeps this honest if the rule
+                    // above is ever loosened.
+                    payments = existing?.payments.orEmpty(),
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }

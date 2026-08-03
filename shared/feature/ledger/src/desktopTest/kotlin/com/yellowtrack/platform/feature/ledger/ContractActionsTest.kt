@@ -245,7 +245,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract())
+            harness.viewModel.saveContract(newContract())
 
             val stored =
                 harness.contracts
@@ -266,7 +266,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(sendNow = false))
+            harness.viewModel.saveContract(newContract(sendNow = false))
 
             val stored =
                 harness.contracts
@@ -282,7 +282,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(retainerAmount = ""))
+            harness.viewModel.saveContract(newContract(retainerAmount = ""))
 
             assertNull(
                 harness.contracts
@@ -298,7 +298,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(retainerAmount = "two thousand"))
+            harness.viewModel.saveContract(newContract(retainerAmount = "two thousand"))
 
             assertTrue(
                 harness.contracts
@@ -313,7 +313,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(turnaroundDays = "six weeks"))
+            harness.viewModel.saveContract(newContract(turnaroundDays = "six weeks"))
 
             assertTrue(
                 harness.contracts
@@ -329,7 +329,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(turnaroundDays = "", revisionRounds = ""))
+            harness.viewModel.saveContract(newContract(turnaroundDays = "", revisionRounds = ""))
 
             val stored =
                 harness.contracts
@@ -347,7 +347,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(license = newLicense()))
+            harness.viewModel.saveContract(newContract(license = newLicense()))
 
             val license =
                 assertNotNull(
@@ -368,7 +368,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(license = newLicense(durationMonths = "a year")))
+            harness.viewModel.saveContract(newContract(license = newLicense(durationMonths = "a year")))
 
             assertTrue(
                 harness.contracts
@@ -384,7 +384,7 @@ class ContractActionsTest {
         runTest {
             val harness = harness()
 
-            harness.viewModel.addContract(newContract(license = newLicense(durationMonths = "")))
+            harness.viewModel.saveContract(newContract(license = newLicense(durationMonths = "")))
 
             val license =
                 assertNotNull(

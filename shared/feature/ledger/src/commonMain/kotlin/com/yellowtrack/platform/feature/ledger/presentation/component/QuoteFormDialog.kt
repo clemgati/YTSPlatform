@@ -34,22 +34,42 @@ internal fun QuoteFormDialog(
     projects: List<ProjectOption>,
     onSave: (NewQuote) -> Unit,
     onDismiss: () -> Unit,
+    /** The quote being revised, or null when this is a new one. */
+    initial: NewQuote? = null,
 ) {
     val bookings = remember(projects) { projects.filter { it.id != null } }
 
-    var number by remember { mutableStateOf(suggestedNumber) }
-    var validUntil by remember { mutableStateOf(today.plus(DEFAULT_VALIDITY_DAYS, DateTimeUnit.DAY).toString()) }
-    var terms by remember { mutableStateOf("") }
-    var selectedProject by remember(bookings) { mutableStateOf(bookings.firstOrNull()) }
+    var number by remember { mutableStateOf(initial?.number ?: suggestedNumber) }
+    var validUntil by
+        remember {
+            mutableStateOf(
+                initial?.validUntil ?: today.plus(DEFAULT_VALIDITY_DAYS, DateTimeUnit.DAY).toString(),
+            )
+        }
+    var terms by remember { mutableStateOf(initial?.terms.orEmpty()) }
+    var selectedProject by
+        remember(bookings) {
+            mutableStateOf(bookings.firstOrNull { it.id == initial?.projectId } ?: bookings.firstOrNull())
+        }
 
-    val lines = remember { mutableStateListOf(LineFields()) }
+    val lines =
+        remember {
+            mutableStateListOf(
+                *initial
+                    ?.lines
+                    .orEmpty()
+                    .map(LineFields::of)
+                    .ifEmpty { listOf(LineFields()) }
+                    .toTypedArray(),
+            )
+        }
 
     val validUntilValid = validUntil.isBlank() || runCatching { LocalDate.parse(validUntil) }.isSuccess
     val booking = selectedProject
 
     YTFormDialog(
-        title = "Send a quote",
-        confirmLabel = "Send",
+        title = if (initial == null) "Send a quote" else "Revise this quote",
+        confirmLabel = if (initial == null) "Send" else "Save changes",
         supportingText =
             if (bookings.isEmpty()) {
                 "A quote is priced against a booking, and there are none yet."

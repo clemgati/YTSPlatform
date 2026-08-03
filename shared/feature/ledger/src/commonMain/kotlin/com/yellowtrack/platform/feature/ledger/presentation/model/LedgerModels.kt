@@ -69,6 +69,15 @@ internal data class DraftInvoiceItem(
     val projectName: String,
     val total: String,
     val raisedLabel: String,
+    /**
+     * The invoice as the form takes it, so correcting a draft opens on what was built.
+     *
+     * Only drafts carry one. A sent invoice is a demand somebody holds a copy of, and the
+     * remedy for a wrong figure on one is to void it and raise another — editing it would
+     * leave the studio's record and the client's copy disagreeing with the same number on
+     * both.
+     */
+    val editable: NewInvoice,
 )
 
 internal data class MoneyOwedSummary(
@@ -153,6 +162,8 @@ internal data class QuoteItem(
     val status: QuoteStatus,
     val waitingLabel: String?,
     val validUntilLabel: String?,
+    /** The quote as the form takes it, so revising one opens on what was proposed. */
+    val editable: NewQuote,
 ) {
     val isExpired: Boolean get() = status == QuoteStatus.Expired
 }
@@ -180,8 +191,18 @@ internal data class ContractItem(
     val retainer: String?,
     val stage: ContractStage,
     val waitingLabel: String?,
+    /** The contract as the form takes it, so correcting one opens on its own wording. */
+    val editable: NewContract,
 ) {
     val canSend: Boolean get() = stage == ContractStage.NotSent
+
+    /**
+     * Unsigned, so the words can still change.
+     *
+     * A signature is somebody agreeing to particular words; changing them afterwards while
+     * keeping the agreement is what a contract exists to prevent.
+     */
+    val canEdit: Boolean get() = stage != ContractStage.AwaitingRetainer
 
     val canSign: Boolean get() = stage != ContractStage.AwaitingRetainer
 

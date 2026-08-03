@@ -35,6 +35,17 @@ internal data class LineFields(
     val unitPrice: String = "",
     val taxRate: String = "",
 ) {
+    companion object {
+        /** The stored line as the editor holds it, so a draft reopens on what was built. */
+        fun of(line: NewLineItem) =
+            LineFields(
+                description = line.description,
+                quantity = line.quantity,
+                unitPrice = line.unitPrice,
+                taxRate = line.taxRate,
+            )
+    }
+
     fun asNew(): NewLineItem =
         NewLineItem(
             description = description,

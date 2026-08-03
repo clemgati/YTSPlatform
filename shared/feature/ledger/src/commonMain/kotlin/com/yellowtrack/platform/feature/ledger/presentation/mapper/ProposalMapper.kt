@@ -14,9 +14,14 @@ import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.ContractStage
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewContract
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
+import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.toForm
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
 internal fun buildProposals(
@@ -56,6 +61,7 @@ internal fun buildProposals(
                 status = quote.effectiveStatus(now),
                 waitingLabel = quote.issuedAt?.let { waitingLabel(it, now) },
                 validUntilLabel = quote.validUntil?.let { DateFormats.shortDate(it, zone) },
+                editable = quote.toForm(zone),
             )
         }
 
@@ -90,6 +96,7 @@ internal fun buildProposals(
                             ContractStage.AwaitingRetainer ->
                                 contract.signedAt?.let { waitingLabel(it, now, "signed") }
                         },
+                    editable = contract.toForm(),
                 )
             }
 
@@ -176,3 +183,53 @@ private fun waitingLabel(
         else -> "$verb ${days / 30} months ago"
     }
 }
+
+/**
+ * A quote's own values, as the form holds them.
+ *
+ * Digits rather than renderings, as every other reopened form does.
+ */
+private fun Quote.toForm(zone: TimeZone) =
+    NewQuote(
+        number = number,
+        projectId = projectId,
+        lines = lines.map { it.toForm() },
+        validUntil =
+            validUntil
+                ?.toLocalDateTime(zone)
+                ?.date
+                ?.toString()
+                .orEmpty(),
+        terms = terms,
+    )
+
+/**
+ * A contract's own values, as the form holds them.
+ *
+ * `sendNow` comes back false: it is an instruction about what to do on saving rather than a
+ * property of the contract, and a correction that re-sent the document because the tick was
+ * remembered would put it in front of the client twice.
+ */
+private fun Contract.toForm() =
+    NewContract(
+        projectId = projectId,
+        title = title,
+        retainerAmount = retainerAmount?.toPlainString().orEmpty(),
+        isRetainerRefundable = isRetainerRefundable,
+        turnaroundDays = turnaroundDays?.toString().orEmpty(),
+        revisionRounds = revisionRounds?.toString().orEmpty(),
+        cancellationTerms = cancellationTerms,
+        rescheduleTerms = rescheduleTerms,
+        weatherClause = weatherClause,
+        license =
+            usageLicense?.let {
+                NewUsageLicense(
+                    media = it.media.toSet(),
+                    territory = it.territory,
+                    durationMonths = it.durationMonths?.toString().orEmpty(),
+                    isExclusive = it.isExclusive,
+                    startsOn = it.startsOn?.toString().orEmpty(),
+                )
+            },
+        sendNow = false,
+    )
