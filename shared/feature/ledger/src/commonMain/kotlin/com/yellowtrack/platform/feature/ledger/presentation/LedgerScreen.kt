@@ -51,6 +51,7 @@ internal fun LedgerScreen(
     /** The second argument is the row being corrected, or null when recording a new one. */
     onSaveExpense: (NewExpense, String?) -> Unit,
     onSaveMileage: (NewMileage, String?) -> Unit,
+    onRemoveCost: (RecordedCost) -> Unit,
     onRemovePayment: (PaymentId) -> Unit,
     onRecordPayment: (NewPayment) -> Unit,
     onAddQuote: (NewQuote) -> Unit,
@@ -263,6 +264,7 @@ internal fun LedgerScreen(
                 summary = content.expenses,
                 onAddExpense = { showExpenseForm = true },
                 onCorrectCost = { correctingCost = it },
+                onRemoveCost = onRemoveCost,
                 onAddMileage = { showMileageForm = true },
             )
         }
