@@ -342,9 +342,9 @@ and used.
 - **Account deletion and data export.** The application holds other people's clients,
   addresses and payment histories, with no way to give that back or remove it
 
-- **What the studio enters can now be removed.** Of the forty-five write methods the
+- ✓ **What the studio enters can now be removed.** Of the forty-five write methods the
   repositories declare, eleven were never called from any screen — and ten of those were
-  deletes. All but one are reachable now; `deleteLead` is the exception
+  deletes. Every one is reachable now
   - ✓ **A payment** can be taken off the invoice it was put against — the case that hid
     itself, since a misattributed payment settles its invoice and a settled invoice leaves
     the money-owed list
@@ -381,8 +381,11 @@ and used.
   - ✓ **Gear can be corrected**, rather than only added and thrown away. A mistyped serial
     number — the field an insurer needs — previously had to be fixed by deleting the item and
     entering it again, losing its service history with the mistake
-  - **`deleteLead` is the last unreached write method.** An enquiry can be recorded and never
-    removed; it is the one remaining hole from the sweep
+  - ✓ **An enquiry** can be removed — and, first, *found*. The dashboard listed only what
+    was awaiting a reply, so answering an enquiry, or marking it won or lost, took it off the
+    only screen that showed leads at all. Spam somebody answered could never be reached
+  - ✓ **The sweep is closed.** All forty-five write methods the repositories declare are
+    reachable from a screen
 
 
 **In the operation**

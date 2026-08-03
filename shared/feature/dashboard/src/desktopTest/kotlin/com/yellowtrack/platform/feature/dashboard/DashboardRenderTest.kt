@@ -32,7 +32,7 @@ class DashboardRenderTest {
         val target = File(outputDir, "dashboard-conflicts.png")
 
         val scene =
-            ImageComposeScene(width = 1_280, height = 1_600, density = Density(2f)) {
+            ImageComposeScene(width = 1_280, height = 3_000, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -55,6 +55,7 @@ class DashboardRenderTest {
                             onRetry = {},
                             onMarkEnquiryReplied = {},
                             onAddEnquiry = {},
+                            onRemoveEnquiry = {},
                         )
                     }
                 }

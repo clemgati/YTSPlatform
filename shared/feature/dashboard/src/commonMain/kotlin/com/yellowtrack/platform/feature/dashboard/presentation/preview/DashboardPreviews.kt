@@ -14,6 +14,7 @@ private fun DashboardSuccessPreview() {
             onRetry = {},
             onMarkEnquiryReplied = {},
             onAddEnquiry = {},
+            onRemoveEnquiry = {},
         )
     }
 }
@@ -27,6 +28,7 @@ private fun DashboardLoadingPreview() {
             onRetry = {},
             onMarkEnquiryReplied = {},
             onAddEnquiry = {},
+            onRemoveEnquiry = {},
         )
     }
 }
@@ -40,6 +42,7 @@ private fun DashboardEmptyPreview() {
             onRetry = {},
             onMarkEnquiryReplied = {},
             onAddEnquiry = {},
+            onRemoveEnquiry = {},
         )
     }
 }
@@ -53,6 +56,7 @@ private fun DashboardErrorPreview() {
             onRetry = {},
             onMarkEnquiryReplied = {},
             onAddEnquiry = {},
+            onRemoveEnquiry = {},
         )
     }
 }

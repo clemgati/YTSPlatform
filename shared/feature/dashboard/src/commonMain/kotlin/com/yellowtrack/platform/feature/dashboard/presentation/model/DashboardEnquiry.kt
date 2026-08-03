@@ -16,4 +16,11 @@ internal data class DashboardEnquiry(
     val waitingLabel: String,
     /** Set once a reply is late enough to be costing bookings. */
     val isUrgent: Boolean,
+    /**
+     * Where it got to — "Replied", "Won", "Lost".
+     *
+     * Only meaningful in the full list. The awaiting-reply list is by definition all of one
+     * status, and saying so on every row would be noise.
+     */
+    val statusLabel: String = "",
 )

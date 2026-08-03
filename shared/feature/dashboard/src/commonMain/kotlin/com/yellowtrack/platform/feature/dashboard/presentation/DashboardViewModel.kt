@@ -54,6 +54,16 @@ internal class DashboardViewModel(
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
 
+    /**
+     * The two lead lists, grouped so the join stays within `combine`'s typed arity.
+     *
+     * They answer different questions: what needs a reply today, and what has ever come in.
+     */
+    private data class Enquiries(
+        val awaitingReply: List<Lead>,
+        val all: List<Lead>,
+    )
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<DashboardUiState> =
         retryTrigger
@@ -68,9 +78,13 @@ internal class DashboardViewModel(
                     sessionRepository.observeSessionsBetween(startOfToday, startOfTomorrow),
                     projectRepository.observeProjects(),
                     clientRepository.observeClients(),
-                    leadRepository.observeAwaitingResponse(),
+                    combine(
+                        leadRepository.observeAwaitingResponse(),
+                        leadRepository.observeLeads(),
+                        ::Enquiries,
+                    ),
                     conflictRepository.observeUnresolvedCount(),
-                ) { sessions, projects, clients, waitingEnquiries, unresolvedConflicts ->
+                ) { sessions, projects, clients, enquiries, unresolvedConflicts ->
                     DashboardUiState(
                         summary =
                             UiState.Success(
@@ -78,7 +92,8 @@ internal class DashboardViewModel(
                                     todaysSessions = sessions,
                                     projects = projects,
                                     clients = clients,
-                                    enquiriesAwaitingReply = waitingEnquiries,
+                                    enquiriesAwaitingReply = enquiries.awaitingReply,
+                                    allEnquiries = enquiries.all,
                                     now = clock.now(),
                                     // Gear and readiness tracking arrive with the Studio
                                     // milestone. Until then the section shows its empty
@@ -125,6 +140,21 @@ internal class DashboardViewModel(
                 ),
             )
         }
+    }
+
+    /**
+     * Removes an enquiry.
+     *
+     * A lead is a leaf: nothing in the application points at one, so there is nothing here
+     * to hold it and no cascade to refuse. Winning an enquiry creates a client and a
+     * booking, and neither carries the lead's identifier — the conversion copies what it
+     * needs rather than pointing back.
+     *
+     * Which makes this the plainest case in the sweep and the last of it. Spam arrives by
+     * the same form as real work, and a studio that logged one had no way to be rid of it.
+     */
+    fun deleteEnquiry(leadId: LeadId) {
+        viewModelScope.launch { leadRepository.deleteLead(leadId) }
     }
 
     fun addEnquiry(enquiry: NewEnquiry) {
