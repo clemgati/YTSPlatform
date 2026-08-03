@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.lead.LeadSource
+import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionStatus
@@ -31,6 +32,7 @@ internal fun toDashboardSummary(
     clients: List<Client>,
     studioStatus: DashboardStudioStatus,
     enquiriesAwaitingReply: List<Lead> = emptyList(),
+    allEnquiries: List<Lead> = emptyList(),
     now: Instant,
 ): DashboardSummary {
     val clientsById = clients.associateBy { it.id }
@@ -76,8 +78,39 @@ internal fun toDashboardSummary(
                         isUrgent = waiting != null && waiting >= URGENT_AFTER,
                     )
                 },
+        // Newest first, and not truncated. This is where an enquiry is found again once it
+        // has left the list above, so a cap would put the oldest mistakes out of reach.
+        allEnquiries =
+            allEnquiries
+                .sortedByDescending { it.receivedAt ?: it.audit.createdAt }
+                .map { lead ->
+                    DashboardEnquiry(
+                        id = lead.id,
+                        name = lead.name,
+                        source = lead.source.readableLabel,
+                        waitingLabel = lead.timeWaiting(now).describe(),
+                        isUrgent = false,
+                        statusLabel = lead.statusLabel,
+                    )
+                },
     )
 }
+
+/**
+ * Where the enquiry got to, said as a studio would say it.
+ *
+ * "Replied" rather than the stored status for anything answered but undecided: the
+ * distinction between Contacted, ConsultScheduled and ProposalSent matters while working
+ * the enquiry and not at all when looking for one to delete.
+ */
+private val Lead.statusLabel: String
+    get() =
+        when {
+            status == LeadStatus.Won -> "Won"
+            status == LeadStatus.Lost -> "Lost"
+            firstResponseAt != null -> "Replied"
+            else -> "Awaiting a reply"
+        }
 
 private fun Duration?.describe(): String =
     when {

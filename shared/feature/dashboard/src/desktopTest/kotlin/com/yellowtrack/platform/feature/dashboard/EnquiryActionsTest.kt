@@ -16,6 +16,7 @@ import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.FakeSyncConflictRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
+import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.dashboard.presentation.DashboardViewModel
 import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,82 @@ class EnquiryActionsTest {
     fun tearDown() {
         Dispatchers.resetMain()
     }
+
+    // -- Removing an enquiry -----------------------------------------------------------------
+
+    /**
+     * The reachability half, which is the part that matters.
+     *
+     * The awaiting-reply list holds only what has never been answered, so replying to an
+     * enquiry took it off the only screen in the application that showed leads at all. A
+     * delete reachable solely from that list would leave exactly the enquiries a studio
+     * most wants rid of — the spam it answered, the duplicate it marked lost — permanently
+     * out of reach.
+     */
+    @Test
+    fun `an answered enquiry is still listed`() =
+        runTest {
+            val answered = lead(firstResponseAt = TestAppClock.DEFAULT_NOW, status = LeadStatus.Contacted)
+            val viewModel = viewModel(FakeLeadRepository(listOf(answered)))
+
+            val summary = viewModel.summary()
+
+            assertTrue(
+                summary.enquiriesAwaitingReply.isEmpty(),
+                "it has been answered, so it is correctly absent from what needs a reply",
+            )
+            assertEquals(
+                listOf(answered.id),
+                summary.allEnquiries.map { it.id },
+                "and it must still be reachable somewhere, or it can never be removed",
+            )
+        }
+
+    @Test
+    fun `a won enquiry is still listed`() =
+        runTest {
+            val won = lead(firstResponseAt = TestAppClock.DEFAULT_NOW, status = LeadStatus.Won)
+            val viewModel = viewModel(FakeLeadRepository(listOf(won)))
+
+            val summary = viewModel.summary()
+
+            assertEquals(listOf("Won"), summary.allEnquiries.map { it.statusLabel })
+        }
+
+    @Test
+    fun `an enquiry says where it got to`() =
+        runTest {
+            val answered = lead(firstResponseAt = TestAppClock.DEFAULT_NOW, status = LeadStatus.ProposalSent)
+            val viewModel = viewModel(FakeLeadRepository(listOf(answered)))
+
+            assertEquals(
+                listOf("Replied"),
+                viewModel.summary().allEnquiries.map { it.statusLabel },
+                "the working statuses matter while working the enquiry and not at all when " +
+                    "looking for one to delete",
+            )
+        }
+
+    @Test
+    fun `an enquiry can be removed`() =
+        runTest {
+            val spam = lead(firstResponseAt = TestAppClock.DEFAULT_NOW, status = LeadStatus.Lost)
+            val leads = FakeLeadRepository(listOf(spam))
+            val viewModel = viewModel(leads)
+
+            viewModel.deleteEnquiry(spam.id)
+
+            assertTrue(
+                leads.observeLeads().first().isEmpty(),
+                "a lead is a leaf — nothing points at one — so there is nothing to hold it",
+            )
+        }
+
+    private suspend fun DashboardViewModel.summary() =
+        uiState
+            .first { it.summary is UiState.Success }
+            .summary
+            .let { (it as UiState.Success).data }
 
     private fun viewModel(
         leads: FakeLeadRepository,

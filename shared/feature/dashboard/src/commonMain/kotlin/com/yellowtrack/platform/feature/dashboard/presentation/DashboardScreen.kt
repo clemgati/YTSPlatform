@@ -20,6 +20,7 @@ import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.lead.LeadId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardAllEnquiriesSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardConflictBanner
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardEnquiriesSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardHeader
@@ -36,6 +37,7 @@ internal fun DashboardScreen(
     onRetry: () -> Unit,
     onMarkEnquiryReplied: (LeadId) -> Unit,
     onAddEnquiry: (NewEnquiry) -> Unit,
+    onRemoveEnquiry: (LeadId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showEnquiryForm by remember { mutableStateOf(false) }
@@ -64,6 +66,7 @@ internal fun DashboardScreen(
             summary = summary,
             onMarkEnquiryReplied = onMarkEnquiryReplied,
             onAddEnquiry = { showEnquiryForm = true },
+            onRemoveEnquiry = onRemoveEnquiry,
             modifier = contentModifier,
         )
     }
@@ -74,6 +77,7 @@ private fun DashboardContent(
     summary: DashboardSummary,
     onMarkEnquiryReplied: (LeadId) -> Unit,
     onAddEnquiry: () -> Unit,
+    onRemoveEnquiry: (LeadId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -104,6 +108,12 @@ private fun DashboardContent(
             enquiries = summary.enquiriesAwaitingReply,
             onMarkReplied = onMarkEnquiryReplied,
             onAddEnquiry = onAddEnquiry,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        DashboardAllEnquiriesSection(
+            enquiries = summary.allEnquiries,
+            onRemoveEnquiry = onRemoveEnquiry,
             modifier = Modifier.fillMaxWidth(),
         )
 

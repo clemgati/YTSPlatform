@@ -18,6 +18,7 @@ fun DashboardRoute(modifier: Modifier = Modifier) {
         onRetry = viewModel::retry,
         onMarkEnquiryReplied = viewModel::markEnquiryReplied,
         onAddEnquiry = viewModel::addEnquiry,
+        onRemoveEnquiry = viewModel::deleteEnquiry,
         modifier = modifier,
     )
 }

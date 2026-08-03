@@ -5,6 +5,14 @@ internal data class DashboardSummary(
     val recentClients: List<DashboardClient>,
     val studioStatus: DashboardStudioStatus,
     val enquiriesAwaitingReply: List<DashboardEnquiry> = emptyList(),
+    /**
+     * Every enquiry, whatever became of it.
+     *
+     * The awaiting-reply list above holds only what has never been answered, so replying to
+     * an enquiry — or marking it won or lost — took it off the one screen that showed leads
+     * at all. A spam message somebody answered, or a duplicate, could then never be removed.
+     */
+    val allEnquiries: List<DashboardEnquiry> = emptyList(),
     val todayLabel: String = "",
     /**
      * How much work synchronisation has discarded and nobody has looked at.
