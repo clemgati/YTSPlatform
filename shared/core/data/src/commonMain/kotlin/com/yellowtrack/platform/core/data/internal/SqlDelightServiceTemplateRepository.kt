@@ -88,12 +88,29 @@ internal class SqlDelightServiceTemplateRepository(
         }
     }
 
+    /**
+     * Retires a template, and tells the other devices.
+     *
+     * The enqueue was missing until now. It survived because nothing ever called this: no
+     * screen could remove a template, so the one path that would have shown the tombstone
+     * never being sent was never walked. Every other repository in this package queues its
+     * deletes — this was the single exception, and it is the exact fault 0.7.0 fixed
+     * everywhere else, where a row deleted on one device stayed on all the others for good.
+     */
     override suspend fun deleteTemplate(id: ServiceTemplateId) {
-        database().serviceTemplateQueries.softDelete(deletedAt = clock.now().toEpochMillis(), id = id.value)
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.serviceTemplateQueries.softDelete(deletedAt = now, id = id.value)
+            db.enqueueForSync(studioId, SyncTables.SERVICE_TEMPLATE, id.value, OutboxOperation.Delete, now)
+        }
     }
 
     override suspend fun seedDefaultsIfEmpty() {
-        val existing = database().serviceTemplateQueries.countForStudio(studioId).awaitAsOne()
+        // Tombstones count. A studio that removed every template chose to, and handing the
+        // four defaults back at the next launch would overrule that silently.
+        val existing = database().serviceTemplateQueries.countEverForStudio(studioId).awaitAsOne()
         if (existing > 0L) return
 
         defaultServiceTemplates(

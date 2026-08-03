@@ -1,11 +1,13 @@
 package com.yellowtrack.platform.core.data
 
 import com.yellowtrack.platform.core.common.time.AppClock
+import com.yellowtrack.platform.core.data.internal.OutboxOperation
 import com.yellowtrack.platform.core.data.internal.SqlDelightGearRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightLightingRecipeRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightMediaCopyRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightPackingRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightPostProductionRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightServiceTemplateRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightShotRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
@@ -37,6 +39,8 @@ import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.release.TalentRelease
 import com.yellowtrack.platform.core.model.release.TalentReleaseId
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.model.service.ServiceTemplate
+import com.yellowtrack.platform.core.model.service.ServiceTemplateId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.model.session.SessionKind
@@ -126,7 +130,61 @@ class OutboxCoverageTest {
             )
         }
 
+    /**
+     * And queues what it removes.
+     *
+     * The sibling blind spot, and it had one repository sitting in it: `deleteTemplate`
+     * retired the row and queued nothing, so a package removed on one device stayed on
+     * every other one for good. It survived because no screen could remove a template —
+     * the path was never walked until service templates became editable.
+     *
+     * A tombstone that is never sent is worse than a delete that fails outright. The studio
+     * sees the row go, believes it, and the row is still on the laptop.
+     */
+    @Test
+    fun `every repository queues what it removes`() =
+        runTest {
+            val provider = testDatabaseProvider()
+            val database = provider.database()
+            val studio = LocalStudioContext()
+            val clock = AppClock { NOW }
+
+            val templates = SqlDelightServiceTemplateRepository(provider, studio, clock, Dispatchers.Unconfined)
+            templates.saveTemplate(serviceTemplate())
+            templates.deleteTemplate(ServiceTemplateId(TEMPLATE))
+
+            val gear = SqlDelightGearRepository(provider, studio, clock, Dispatchers.Unconfined)
+            gear.saveGearItem(gearItem())
+            gear.deleteGearItem(GearItemId(GEAR))
+
+            val queued =
+                database.outboxQueries
+                    .selectPending(studio.studioId.value, 200)
+                    .executeAsList()
+                    .filter { it.operation == OutboxOperation.Delete.name }
+                    .map { it.entity_table }
+                    .toSet()
+
+            assertEquals(
+                emptySet(),
+                setOf(SyncTables.SERVICE_TEMPLATE, SyncTables.GEAR_ITEM) - queued,
+                "these repositories retired a row and told nobody. The row disappears here " +
+                    "and stays on every other device, which is the fault 0.7.0 fixed and this " +
+                    "one repository kept",
+            )
+        }
+
     // -- Fixtures ----------------------------------------------------------------------------
+
+    private fun serviceTemplate() =
+        ServiceTemplate(
+            id = ServiceTemplateId(TEMPLATE),
+            studioId = STUDIO,
+            name = "Full-day wedding",
+            serviceLine = ServiceLine.Wedding,
+            defaultSessionDurationMinutes = 600,
+            audit = AuditMetadata.createdAt(NOW),
+        )
 
     private fun client() =
         Client(
@@ -245,6 +303,7 @@ class OutboxCoverageTest {
         const val PROJECT = "project-1"
         const val SESSION = "session-1"
         const val GEAR = "gear-1"
+        const val TEMPLATE = "template-1"
         const val VOLUME = "volume-1"
     }
 }
