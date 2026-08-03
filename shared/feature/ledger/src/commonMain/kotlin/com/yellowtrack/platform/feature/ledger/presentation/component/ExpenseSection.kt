@@ -122,7 +122,7 @@ private fun RecordedCostRow(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onCorrect),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
         verticalAlignment = Alignment.Top,
     ) {
         Column(modifier = Modifier.weight(1f)) {

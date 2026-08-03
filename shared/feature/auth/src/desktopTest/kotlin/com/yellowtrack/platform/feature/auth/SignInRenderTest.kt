@@ -23,6 +23,13 @@ class SignInRenderTest {
     fun `renders signing in and starting a studio`() {
         render("sign-in.png", SignInUiState(fields = SignInFields(email = "ada@harbourline.test", password = "secret")))
 
+        // The first screen anybody sees, at the width most of them will see it on.
+        render(
+            "sign-in-phone.png",
+            SignInUiState(fields = SignInFields(email = "ada@harbourline.test", password = "secret")),
+            width = 780,
+        )
+
         render(
             "reset-enter-code.png",
             SignInUiState(
@@ -59,13 +66,14 @@ class SignInRenderTest {
     private fun render(
         name: String,
         state: SignInUiState,
+        width: Int = 1_100,
     ) {
         val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
         outputDir.mkdirs()
         val target = File(outputDir, name)
 
         val scene =
-            ImageComposeScene(width = 1_100, height = 1_700, density = Density(2f)) {
+            ImageComposeScene(width = width, height = 1_700, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(modifier = Modifier.fillMaxSize(), color = YTTheme.colors.background) {
                         SignInScreen(

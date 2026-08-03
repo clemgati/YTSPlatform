@@ -71,4 +71,53 @@ class DashboardRenderTest {
         assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
         println("Rendered ${target.absolutePath}")
     }
+
+    /** And at the width of a phone, where every enquiry row carries a control. */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `renders the dashboard on a phone`() {
+        val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
+        outputDir.mkdirs()
+        val target = File(outputDir, "dashboard-phone.png")
+
+        val scene =
+            ImageComposeScene(width = 780, height = 4_400, density = Density(2f)) {
+                YellowTrackTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = YTTheme.colors.background,
+                    ) {
+                        DashboardScreen(
+                            uiState =
+                                DashboardUiState(
+                                    summary =
+                                        UiState.Success(
+                                            DashboardPreviewData.summary.copy(
+                                                unresolvedConflicts = 2,
+                                                // The fixture leaves this blank, which
+                                                // renders the date badge as an empty pill
+                                                // and makes the image lie about the header.
+                                                todayLabel = "Friday, July 31",
+                                            ),
+                                        ),
+                                ),
+                            onRetry = {},
+                            onMarkEnquiryReplied = {},
+                            onAddEnquiry = {},
+                            onRemoveEnquiry = {},
+                        )
+                    }
+                }
+            }
+
+        try {
+            val bytes = requireNotNull(scene.render().encodeToData()) { "Skia produced no image data" }.bytes
+            target.writeBytes(bytes)
+        } finally {
+            scene.close()
+        }
+
+        assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
+        println("Rendered ${target.absolutePath}")
+    }
 }

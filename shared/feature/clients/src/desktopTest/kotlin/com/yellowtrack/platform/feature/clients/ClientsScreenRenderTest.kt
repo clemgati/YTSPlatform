@@ -56,6 +56,7 @@ class ClientsScreenRenderTest {
     private fun render(
         name: String,
         height: Int,
+        width: Int = WIDTH,
         content: @Composable () -> Unit,
     ) {
         val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
@@ -63,7 +64,7 @@ class ClientsScreenRenderTest {
         val target = File(outputDir, name)
 
         val scene =
-            ImageComposeScene(width = WIDTH, height = height, density = Density(2f)) {
+            ImageComposeScene(width = width, height = height, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -110,6 +111,60 @@ class ClientsScreenRenderTest {
                 onOpenBooking = {},
                 onUpdateClient = {},
                 onRemoveClient = {},
+            )
+        }
+    }
+
+    /**
+     * The two detail pages at the width of a phone.
+     *
+     * Rendered at 640dp everything fitted. The Studio screen looked the same and was not:
+     * its row actions took the width they needed and left the item name eighty pixels. The
+     * only way to know whether these do the same is to draw them narrow and look.
+     */
+    @Test
+    fun `renders the client detail page on a phone`() {
+        render("client-details-phone.png", height = 3_600, width = PHONE) {
+            ClientDetailsScreen(
+                uiState = ClientDetailsPreviewData.successState,
+                onRetry = {},
+                onBack = {},
+                onScheduleSession = {},
+                onAddProject = {},
+                onOpenBooking = {},
+                onUpdateClient = {},
+                onRemoveClient = {},
+            )
+        }
+    }
+
+    @Test
+    fun `renders the booking page on a phone`() {
+        render("booking-details-phone.png", height = 3_600, width = PHONE) {
+            ProjectDetailsScreen(
+                uiState =
+                    bookingState(
+                        Removal.HeldBy(
+                            listOf(
+                                Removal.Hold("invoice", "invoices", 2),
+                                Removal.Hold("shoot day", "shoot days", 1),
+                            ),
+                        ),
+                    ),
+                onRetry = {},
+                onBack = {},
+                onSessionSelected = {},
+                onAddTask = {},
+                onCompleteTask = { _, _ -> },
+                onReopenTask = {},
+                onDeleteTask = {},
+                onUpdateProject = {},
+                onAddDeliverable = {},
+                onSetDeliverableStatus = { _, _ -> },
+                onAddRevision = {},
+                onRemoveDeliverable = {},
+                onRemoveProject = {},
+                onRemovePaperwork = {},
             )
         }
     }
@@ -285,5 +340,8 @@ class ClientsScreenRenderTest {
 
     private companion object {
         const val WIDTH = 1_280
+
+        /** A 390pt phone at 2x. Every render here was desktop-width until one was not. */
+        const val PHONE = 780
     }
 }
