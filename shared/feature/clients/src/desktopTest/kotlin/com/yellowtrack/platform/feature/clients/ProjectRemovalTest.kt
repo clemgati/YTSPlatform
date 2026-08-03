@@ -25,10 +25,10 @@ import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.testing.TestData
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.project.ProjectDetailsViewModel
 import com.yellowtrack.platform.feature.clients.presentation.project.mapper.projectRemoval
-import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -72,14 +72,14 @@ class ProjectRemovalTest {
 
     @Test
     fun `a booking with nothing on it can be removed`() {
-        assertEquals(ProjectRemoval.Available, removal())
+        assertEquals(Removal.Available, removal())
     }
 
     @Test
     fun `one shoot day is enough to hold it`() {
         val held = removal(shootDays = 1)
 
-        assertIs<ProjectRemoval.HeldBy>(held)
+        assertIs<Removal.HeldBy>(held)
         assertEquals(
             "1 shoot day",
             held.summary,
@@ -92,7 +92,7 @@ class ProjectRemovalTest {
     fun `everything attached is named, not just the first thing found`() {
         val held = removal(invoices = 2, shootDays = 1, postProductionTasks = 3)
 
-        assertIs<ProjectRemoval.HeldBy>(held)
+        assertIs<Removal.HeldBy>(held)
         assertEquals(
             "2 invoices, 1 shoot day and 3 post-production tasks",
             held.summary,
@@ -105,7 +105,7 @@ class ProjectRemovalTest {
     fun `money is named first`() {
         val held = removal(deliverables = 1, invoices = 1)
 
-        assertIs<ProjectRemoval.HeldBy>(held)
+        assertIs<Removal.HeldBy>(held)
         assertEquals(
             "1 invoice and 1 deliverable",
             held.summary,
@@ -118,7 +118,7 @@ class ProjectRemovalTest {
     fun `a cost charged to the booking holds it, because it is in the tax figures`() {
         val held = removal(costs = 1)
 
-        assertIs<ProjectRemoval.HeldBy>(held)
+        assertIs<Removal.HeldBy>(held)
         assertEquals("1 cost", held.summary)
     }
 
@@ -126,7 +126,7 @@ class ProjectRemovalTest {
     fun `a journey holds it too`() {
         val held = removal(journeys = 2)
 
-        assertIs<ProjectRemoval.HeldBy>(held)
+        assertIs<Removal.HeldBy>(held)
         assertEquals(
             "2 journeys",
             held.summary,
@@ -150,9 +150,9 @@ class ProjectRemovalTest {
                 postProductionTasks = 1,
             )
 
-        assertIs<ProjectRemoval.HeldBy>(held)
+        assertIs<Removal.HeldBy>(held)
         assertEquals(
-            ProjectRemoval.Kind.entries.size,
+            8,
             held.holds.size,
             "a kind of record that points at a booking but is not checked here is a silent " +
                 "orphan waiting to happen",

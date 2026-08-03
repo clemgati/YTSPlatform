@@ -29,6 +29,7 @@ import com.yellowtrack.platform.core.model.post.PostProductionTaskId
 import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.clients.presentation.details.component.ProjectFormDialog
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
 import com.yellowtrack.platform.feature.clients.presentation.project.component.CompleteTaskDialog
@@ -40,7 +41,6 @@ import com.yellowtrack.platform.feature.clients.presentation.project.model.NewDe
 import com.yellowtrack.platform.feature.clients.presentation.project.model.NewPostTask
 import com.yellowtrack.platform.feature.clients.presentation.project.model.PostTaskItem
 import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectDetailsModel
-import com.yellowtrack.platform.feature.clients.presentation.project.model.ProjectRemoval
 
 @Composable
 internal fun ProjectDetailsScreen(
@@ -267,26 +267,26 @@ internal fun ProjectDetailsScreen(
  */
 @Composable
 private fun RemoveBookingAction(
-    removal: ProjectRemoval,
+    removal: Removal,
     onRemove: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
         TextButton(
             onClick = onRemove,
-            enabled = removal is ProjectRemoval.Available,
+            enabled = removal is Removal.Available,
         ) {
             Text(
                 text = "Remove this booking",
                 style = YTTheme.typography.labelLarge,
                 color =
                     when (removal) {
-                        is ProjectRemoval.Available -> YTTheme.colors.error
+                        is Removal.Available -> YTTheme.colors.error
                         else -> YTTheme.colors.onSurfaceVariant
                     },
             )
         }
 
-        if (removal is ProjectRemoval.HeldBy) {
+        if (removal is Removal.HeldBy) {
             Text(
                 text = "This booking has ${removal.summary} on it. Remove them first.",
                 style = YTTheme.typography.bodySmall,

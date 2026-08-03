@@ -5,12 +5,12 @@ import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.clients.presentation.details.ClientDetailsUiState
 import com.yellowtrack.platform.feature.clients.presentation.details.model.BookingSummary
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientContact
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientDetailsModel
-import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientSessionHistoryItem
 import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientUpcomingSession
 import com.yellowtrack.platform.feature.clients.presentation.details.model.NewProject
@@ -83,7 +83,7 @@ internal object ClientDetailsPreviewData {
                 ),
             // One booking, so the preview shows the held case and its explanation — the
             // state worth looking at, since the available one is just a button.
-            removal = ClientRemoval.HeldByBookings(count = 1),
+            removal = Removal.HeldBy(listOf(Removal.Hold("booking", "bookings", 1))),
             editable =
                 NewClient(
                     accountName = "Sarah & Michael Johnson",

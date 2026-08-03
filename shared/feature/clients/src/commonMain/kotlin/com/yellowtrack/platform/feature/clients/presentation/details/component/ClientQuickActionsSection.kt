@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDetailSection
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
-import com.yellowtrack.platform.feature.clients.presentation.details.model.ClientRemoval
+import com.yellowtrack.platform.core.ui.removal.Removal
 
 /**
  * Archiving is deliberately absent. The button existed and did nothing — `Client` has no
@@ -27,7 +27,7 @@ internal fun ClientQuickActionsSection(
     onAddProject: () -> Unit,
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
-    removal: ClientRemoval,
+    removal: Removal,
     onRemoveClient: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,14 +65,14 @@ internal fun ClientQuickActionsSection(
             // undone. It matches how a payment is taken off an invoice: quiet, and red.
             TextButton(
                 onClick = onRemoveClient,
-                enabled = removal is ClientRemoval.Available,
+                enabled = removal is Removal.Available,
             ) {
                 Text(
                     text = "Remove Client",
                     style = YTTheme.typography.labelLarge,
                     color =
                         when (removal) {
-                            is ClientRemoval.Available -> YTTheme.colors.error
+                            is Removal.Available -> YTTheme.colors.error
                             else -> YTTheme.colors.onSurfaceVariant
                         },
                 )
@@ -81,13 +81,9 @@ internal fun ClientQuickActionsSection(
             // Shown rather than left to be inferred. A control that is greyed out without
             // saying why reads as a fault in the application, and the studio's next move —
             // remove the bookings, or keep the account — depends entirely on the reason.
-            if (removal is ClientRemoval.HeldByBookings) {
+            if (removal is Removal.HeldBy) {
                 Text(
-                    text =
-                        when (removal.count) {
-                            1 -> "This account has a booking on it. Remove the booking first."
-                            else -> "This account has ${removal.count} bookings on it. Remove them first."
-                        },
+                    text = "This account has ${removal.summary} on it. Remove them first.",
                     style = YTTheme.typography.bodySmall,
                     color = YTTheme.colors.onSurfaceVariant,
                 )

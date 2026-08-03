@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.clients.presentation.details.model
 
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.ui.removal.Removal
 import com.yellowtrack.platform.feature.clients.presentation.model.NewClient
 
 internal data class ClientDetailsModel(
@@ -15,7 +16,7 @@ internal data class ClientDetailsModel(
     val bookings: List<BookingSummary>,
     val notes: List<String>,
     /** Whether this account can be removed, and what is holding it if not. */
-    val removal: ClientRemoval,
+    val removal: Removal,
     /**
      * The account as the form takes it, so editing opens showing what is already there.
      *
