@@ -19,10 +19,23 @@ compose.desktop {
     application {
         mainClass = "com.yellowtrack.platform.DesktopAppKt"
 
-        // The release build minifies, and ProGuard fails on any reference it cannot
-        // resolve. See proguard-rules.pro for what is deliberately unresolvable.
+        // Off. Not tuned — off.
+        //
+        // It broke this application four separate ways, each of which only appeared in a
+        // packaged build and each hidden behind the last: it renamed the four classes found
+        // by name through ServiceLoader, renamed the ones the SQLite driver's native library
+        // looks up through JNI, and rewrote kotlinx.coroutines into bytecode the JVM refuses
+        // to load — "VerifyError: Bad invokespecial instruction" in JobSupport.cancel, which
+        // no keep rule and not even -dontoptimize would settle.
+        //
+        // What it buys is shrinking. The installer is dominated by Skiko and a whole JDK, so
+        // the saving is small against a 100MB download, and it is bought with a class of
+        // failure that cannot be caught by building — only by installing and running, which
+        // is the slowest loop this project has.
+        //
+        // See proguard-rules.pro, kept for the record of what each pass broke.
         buildTypes.release.proguard {
-            configurationFiles.from(project.file("proguard-rules.pro"))
+            isEnabled.set(false)
         }
 
         nativeDistributions {
