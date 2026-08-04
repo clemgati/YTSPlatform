@@ -46,9 +46,20 @@ fi
 STAGING=$(mktemp -d)
 trap 'rm -rf "$STAGING"' EXIT
 
-echo "==> Downloading the installers from run $RUN_ID"
+# Said before it starts, because gh run download prints nothing at all while it works and
+# this is around 200MB: three installers, each most of a JVM runtime. Without the size on
+# screen first, a slow connection is indistinguishable from a hung script.
+SIZE=$(
+    gh api "repos/{owner}/{repo}/actions/runs/$RUN_ID/artifacts" \
+        --jq '[.artifacts[].size_in_bytes] | add / 1048576 | floor' 2>/dev/null || true
+)
+
+echo "==> Downloading ${SIZE:-?}MB of installers from run $RUN_ID"
+echo "    gh prints nothing until it finishes; give it a few minutes."
+
 # GitHub zips artefacts on the way out; `gh run download` unpacks them, so what lands here
-# is the .dmg, .msi and .deb themselves rather than three zips.
+# is the .dmg, .msi and .deb themselves rather than three zips. The zipping saves almost
+# nothing — a .dmg and a .msi are compressed already.
 gh run download "$RUN_ID" --dir "$STAGING"
 
 # Flattened: the artefacts arrive in a directory each, and a download page is easier to
@@ -138,7 +149,12 @@ mv "$STAGING/page.html" "$STAGING/flat/index.html"
 echo "==> Uploading to $HOST:$REMOTE_DIR"
 # --delete so last release's installers go rather than accumulating under names nobody
 # will ever link to again.
-rsync -az --delete "$STAGING/flat/" "$HOST:$REMOTE_DIR/"
+#
+# No -z, unlike the other two deploy scripts. Installers are compressed archives already,
+# so compressing them again spends CPU at both ends to send the same number of bytes; on a
+# small instance that is slower rather than faster. --progress because this is another
+# couple of hundred megabytes and silence reads as a hang.
+rsync -a --progress --delete "$STAGING/flat/" "$HOST:$REMOTE_DIR/"
 
 echo "==> Checking they are served"
 FIRST=$(cd "$STAGING/flat" && ls *.dmg *.msi *.deb 2>/dev/null | head -1 || true)
