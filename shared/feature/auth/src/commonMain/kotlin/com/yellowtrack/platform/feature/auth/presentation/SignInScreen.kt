@@ -78,6 +78,9 @@ internal fun SignInScreen(
                 // line of text nobody can follow back to its label.
                 modifier = Modifier.widthIn(max = 460.dp),
                 verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.large),
+                // The mark and the name are a masthead and read as one thing. The card
+                // below them fills the width, so it is unaffected.
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // The mark, then the name. This is the only screen a studio meets before
                 // signing in, so it is the one place worth saying whose application this is
@@ -93,7 +96,9 @@ internal fun SignInScreen(
 
                 Text(
                     text = "Yellow Track",
-                    style = YTTheme.typography.headlineLarge,
+                    // A size down from the headline: beneath the mark it is a caption to
+                    // it rather than the loudest thing on the screen.
+                    style = YTTheme.typography.headlineMedium,
                     color = YTTheme.colors.onBackground,
                 )
 
