@@ -127,6 +127,8 @@ transaction. Raising minSdk to 30 would let that be simplified.
 
 Yellow Track Platform is guided by a set of living product and engineering documents:
 
+- [A portrait shoot, start to finish](docs/A-PORTRAIT-SHOOT.md) — one job through every
+  screen, and what the application will not do yet
 - [Product Vision](docs/PRODUCT_VISION.md)
 - [Domain Model](docs/DOMAIN_MODEL.md) — the whole business, mapped
 - [Architecture](docs/ARCHITECTURE_V2.md)
