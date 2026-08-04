@@ -21,7 +21,7 @@ fun main() {
         Window(
             onCloseRequest = ::exitApplication,
             state = windowState,
-            title = "Yellow Track Studio",
+            title = "Yellow Track",
         ) {
             App()
         }

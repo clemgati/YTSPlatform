@@ -1,3 +1,8 @@
 <resources>
-    <string name="app_name">yellow-track-platform-bootstrap</string>
+    <!--
+        What the studio sees under the icon. The Gradle project is called
+        yellow-track-platform, which is a repository name and was never meant to be read on
+        a home screen.
+    -->
+    <string name="app_name">Yellow Track</string>
 </resources>
