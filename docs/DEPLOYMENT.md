@@ -692,6 +692,43 @@ the apex or `www` is the only way to take the other service down, so leave them 
 
 ---
 
+## Everything, in one command
+
+```sh
+./scripts/release.sh yellowtrack https://app.yourdomain
+```
+
+Builds and deploys the web application and all three desktop installers, and says where it
+has got to as it goes.
+
+Add `--dry-run` to see the five steps without touching anything.
+
+### What it does, and why in that order
+
+1. **Checks the working tree.** Refuses to run with uncommitted changes or an unpushed
+   branch. CI builds a commit and this machine builds a working tree, and nothing downstream
+   would notice they had diverged — the installers and the site would be two different
+   versions of the application, deployed a minute apart, under one name
+2. **Starts CI**, because it is the long pole. The installers cannot be built here: jpackage
+   only emits the format of the host it runs on, so a `.msi` needs Windows whatever this
+   laptop can do
+3. **Builds and deploys the web application** while CI works. Two minutes against CI's
+   ten to fifteen; in sequence that is ten minutes of watching a progress line
+4. **Waits for the installers**, and stops the release if any leg failed rather than
+   deploying around it
+5. **Publishes the installers** to `/downloads/`
+
+### What it deliberately leaves alone
+
+**The server.** It moves at a different speed to its clients, and a release that restarted
+the API every time somebody fixed a label would take the studio offline for no reason. Use
+`deploy-server.sh`.
+
+If step 4 or 5 fails, the web application deployed in step 3 is already live and unaffected.
+That is the intended failure mode: the half that works stays up.
+
+---
+
 ## The web application
 
 Static files on the same instance, served by the same Apache. It is a client like the
