@@ -91,7 +91,12 @@ private fun CurrentRoute(
     modifier: Modifier = Modifier,
 ) {
     when (val route = appState.currentRoute) {
-        AppRoute.Dashboard -> DashboardRoute(modifier = modifier)
+        AppRoute.Dashboard ->
+            DashboardRoute(
+                onOpenSession = appState::openSession,
+                onOpenClient = appState::openClient,
+                modifier = modifier,
+            )
 
         AppRoute.Clients ->
             ClientsRoute(

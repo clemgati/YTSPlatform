@@ -32,6 +32,7 @@ import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardEn
 internal fun DashboardAllEnquiriesSection(
     enquiries: List<DashboardEnquiry>,
     onRemoveEnquiry: (LeadId) -> Unit,
+    onEditEnquiry: (DashboardEnquiry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (enquiries.isEmpty()) return
@@ -57,6 +58,14 @@ internal fun DashboardAllEnquiriesSection(
                             text = "${enquiry.statusLabel} · ${enquiry.source}",
                             style = YTTheme.typography.labelMedium,
                             color = YTTheme.colors.onSurfaceVariant,
+                        )
+                    }
+
+                    TextButton(onClick = { onEditEnquiry(enquiry) }) {
+                        Text(
+                            text = "Edit",
+                            style = YTTheme.typography.labelMedium,
+                            color = YTTheme.colors.primary,
                         )
                     }
 

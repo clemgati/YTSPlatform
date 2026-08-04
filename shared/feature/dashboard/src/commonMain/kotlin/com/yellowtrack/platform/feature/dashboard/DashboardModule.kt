@@ -15,6 +15,8 @@ val dashboardModule =
                 studioContext = get(),
                 studioProfileRepository = get(),
                 conflictRepository = get(),
+                gearRepository = get(),
+                volumeRepository = get(),
                 clock = get(),
             )
         }

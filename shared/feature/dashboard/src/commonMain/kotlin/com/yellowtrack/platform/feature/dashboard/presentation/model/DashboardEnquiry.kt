@@ -23,4 +23,6 @@ internal data class DashboardEnquiry(
      * status, and saying so on every row would be noise.
      */
     val statusLabel: String = "",
+    /** The enquiry as the form takes it, so correcting a mistyped name opens on it. */
+    val editable: NewEnquiry? = null,
 )

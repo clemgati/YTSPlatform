@@ -5,9 +5,11 @@ import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.testing.FakeClientRepository
+import com.yellowtrack.platform.core.testing.FakeGearRepository
 import com.yellowtrack.platform.core.testing.FakeLeadRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
+import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.FakeSyncConflictRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
@@ -99,6 +101,8 @@ class ConflictBannerTest {
             studioProfileRepository = FakeStudioProfileRepository(),
             conflictRepository = conflicts,
             studioContext = LocalStudioContext(),
+            gearRepository = FakeGearRepository(),
+            volumeRepository = FakeStorageVolumeRepository(),
             clock = TestAppClock(),
         )
 

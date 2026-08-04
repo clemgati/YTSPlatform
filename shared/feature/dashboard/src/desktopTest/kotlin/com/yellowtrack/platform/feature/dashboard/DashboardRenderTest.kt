@@ -54,7 +54,9 @@ class DashboardRenderTest {
                                 ),
                             onRetry = {},
                             onMarkEnquiryReplied = {},
-                            onAddEnquiry = {},
+                            onSaveEnquiry = { _, _ -> },
+                            onOpenSession = {},
+                            onOpenClient = {},
                             onRemoveEnquiry = {},
                         )
                     }
@@ -103,7 +105,9 @@ class DashboardRenderTest {
                                 ),
                             onRetry = {},
                             onMarkEnquiryReplied = {},
-                            onAddEnquiry = {},
+                            onSaveEnquiry = { _, _ -> },
+                            onOpenSession = {},
+                            onOpenClient = {},
                             onRemoveEnquiry = {},
                         )
                     }

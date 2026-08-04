@@ -17,7 +17,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardAllEnquiriesSection
@@ -28,6 +30,7 @@ import com.yellowtrack.platform.feature.dashboard.presentation.component.Dashboa
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardStudioStatusSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardTodaySessionsSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.EnquiryFormDialog
+import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardEnquiry
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSummary
 import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
 
@@ -36,19 +39,33 @@ internal fun DashboardScreen(
     uiState: DashboardUiState,
     onRetry: () -> Unit,
     onMarkEnquiryReplied: (LeadId) -> Unit,
-    onAddEnquiry: (NewEnquiry) -> Unit,
+    onSaveEnquiry: (NewEnquiry, LeadId?) -> Unit,
     onRemoveEnquiry: (LeadId) -> Unit,
+    onOpenSession: (SessionId) -> Unit,
+    onOpenClient: (ClientId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showEnquiryForm by remember { mutableStateOf(false) }
+    var editingEnquiry by remember { mutableStateOf<DashboardEnquiry?>(null) }
 
     if (showEnquiryForm) {
         EnquiryFormDialog(
             onSave = {
-                onAddEnquiry(it)
+                onSaveEnquiry(it, null)
                 showEnquiryForm = false
             },
             onDismiss = { showEnquiryForm = false },
+        )
+    }
+
+    editingEnquiry?.let { enquiry ->
+        EnquiryFormDialog(
+            onSave = {
+                onSaveEnquiry(it, enquiry.id)
+                editingEnquiry = null
+            },
+            onDismiss = { editingEnquiry = null },
+            initial = enquiry.editable,
         )
     }
 
@@ -67,6 +84,9 @@ internal fun DashboardScreen(
             onMarkEnquiryReplied = onMarkEnquiryReplied,
             onAddEnquiry = { showEnquiryForm = true },
             onRemoveEnquiry = onRemoveEnquiry,
+            onEditEnquiry = { editingEnquiry = it },
+            onOpenSession = onOpenSession,
+            onOpenClient = onOpenClient,
             modifier = contentModifier,
         )
     }
@@ -78,6 +98,9 @@ private fun DashboardContent(
     onMarkEnquiryReplied: (LeadId) -> Unit,
     onAddEnquiry: () -> Unit,
     onRemoveEnquiry: (LeadId) -> Unit,
+    onEditEnquiry: (DashboardEnquiry) -> Unit,
+    onOpenSession: (SessionId) -> Unit,
+    onOpenClient: (ClientId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -114,6 +137,7 @@ private fun DashboardContent(
         DashboardAllEnquiriesSection(
             enquiries = summary.allEnquiries,
             onRemoveEnquiry = onRemoveEnquiry,
+            onEditEnquiry = onEditEnquiry,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -130,6 +154,7 @@ private fun DashboardContent(
                 ) {
                     DashboardTodaySessionsSection(
                         sessions = summary.todaysSessions,
+                        onOpenSession = onOpenSession,
                         modifier = Modifier.weight(1f),
                     )
 
@@ -148,6 +173,7 @@ private fun DashboardContent(
                 ) {
                     DashboardTodaySessionsSection(
                         sessions = summary.todaysSessions,
+                        onOpenSession = onOpenSession,
                         modifier = Modifier.fillMaxWidth(),
                     )
 
@@ -161,6 +187,7 @@ private fun DashboardContent(
 
         DashboardRecentClientsSection(
             clients = summary.recentClients,
+            onOpenClient = onOpenClient,
             modifier = Modifier.fillMaxWidth(),
         )
     }

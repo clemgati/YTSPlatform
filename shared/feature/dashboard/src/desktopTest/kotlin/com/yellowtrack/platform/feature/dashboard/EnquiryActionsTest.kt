@@ -10,9 +10,11 @@ import com.yellowtrack.platform.core.model.lead.LeadSource
 import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.testing.FakeClientRepository
+import com.yellowtrack.platform.core.testing.FakeGearRepository
 import com.yellowtrack.platform.core.testing.FakeLeadRepository
 import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
+import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.FakeSyncConflictRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
@@ -120,6 +122,65 @@ class EnquiryActionsTest {
             )
         }
 
+    /**
+     * Correcting an enquiry must not disturb the clock it is measured by.
+     *
+     * The form shows a name, a source and a budget. It does not show when the enquiry
+     * arrived or when it was first replied to — and those two are the entire basis of
+     * response time, which the application calls the strongest predictor of whether an
+     * enquiry books. Rebuilt from the form, correcting a misspelled name would reset both.
+     */
+    @Test
+    fun `correcting an enquiry keeps when it arrived and when it was answered`() =
+        runTest {
+            val arrived = TestAppClock.DEFAULT_NOW
+            val answered = TestAppClock.DEFAULT_NOW
+            val original =
+                lead(firstResponseAt = answered, status = LeadStatus.Contacted)
+                    .copy(receivedAt = arrived)
+            val leads = FakeLeadRepository(listOf(original))
+            val viewModel = viewModel(leads)
+
+            viewModel.saveEnquiry(
+                NewEnquiry(
+                    name = "Jamie King",
+                    source = LeadSource.Instagram,
+                    serviceLine = ServiceLine.Wedding,
+                ),
+                existingId = original.id,
+            )
+
+            val stored = leads.observeLeads().first().single()
+            assertEquals(original.id, stored.id, "an edit corrects the enquiry rather than logging a second")
+            assertEquals("Jamie King", stored.name)
+            assertEquals(arrived, stored.receivedAt, "the clock starts when the message arrived")
+            assertEquals(answered, stored.firstResponseAt, "and stops when it was first answered")
+            assertEquals(LeadStatus.Contacted, stored.status, "how far it has got is not the form's business")
+        }
+
+    @Test
+    fun `an enquiry with no name is not saved`() =
+        runTest {
+            val original = lead()
+            val leads = FakeLeadRepository(listOf(original))
+            val viewModel = viewModel(leads)
+
+            viewModel.saveEnquiry(
+                NewEnquiry(name = "   ", source = LeadSource.Other, serviceLine = ServiceLine.Wedding),
+                existingId = original.id,
+            )
+
+            assertEquals(
+                original.name,
+                leads
+                    .observeLeads()
+                    .first()
+                    .single()
+                    .name,
+                "a blank name leaves a row on the dashboard nobody can identify",
+            )
+        }
+
     private suspend fun DashboardViewModel.summary() =
         uiState
             .first { it.summary is UiState.Success }
@@ -137,6 +198,8 @@ class EnquiryActionsTest {
         studioProfileRepository = FakeStudioProfileRepository(),
         conflictRepository = conflicts,
         studioContext = LocalStudioContext(),
+        gearRepository = FakeGearRepository(),
+        volumeRepository = FakeStorageVolumeRepository(),
         clock = clock,
     )
 
@@ -203,7 +266,7 @@ class EnquiryActionsTest {
         runTest {
             val leads = FakeLeadRepository()
 
-            viewModel(leads).addEnquiry(
+            viewModel(leads).saveEnquiry(
                 NewEnquiry(
                     name = "June wedding enquiry",
                     source = LeadSource.Instagram,
@@ -224,7 +287,7 @@ class EnquiryActionsTest {
         runTest {
             val leads = FakeLeadRepository()
 
-            viewModel(leads).addEnquiry(
+            viewModel(leads).saveEnquiry(
                 NewEnquiry(
                     name = "Brand film",
                     source = LeadSource.VendorReferral,
@@ -244,7 +307,7 @@ class EnquiryActionsTest {
         runTest {
             val leads = FakeLeadRepository()
 
-            viewModel(leads).addEnquiry(
+            viewModel(leads).saveEnquiry(
                 NewEnquiry(
                     name = "No budget mentioned",
                     source = LeadSource.Website,

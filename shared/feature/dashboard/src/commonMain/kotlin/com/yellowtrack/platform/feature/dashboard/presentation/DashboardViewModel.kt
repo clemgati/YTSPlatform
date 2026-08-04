@@ -5,20 +5,24 @@ import androidx.lifecycle.viewModelScope
 import com.yellowtrack.platform.core.common.money.parseMoney
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
+import com.yellowtrack.platform.core.data.GearRepository
 import com.yellowtrack.platform.core.data.LeadRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
+import com.yellowtrack.platform.core.data.StorageVolumeRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.SyncConflictRepository
 import com.yellowtrack.platform.core.data.currency
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.lead.LeadId
 import com.yellowtrack.platform.core.model.lead.LeadStatus
+import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.ui.state.UiState
+import com.yellowtrack.platform.feature.dashboard.presentation.mapper.buildStudioStatus
 import com.yellowtrack.platform.feature.dashboard.presentation.mapper.toDashboardSummary
-import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardStudioStatus
 import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +53,8 @@ internal class DashboardViewModel(
     private val studioContext: StudioContext,
     private val studioProfileRepository: StudioProfileRepository,
     private val conflictRepository: SyncConflictRepository,
+    private val gearRepository: GearRepository,
+    private val volumeRepository: StorageVolumeRepository,
     private val clock: AppClock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) : ViewModel() {
@@ -62,6 +68,12 @@ internal class DashboardViewModel(
     private data class Enquiries(
         val awaitingReply: List<Lead>,
         val all: List<Lead>,
+    )
+
+    /** The studio's own things, which is what readiness is read from. */
+    private data class Kit(
+        val gear: List<GearItem>,
+        val volumes: List<StorageVolume>,
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -83,8 +95,12 @@ internal class DashboardViewModel(
                         leadRepository.observeLeads(),
                         ::Enquiries,
                     ),
-                    conflictRepository.observeUnresolvedCount(),
-                ) { sessions, projects, clients, enquiries, unresolvedConflicts ->
+                    combine(
+                        gearRepository.observeGear(),
+                        volumeRepository.observeVolumes(),
+                        conflictRepository.observeUnresolvedCount(),
+                    ) { gear, volumes, conflicts -> Kit(gear, volumes) to conflicts },
+                ) { sessions, projects, clients, enquiries, (kit, unresolvedConflicts) ->
                     DashboardUiState(
                         summary =
                             UiState.Success(
@@ -95,10 +111,7 @@ internal class DashboardViewModel(
                                     enquiriesAwaitingReply = enquiries.awaitingReply,
                                     allEnquiries = enquiries.all,
                                     now = clock.now(),
-                                    // Gear and readiness tracking arrive with the Studio
-                                    // milestone. Until then the section shows its empty
-                                    // state rather than invented checkboxes.
-                                    studioStatus = DashboardStudioStatus(items = emptyList()),
+                                    studioStatus = buildStudioStatus(kit.gear, kit.volumes),
                                 ).copy(unresolvedConflicts = unresolvedConflicts),
                             ),
                     )
@@ -157,26 +170,42 @@ internal class DashboardViewModel(
         viewModelScope.launch { leadRepository.deleteLead(leadId) }
     }
 
-    fun addEnquiry(enquiry: NewEnquiry) {
+    /**
+     * Logs an enquiry, or corrects one already logged.
+     *
+     * Enquiries are typed in a hurry, usually while reading the message they came from, so
+     * a mistyped name or a missing phone number is the ordinary case rather than the odd
+     * one. Everything the form does not show is carried across: the moment it arrived, the
+     * moment it was first replied to, and how far it has got — none of which is the form's
+     * business and all of which the response-time figure is measured from.
+     */
+    fun saveEnquiry(
+        enquiry: NewEnquiry,
+        existingId: LeadId? = null,
+    ) {
         viewModelScope.launch {
+            if (enquiry.name.isBlank()) return@launch
+
             val now = clock.now()
             val studioCurrency = studioProfileRepository.currency()
+            val existing = existingId?.let { leadRepository.getLead(it) }
 
             leadRepository.saveLead(
                 Lead(
-                    id = LeadId.new(),
+                    id = existing?.id ?: LeadId.new(),
                     studioId = studioContext.studioId,
                     name = enquiry.name,
                     source = enquiry.source,
-                    status = LeadStatus.New,
-                    receivedAt = now,
+                    status = existing?.status ?: LeadStatus.New,
+                    receivedAt = existing?.receivedAt ?: now,
+                    firstResponseAt = existing?.firstResponseAt,
                     email = enquiry.email,
                     phone = enquiry.phone,
                     serviceLine = enquiry.serviceLine,
                     budgetLow = enquiry.budgetLow?.let { parseMoney(it, studioCurrency) },
                     budgetHigh = enquiry.budgetHigh?.let { parseMoney(it, studioCurrency) },
                     referredBy = enquiry.referredBy,
-                    audit = AuditMetadata.createdAt(now),
+                    audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 ),
             )
         }
