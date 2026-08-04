@@ -717,14 +717,14 @@ is a page that loads, shows nothing, and reports the reason only in the develope
 
 ### The vhost
 
-Create the directory and let Apache read it:
+Create the directory and let the deploying user write to it:
 
 ```sh
 sudo mkdir -p /var/www/yellowtrack
 sudo chown "$USER":"$USER" /var/www/yellowtrack
 ```
 
-`/etc/httpd/conf.d/yellowtrack-web.conf`:
+`/etc/apache2/sites-available/yellowtrack-web.conf`, beside the API's vhost:
 
 ```apache
 <VirtualHost *:80>
@@ -757,12 +757,16 @@ sudo chown "$USER":"$USER" /var/www/yellowtrack
 Then the certificate, which certbot will add the `:443` vhost for:
 
 ```sh
-sudo apachectl configtest && sudo systemctl reload httpd
+sudo a2enmod headers deflate          # the caching and compression rules need both
+sudo a2ensite yellowtrack-web
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+
 sudo certbot --apache -d app.yourdomain
 ```
 
-`mod_headers` and `mod_deflate` must be loaded for the caching and compression above;
-`sudo apachectl -M | grep -E 'headers|deflate'` says whether they are.
+Same order as the API vhost, and for the same reason: port 80 first, because certbot
+writes the 443 one and cannot do so against a site Apache will not start.
 
 ### One environment, and what that means here
 
