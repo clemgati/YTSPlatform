@@ -1,3 +1,26 @@
+# Shrinking only: no optimisation, no obfuscation.
+#
+# Both of the other two passes cost more here than they are worth, and each of them broke
+# this application in a way that only appeared in a packaged build.
+#
+# Obfuscation renames classes, and four things in this application are found by name at
+# runtime through java.util.ServiceLoader — the HTTP client, JSON on the wire, the database
+# driver and Dispatchers.Main. The SQLite driver's native library looks up more of them
+# through JNI. Renaming those is how the first installer shipped a dialog reading "Provider
+# io.ktor.client.engine.okhttp.OkHttpEngineContainer not found" instead of a window.
+#
+# It also buys nothing. This repository is public: obfuscating a binary whose source anybody
+# can read protects nothing and breaks name-based lookup.
+#
+# Optimisation rewrites bytecode, and rewrote kotlinx.coroutines into something the JVM
+# refused to load: "VerifyError: Bad invokespecial instruction" in JobSupport.cancel, at
+# startup, before a window. Coroutines are underneath every screen here.
+#
+# Shrinking is the pass worth having — it drops unused code and is what makes the runtime
+# image a reasonable size — and it is the one that changes no names and rewrites no bodies.
+-dontoptimize
+-dontobfuscate
+
 # What ProGuard is allowed not to find when it minifies the desktop build.
 #
 # Every rule here is an optional integration of OkHttp: alternative TLS providers it will
@@ -71,3 +94,22 @@
 # own business and not something to discover one crash at a time.
 -keep class org.sqlite.** { *; }
 -keepclassmembers class org.sqlite.** { *; }
+
+# --- The HTTP stack, kept whole ----------------------------------------------------------
+#
+# Minified, the client failed before a request left the process: pointed at a healthy local
+# server over plain HTTP it reported "Could not reach the server" and nothing arrived. So
+# this was never TLS and never the server — it was the stack itself, and the exception is
+# invisible because the client turns every failure into that one sentence.
+#
+# Kept wholesale rather than narrowed. OkHttp picks its TLS provider by probing for classes
+# at runtime, reads its public-suffix list as a resource named after a class, and Ktor finds
+# its engine and plugins by name. All of that is invisible to ProGuard, and narrowing it
+# means finding each one by shipping an installer that cannot sign in.
+#
+# These are small next to Compose and Skiko, which are the reason the installer is 100MB.
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep class io.ktor.** { *; }
+-keep interface io.ktor.** { *; }
