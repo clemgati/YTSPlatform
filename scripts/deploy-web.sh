@@ -2,9 +2,11 @@
 
 # Builds the web application and puts it on the instance.
 #
-#     ./scripts/deploy-web.sh yellowtrack
+#     ./scripts/deploy-web.sh yellowtrack https://app.yourdomain
 #
-# The argument is an ssh host, as deploy-server.sh takes. Apache serves the result as
+# The first argument is an ssh host, as deploy-server.sh takes. The second is the origin
+# the site will be served from, which is optional and only used to check that the API will
+# accept requests from it — see the CORS check at the end. Apache serves the result as
 # static files; there is no process to restart and nothing to roll back to, because a
 # browser that has the old files will pick up the new ones on its next load.
 #
@@ -16,10 +18,12 @@
 set -euo pipefail
 
 HOST="${1:-}"
+SITE_ORIGIN="${2:-}"
 REMOTE_DIR="${REMOTE_DIR:-/var/www/yellowtrack}"
 
 if [ -z "$HOST" ]; then
-    echo "usage: $0 <ssh-host>    e.g. $0 yellowtrack" >&2
+    echo "usage: $0 <ssh-host> [site-origin]" >&2
+    echo "   e.g. $0 yellowtrack https://app.yourdomain" >&2
     exit 2
 fi
 
@@ -70,5 +74,48 @@ case "$TYPE" in
         exit 1
         ;;
 esac
+
+# Two things make a fresh web deployment fail, and this is the second. The MIME type above
+# stops the application starting; this stops it reaching its own API — and it presents to
+# the studio as "Could not reach the server", because a browser refuses a cross-origin
+# request without letting the page see why. The API is perfectly healthy throughout, and
+# the native clients are unaffected: they are not browsers and send no Origin.
+if [ -z "$SITE_ORIGIN" ]; then
+    echo "==> Skipping the CORS check: no site origin given"
+    echo "    Pass it to have this checked: $0 $HOST https://app.yourdomain"
+else
+    echo "==> Checking the API accepts requests from $SITE_ORIGIN"
+
+    API_URL=$(sed -n 's/^yellowtrack\.serverUrl=//p' gradle.properties | tail -1)
+
+    if [ -z "$API_URL" ]; then
+        echo "    yellowtrack.serverUrl is not in gradle.properties; cannot check" >&2
+        exit 1
+    fi
+
+    # The preflight the sign-in POST actually triggers, rather than a plain GET: a simple
+    # request can succeed while the preflight for a JSON body is refused.
+    ALLOWED=$(
+        curl -sS -o /dev/null -D - -m 10 -X OPTIONS \
+            -H "Origin: $SITE_ORIGIN" \
+            -H "Access-Control-Request-Method: POST" \
+            -H "Access-Control-Request-Headers: content-type,authorization" \
+            "$API_URL/health" 2>/dev/null |
+            tr -d '\r' |
+            sed -n 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: //p'
+    )
+
+    if [ -z "$ALLOWED" ]; then
+        echo "    $API_URL refused it: no Access-Control-Allow-Origin came back." >&2
+        echo "    The site will load and then report 'Could not reach the server'." >&2
+        echo >&2
+        echo "    On the instance, add to /etc/yellowtrack/env:" >&2
+        echo "        ALLOWED_ORIGINS=$SITE_ORIGIN" >&2
+        echo "    then: sudo systemctl restart yellowtrack" >&2
+        exit 1
+    fi
+
+    echo "    allowed as $ALLOWED"
+fi
 
 echo "Deployed."

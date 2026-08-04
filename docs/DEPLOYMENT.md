@@ -789,6 +789,54 @@ studio's data is a button somebody eventually presses.
 
 ---
 
+## The desktop application
+
+Three installers, one per operating system, built by `jpackage` — which only emits the
+format of the machine it runs on. A `.msi` has to be built on Windows however capable the
+rest of the toolchain is, so there is no cross-compiling here and no way to arrange one.
+
+On the machine you are on:
+
+```sh
+./gradlew :desktopApp:packageReleaseDistributionForCurrentOS
+```
+
+The result lands in `desktopApp/build/compose/binaries/main-release/<format>/`.
+
+For all three at once, push a tag and let CI do it:
+
+```sh
+git tag v0.7.0 && git push origin v0.7.0
+```
+
+`.github/workflows/release.yml` runs one runner per format, and attaches the installers to a
+GitHub release. Running it from the Actions tab instead builds the three and uploads them as
+artefacts without creating a release, which is how to check the packaging still works
+without minting a version.
+
+### Release builds minify, and that is where this first broke
+
+`packageRelease*` runs ProGuard; the development build does not. The first time anyone ran
+it, ProGuard failed on OkHttp's optional TLS providers and its GraalVM substitutions —
+classes that are referenced, never present, and never used, because this application runs on
+a JVM and uses the platform's TLS.
+
+`desktopApp/proguard-rules.pro` names them one at a time rather than passing
+`-ignorewarnings`, which would have fixed the build in a line and silently swallowed the
+next unresolved reference, which might be a class the application needs.
+
+### Nothing is signed
+
+macOS will report that the developer cannot be verified; Windows SmartScreen will call the
+installer unrecognised. Both can be got past by hand — right-click Open on macOS, More info
+then Run anyway on Windows — and neither should be asked of a studio.
+
+Signing needs an Apple Developer account and a Windows code-signing certificate. Until then
+the browser build is the honest way to hand this to somebody: no install, no warning, and no
+certificate.
+
+---
+
 ## Pointing the clients at it
 
 The clients are built with the server baked in, declared once in `gradle.properties`:
