@@ -412,9 +412,16 @@ and used.
   scratch database and exits non-zero if fewer tables come back than the schema has.
   `verify-deployment.sh` checks the *result* rather than the schedule, because a failed unit
   nobody looks at is not much better than no unit. Units in `docs/DEPLOYMENT.md`
-- **No way to install it.** No TestFlight, no Play track, no hosted web build
-- **One instance, no staging.** Every deploy goes straight to what studios are using, and
-  there is nowhere to catch a bad migration first
+- **No way to install it.** No TestFlight and no Play track. The web build now has a
+  deploy script and a documented vhost — `./scripts/deploy-web.sh` — which makes the browser
+  the one way to hand this to somebody without a cable
+- **One instance, no staging, and one database.** Every deploy goes straight to what
+  studios are using, and there is nowhere to catch a bad migration first. All four clients
+  are built against the same `yellowtrack.serverUrl`, so there is no dev environment to
+  point them at even temporarily — only a local server, which is a per-build decision rather
+  than something a running client can switch. A second instance and database is the missing
+  half; a runtime switch is deliberately *not* wanted, since a control that repoints an
+  application at another studio's data is one somebody eventually presses
 
 **In what has actually been proved**
 

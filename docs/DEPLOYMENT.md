@@ -692,6 +692,99 @@ the apex or `www` is the only way to take the other service down, so leave them 
 
 ---
 
+## The web application
+
+Static files on the same instance, served by the same Apache. It is a client like the
+desktop and the phones — it talks to the API over HTTPS and keeps its own copy of the data
+in the browser — so it needs no process, no port and no database of its own.
+
+```sh
+./scripts/deploy-web.sh yellowtrack
+```
+
+That builds the production distribution, rsyncs it to `/var/www/yellowtrack`, and then asks
+the server what MIME type it is serving the wasm with, which is the one thing that silently
+breaks this.
+
+### Why the MIME type is the whole configuration
+
+The application is about 21MB, nearly all of it two WebAssembly binaries. A browser will
+only compile those if they arrive as `application/wasm`. Apache does not know that
+extension out of the box, so it serves them as `application/octet-stream`, and the result
+is a page that loads, shows nothing, and reports the reason only in the developer console.
+
+`deploy-web.sh` fails rather than reporting success when that is wrong.
+
+### The vhost
+
+Create the directory and let Apache read it:
+
+```sh
+sudo mkdir -p /var/www/yellowtrack
+sudo chown "$USER":"$USER" /var/www/yellowtrack
+```
+
+`/etc/httpd/conf.d/yellowtrack-web.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName app.yourdomain
+    DocumentRoot /var/www/yellowtrack
+
+    # The reason this file exists. Without it the browser refuses to compile the wasm.
+    AddType application/wasm .wasm
+
+    # 21MB uncompressed, about 6MB gzipped. On a phone on mobile data that is the
+    # difference between a slow first load and an abandoned one.
+    AddOutputFilterByType DEFLATE application/wasm application/javascript text/html text/css
+
+    <Directory /var/www/yellowtrack>
+        Require all granted
+        Options -Indexes
+
+        # The filenames carry a content hash, so they can be cached hard. index.html
+        # cannot: it is what points at the new hashes after a deploy.
+        <FilesMatch "\.(wasm|js|css)$">
+            Header set Cache-Control "public, max-age=31536000, immutable"
+        </FilesMatch>
+        <FilesMatch "^index\.html$">
+            Header set Cache-Control "no-cache"
+        </FilesMatch>
+    </Directory>
+</VirtualHost>
+```
+
+Then the certificate, which certbot will add the `:443` vhost for:
+
+```sh
+sudo apachectl configtest && sudo systemctl reload httpd
+sudo certbot --apache -d app.yourdomain
+```
+
+`mod_headers` and `mod_deflate` must be loaded for the caching and compression above;
+`sudo apachectl -M | grep -E 'headers|deflate'` says whether they are.
+
+### One environment, and what that means here
+
+There is one instance and one database. The web build, the desktop build and both phone
+builds all point at the same `yellowtrack.serverUrl`, which is production.
+
+So deploying the web application puts it in front of real studio data immediately, and
+there is nowhere to try it first. That is a known gap rather than an oversight — see the
+staging entry in `docs/ROADMAP.md` — and until it closes, the way to try a client against
+something disposable is to run a server locally and point one build at it:
+
+```sh
+./gradlew :server:run
+./gradlew :desktopApp:run -Pyellowtrack.serverUrl=http://localhost:8080
+```
+
+That is a per-build decision taken at compile time. No client can switch environments while
+running, and none should be able to: a button that repoints an application at another
+studio's data is a button somebody eventually presses.
+
+---
+
 ## Pointing the clients at it
 
 The clients are built with the server baked in, declared once in `gradle.properties`:
