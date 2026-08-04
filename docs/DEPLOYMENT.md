@@ -717,14 +717,14 @@ is a page that loads, shows nothing, and reports the reason only in the develope
 
 ### The vhost
 
-Create the directory and let Apache read it:
+Create the directory and let the deploying user write to it:
 
 ```sh
 sudo mkdir -p /var/www/yellowtrack
 sudo chown "$USER":"$USER" /var/www/yellowtrack
 ```
 
-`/etc/httpd/conf.d/yellowtrack-web.conf`:
+`/etc/apache2/sites-available/yellowtrack-web.conf`, beside the API's vhost:
 
 ```apache
 <VirtualHost *:80>
@@ -757,12 +757,16 @@ sudo chown "$USER":"$USER" /var/www/yellowtrack
 Then the certificate, which certbot will add the `:443` vhost for:
 
 ```sh
-sudo apachectl configtest && sudo systemctl reload httpd
+sudo a2enmod headers deflate          # the caching and compression rules need both
+sudo a2ensite yellowtrack-web
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+
 sudo certbot --apache -d app.yourdomain
 ```
 
-`mod_headers` and `mod_deflate` must be loaded for the caching and compression above;
-`sudo apachectl -M | grep -E 'headers|deflate'` says whether they are.
+Same order as the API vhost, and for the same reason: port 80 first, because certbot
+writes the 443 one and cannot do so against a site Apache will not start.
 
 ### One environment, and what that means here
 
@@ -782,6 +786,54 @@ something disposable is to run a server locally and point one build at it:
 That is a per-build decision taken at compile time. No client can switch environments while
 running, and none should be able to: a button that repoints an application at another
 studio's data is a button somebody eventually presses.
+
+---
+
+## The desktop application
+
+Three installers, one per operating system, built by `jpackage` — which only emits the
+format of the machine it runs on. A `.msi` has to be built on Windows however capable the
+rest of the toolchain is, so there is no cross-compiling here and no way to arrange one.
+
+On the machine you are on:
+
+```sh
+./gradlew :desktopApp:packageReleaseDistributionForCurrentOS
+```
+
+The result lands in `desktopApp/build/compose/binaries/main-release/<format>/`.
+
+For all three at once, push a tag and let CI do it:
+
+```sh
+git tag v0.7.0 && git push origin v0.7.0
+```
+
+`.github/workflows/release.yml` runs one runner per format, and attaches the installers to a
+GitHub release. Running it from the Actions tab instead builds the three and uploads them as
+artefacts without creating a release, which is how to check the packaging still works
+without minting a version.
+
+### Release builds minify, and that is where this first broke
+
+`packageRelease*` runs ProGuard; the development build does not. The first time anyone ran
+it, ProGuard failed on OkHttp's optional TLS providers and its GraalVM substitutions —
+classes that are referenced, never present, and never used, because this application runs on
+a JVM and uses the platform's TLS.
+
+`desktopApp/proguard-rules.pro` names them one at a time rather than passing
+`-ignorewarnings`, which would have fixed the build in a line and silently swallowed the
+next unresolved reference, which might be a class the application needs.
+
+### Nothing is signed
+
+macOS will report that the developer cannot be verified; Windows SmartScreen will call the
+installer unrecognised. Both can be got past by hand — right-click Open on macOS, More info
+then Run anyway on Windows — and neither should be asked of a studio.
+
+Signing needs an Apple Developer account and a Windows code-signing certificate. Until then
+the browser build is the honest way to hand this to somebody: no install, no warning, and no
+certificate.
 
 ---
 

@@ -19,6 +19,12 @@ compose.desktop {
     application {
         mainClass = "com.yellowtrack.platform.DesktopAppKt"
 
+        // The release build minifies, and ProGuard fails on any reference it cannot
+        // resolve. See proguard-rules.pro for what is deliberately unresolvable.
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("proguard-rules.pro"))
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             // What a person sees: the installer, the application folder, the dock. The
