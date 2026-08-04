@@ -13,8 +13,10 @@ private fun DashboardSuccessPreview() {
             uiState = DashboardPreviewData.successState,
             onRetry = {},
             onMarkEnquiryReplied = {},
-            onAddEnquiry = {},
+            onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
+            onOpenSession = {},
+            onOpenClient = {},
         )
     }
 }
@@ -27,8 +29,10 @@ private fun DashboardLoadingPreview() {
             uiState = DashboardPreviewData.loadingState,
             onRetry = {},
             onMarkEnquiryReplied = {},
-            onAddEnquiry = {},
+            onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
+            onOpenSession = {},
+            onOpenClient = {},
         )
     }
 }
@@ -41,8 +45,10 @@ private fun DashboardEmptyPreview() {
             uiState = DashboardPreviewData.emptyState,
             onRetry = {},
             onMarkEnquiryReplied = {},
-            onAddEnquiry = {},
+            onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
+            onOpenSession = {},
+            onOpenClient = {},
         )
     }
 }
@@ -55,8 +61,10 @@ private fun DashboardErrorPreview() {
             uiState = DashboardPreviewData.errorState,
             onRetry = {},
             onMarkEnquiryReplied = {},
-            onAddEnquiry = {},
+            onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
+            onOpenSession = {},
+            onOpenClient = {},
         )
     }
 }

@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.feature.dashboard.presentation.preview
 
+import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.dashboard.presentation.DashboardUiState
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardClient
@@ -16,11 +18,13 @@ internal object DashboardPreviewData {
             todaysSessions =
                 listOf(
                     DashboardSession(
+                        id = SessionId("session-1"),
                         clientName = "John Smith",
                         title = "Professional Headshots",
                         time = "10:00 AM",
                     ),
                     DashboardSession(
+                        id = SessionId("session-2"),
                         clientName = "Sarah Johnson",
                         title = "Branding Session",
                         time = "2:30 PM",
@@ -58,12 +62,15 @@ internal object DashboardPreviewData {
             recentClients =
                 listOf(
                     DashboardClient(
+                        id = ClientId("client-1"),
                         name = "Emily Davis",
                     ),
                     DashboardClient(
+                        id = ClientId("client-2"),
                         name = "Michael Brown",
                     ),
                     DashboardClient(
+                        id = ClientId("client-3"),
                         name = "Jane Doe",
                     ),
                 ),

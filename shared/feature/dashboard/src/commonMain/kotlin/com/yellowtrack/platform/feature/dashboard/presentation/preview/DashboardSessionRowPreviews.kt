@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
+import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardSessionRow
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSession
 
@@ -20,10 +21,12 @@ private fun DashboardSessionRowPreview() {
             DashboardSessionRow(
                 session =
                     DashboardSession(
+                        id = SessionId("session-1"),
                         clientName = "John Smith",
                         title = "Professional Headshots",
                         time = "10:00 AM",
                     ),
+                onOpenSession = {},
                 modifier =
                     Modifier.padding(
                         YTTheme.spacing.large,

@@ -2,17 +2,22 @@ package com.yellowtrack.platform.feature.dashboard.presentation.mapper
 
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
+import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.lead.LeadSource
 import com.yellowtrack.platform.core.model.lead.LeadStatus
+import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
+import com.yellowtrack.platform.core.model.service.ServiceLine
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionStatus
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardClient
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardEnquiry
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSession
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardStudioStatus
+import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardStudioStatusItem
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSummary
+import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
 import kotlinx.datetime.TimeZone
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -44,6 +49,7 @@ internal fun toDashboardSummary(
                 .filter { it.status != SessionStatus.Cancelled }
                 .map { session ->
                     DashboardSession(
+                        id = session.id,
                         // Session → project → client. A session has no direct client link,
                         // because the booking, not the shoot day, is what a client owns.
                         clientName =
@@ -59,7 +65,7 @@ internal fun toDashboardSummary(
             clients
                 .sortedByDescending { it.audit.updatedAt }
                 .take(MAX_RECENT_CLIENTS)
-                .map { DashboardClient(name = it.displayName) },
+                .map { DashboardClient(id = it.id, name = it.displayName) },
         studioStatus = studioStatus,
         todayLabel = DateFormats.dayAndDate(now, TimeZone.currentSystemDefault()),
         enquiriesAwaitingReply =
@@ -76,6 +82,7 @@ internal fun toDashboardSummary(
                         // A day is the point past which an enquiry is measurably less
                         // likely to book; most bookings go to whoever replied first.
                         isUrgent = waiting != null && waiting >= URGENT_AFTER,
+                        editable = lead.toForm(),
                     )
                 },
         // Newest first, and not truncated. This is where an enquiry is found again once it
@@ -91,6 +98,7 @@ internal fun toDashboardSummary(
                         waitingLabel = lead.timeWaiting(now).describe(),
                         isUrgent = false,
                         statusLabel = lead.statusLabel,
+                        editable = lead.toForm(),
                     )
                 },
     )
@@ -139,3 +147,90 @@ private val LeadSource.readableLabel: String
 private const val MAX_RECENT_CLIENTS = 3
 private const val MAX_WAITING_ENQUIRIES = 5
 private val URGENT_AFTER = 1.days
+
+/**
+ * The enquiry's own values, as the form holds them.
+ *
+ * Money comes back as digits rather than a rendering, for the reason every other reopened
+ * form gives: a field opening on "£1,200.00" makes somebody delete punctuation first.
+ */
+private fun Lead.toForm() =
+    NewEnquiry(
+        name = name,
+        source = source,
+        serviceLine = serviceLine ?: ServiceLine.Wedding,
+        email = email,
+        phone = phone,
+        budgetLow = budgetLow?.toPlainString(),
+        budgetHigh = budgetHigh?.toPlainString(),
+        referredBy = referredBy,
+    )
+
+/**
+ * What the studio's own kit says about whether it is ready to shoot.
+ *
+ * The section showed "No studio readiness items configured" and there was nowhere to
+ * configure any: the view model handed it an empty list with a note saying readiness would
+ * arrive with the Studio milestone. That milestone shipped — gear, drives and lighting are
+ * all recorded — and this was never connected to it, so the dashboard has been asking about
+ * something no screen could answer.
+ *
+ * Nothing is configured. These are read from what the studio already keeps, which is the
+ * only version of this that stays true without somebody maintaining a checklist: a list of
+ * ticks a studio ticks itself is a list it stops ticking.
+ */
+internal fun buildStudioStatus(
+    gear: List<GearItem>,
+    volumes: List<StorageVolume>,
+): DashboardStudioStatus {
+    val owned = gear.filter { it.status.isOwned }
+    val unavailable = owned.count { !it.status.isAvailable }
+    val uninsurable = owned.count { it.isUninsurable }
+    val unread = volumes.filter { it.isDependable }.count { it.lastCheckedAt == null }
+
+    return DashboardStudioStatus(
+        items =
+            buildList {
+                if (owned.isNotEmpty()) {
+                    add(
+                        DashboardStudioStatusItem(
+                            title =
+                                when (unavailable) {
+                                    0 -> "All gear available to pack"
+                                    1 -> "1 item out of service"
+                                    else -> "$unavailable items out of service"
+                                },
+                            ready = unavailable == 0,
+                        ),
+                    )
+
+                    // The one an insurer asks for and nobody checks until they need it.
+                    add(
+                        DashboardStudioStatusItem(
+                            title =
+                                when (uninsurable) {
+                                    0 -> "Everything priced has a serial number"
+                                    1 -> "1 item worth money cannot be identified"
+                                    else -> "$uninsurable items worth money cannot be identified"
+                                },
+                            ready = uninsurable == 0,
+                        ),
+                    )
+                }
+
+                if (volumes.isNotEmpty()) {
+                    add(
+                        DashboardStudioStatusItem(
+                            title =
+                                when (unread) {
+                                    0 -> "Every drive has been read"
+                                    1 -> "1 drive has never been read"
+                                    else -> "$unread drives have never been read"
+                                },
+                            ready = unread == 0,
+                        ),
+                    )
+                }
+            },
+    )
+}

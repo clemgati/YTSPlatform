@@ -24,18 +24,20 @@ import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
 internal fun EnquiryFormDialog(
     onSave: (NewEnquiry) -> Unit,
     onDismiss: () -> Unit,
+    /** The enquiry being corrected, or null when this is a new one. */
+    initial: NewEnquiry? = null,
 ) {
-    var name by remember { mutableStateOf("") }
-    var source by remember { mutableStateOf(LeadSource.Instagram) }
-    var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var serviceLine by remember { mutableStateOf(ServiceLine.Wedding) }
-    var budgetLow by remember { mutableStateOf("") }
-    var budgetHigh by remember { mutableStateOf("") }
-    var referredBy by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var source by remember { mutableStateOf(initial?.source ?: LeadSource.Instagram) }
+    var email by remember { mutableStateOf(initial?.email.orEmpty()) }
+    var phone by remember { mutableStateOf(initial?.phone.orEmpty()) }
+    var serviceLine by remember { mutableStateOf(initial?.serviceLine ?: ServiceLine.Wedding) }
+    var budgetLow by remember { mutableStateOf(initial?.budgetLow.orEmpty()) }
+    var budgetHigh by remember { mutableStateOf(initial?.budgetHigh.orEmpty()) }
+    var referredBy by remember { mutableStateOf(initial?.referredBy.orEmpty()) }
 
     YTFormDialog(
-        title = "New enquiry",
+        title = if (initial == null) "New enquiry" else "Correct this enquiry",
         supportingText = "Only a name is needed now. The rest can wait until you reply.",
         confirmLabel = "Save enquiry",
         confirmEnabled = name.isNotBlank(),
