@@ -412,12 +412,11 @@ and used.
   scratch database and exits non-zero if fewer tables come back than the schema has.
   `verify-deployment.sh` checks the *result* rather than the schedule, because a failed unit
   nobody looks at is not much better than no unit. Units in `docs/DEPLOYMENT.md`
-- **No way to install it on a phone.** No TestFlight and no Play track. The web build has a
-  deploy script and a documented vhost, and the desktop installers build for all three
-  operating systems from a tag — but **neither desktop installer is signed**, so both warn on
-  first run. Signing needs an Apple Developer account and a Windows certificate. Until then
-  the browser is the only channel that hands somebody a working application without asking
-  them to click past a security warning
+- **No way to install it on a phone.** No TestFlight and no Play track. The web build and
+  the three desktop installers are both served from the instance now — but **neither desktop
+  installer is signed**, so both warn on first run. Signing needs an Apple Developer account
+  and a Windows certificate. Until then the browser is the only channel that hands somebody a
+  working application without asking them to click past a security warning
 - **One instance, no staging, and one database.** Every deploy goes straight to what
   studios are using, and there is nowhere to catch a bad migration first. All four clients
   are built against the same `yellowtrack.serverUrl`, so there is no dev environment to

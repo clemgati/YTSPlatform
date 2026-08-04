@@ -720,8 +720,8 @@ is a page that loads, shows nothing, and reports the reason only in the develope
 Create the directory and let the deploying user write to it:
 
 ```sh
-sudo mkdir -p /var/www/yellowtrack
-sudo chown "$USER":"$USER" /var/www/yellowtrack
+sudo mkdir -p /var/www/yellowtrack /var/www/yellowtrack-downloads
+sudo chown "$USER":"$USER" /var/www/yellowtrack /var/www/yellowtrack-downloads
 ```
 
 `/etc/apache2/sites-available/yellowtrack-web.conf`, beside the API's vhost:
@@ -737,6 +737,16 @@ sudo chown "$USER":"$USER" /var/www/yellowtrack
     # 21MB uncompressed, about 6MB gzipped. On a phone on mobile data that is the
     # difference between a slow first load and an abandoned one.
     AddOutputFilterByType DEFLATE application/wasm application/javascript text/html text/css
+
+    # The installers, which live outside DocumentRoot on purpose: deploy-web.sh rsyncs
+    # the site with --delete, so anything of ours inside it would vanish on the next
+    # deployment of the web application.
+    Alias /downloads /var/www/yellowtrack-downloads
+
+    <Directory /var/www/yellowtrack-downloads>
+        Require all granted
+        Options -Indexes
+    </Directory>
 
     <Directory /var/www/yellowtrack>
         Require all granted
@@ -803,16 +813,35 @@ On the machine you are on:
 
 The result lands in `desktopApp/build/compose/binaries/main-release/<format>/`.
 
-For all three at once, push a tag and let CI do it:
+For all three at once, let CI build them — from a tag, or from the Actions tab, which is
+the same thing without minting a version:
 
 ```sh
 git tag v0.7.0 && git push origin v0.7.0
 ```
 
-`.github/workflows/release.yml` runs one runner per format, and attaches the installers to a
-GitHub release. Running it from the Actions tab instead builds the three and uploads them as
-artefacts without creating a release, which is how to check the packaging still works
-without minting a version.
+Then publish them from a machine that has ssh access:
+
+```sh
+./scripts/deploy-installers.sh yellowtrack
+```
+
+That takes the installers from the most recent successful Release run, writes a download
+page beside them, and puts both at `https://app.yourdomain/downloads/`.
+
+### Why CI does not publish them
+
+It would need an ssh key with write access to the instance in a public repository's secrets,
+and port 22 open to GitHub's address ranges rather than to one address — which is most of
+what restricting it was for. So CI builds and somebody with a key publishes, the same
+division as the server and the web application.
+
+### Not inside the site's directory
+
+`deploy-web.sh` rsyncs `/var/www/yellowtrack` with `--delete`. Installers kept inside it
+would be deleted by the next deployment of the web application, at a moment unrelated to
+anything anybody did to them. They live in `/var/www/yellowtrack-downloads` and are reached
+through an `Alias`.
 
 ### Release builds minify, and that is where this first broke
 

@@ -1,19 +1,29 @@
 name: Release
 
-# Tag-driven, because a release is a decision rather than a consequence of merging.
+# Builds the three desktop installers and leaves them as artefacts on the run.
 #
 #     git tag v0.7.0 && git push origin v0.7.0
 #
-# workflow_dispatch is here so the packaging can be exercised without minting a version —
-# a run started that way uploads the installers as artefacts and creates no release.
+# or the Actions tab, which is the same thing without minting a version.
+#
+# Publishing is a separate, deliberate step taken from a machine that already has ssh
+# access to the instance:
+#
+#     ./scripts/deploy-installers.sh yellowtrack
+#
+# Not done from here. Uploading from a runner would mean an ssh key with write access to
+# the instance living in a public repository's secrets, and port 22 open to GitHub's
+# address ranges rather than to one address — which is most of the point of restricting
+# it. So this builds, and somebody with a key publishes.
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
 
+# Nothing is published from here, so nothing needs writing.
 permissions:
-  contents: write
+  contents: read
 
 # One runner per installer, because jpackage only emits the format of the host it runs on.
 # There is no cross-compiling here and no way to fake it: a .msi has to be built on Windows
@@ -78,46 +88,3 @@ jobs:
           name: yellowtrack-${{ matrix.name }}
           path: ${{ matrix.glob }}
           if-no-files-found: error
-
-  release:
-    name: Publish the release
-    needs: package
-    runs-on: ubuntu-latest
-    # Only a tag makes a release. A manual run is for checking the three installers still
-    # build, and should not create a version nobody asked for.
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    steps:
-      - name: Collect the installers
-        uses: actions/download-artifact@v4
-        with:
-          path: installers
-          merge-multiple: true
-
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ls -lh installers
-
-          # Said on the release itself rather than left for somebody to discover after
-          # downloading. Neither installer is signed, so both operating systems will warn,
-          # and a studio that is not told this reasonably concludes the download is broken.
-          # --notes-file rather than --generate-notes: gh refuses both together, and what
-          # somebody downloading needs to know is the warning below, not a commit list.
-          gh release create "${GITHUB_REF_NAME}" installers/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "Yellow Track ${GITHUB_REF_NAME}" \
-            --notes-file - <<'NOTES'
-          Desktop installers for macOS, Windows and Linux.
-
-          **These are not code-signed.** macOS will say the developer cannot be verified —
-          right-click the application and choose Open the first time. Windows SmartScreen
-          will call it unrecognised — choose More info, then Run anyway.
-
-          Signing needs an Apple Developer account and a Windows code-signing certificate,
-          neither of which this project has yet.
-
-          The web application at app.yellowtrackstudios.com needs no install and no warning,
-          and is the easier way to try this.
-          NOTES
