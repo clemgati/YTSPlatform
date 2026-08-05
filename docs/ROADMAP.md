@@ -408,8 +408,20 @@ and used.
 
 **In the operation**
 
-- **Nothing watches the server.** No alert when the process dies, the disk fills, renewal
-  fails, or backups stop. Today the studio finds out first
+- ◐ **Something watches the server now.** `yellowtrack-watch.timer` runs the checks that
+  already existed — `verify-deployment.sh`, and the backup and restore-check timers that
+  have always exited non-zero — and emails when the answer *changes*, once a day while it
+  stays broken, and again on recovery. It adds no checks; it is the part that was missing,
+  which was somebody being told. Half a tick for the hole it cannot close: **the alert goes
+  out through the mail path it is watching**, so a failure of that path reports itself only
+  to the journal, the unit's exit status and `/var/lib/yellowtrack/watch-state`. A second
+  instance watching the first is the real answer and is the same missing piece as staging
+- ✓ **`/ready` reports whether mail works rather than whether it was configured.** `mail`
+  was read from `MAIL_HOST` at boot and stayed true through a wrong password, an expired
+  credential, an unverified sender and a sandboxed region — every way mail actually stops.
+  `mailError` now carries what the last send did, and `mailLastSucceededAt` separates
+  *working* from *never tried*, which one boolean could not. Bounces are still invisible:
+  SES accepts the message first and bounces out of band
 - ✓ **SES has production access**, granted 4th August 2026, so mail is no longer refused to
   every address but a verified one. That was the hard blocker on a second studio and it is
   gone. The first reported non-delivery after it was granted turned out not to be SES at
