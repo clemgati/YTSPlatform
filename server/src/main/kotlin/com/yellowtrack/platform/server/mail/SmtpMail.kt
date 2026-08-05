@@ -6,7 +6,9 @@ import jakarta.mail.PasswordAuthentication
 import jakarta.mail.Session
 import jakarta.mail.Transport
 import jakarta.mail.internet.InternetAddress
+import jakarta.mail.internet.MimeBodyPart
 import jakarta.mail.internet.MimeMessage
+import jakarta.mail.internet.MimeMultipart
 import java.util.Properties
 
 /**
@@ -52,10 +54,29 @@ class SmtpMail(
     override fun send(email: Email) {
         val message =
             MimeMessage(session).apply {
-                setFrom(InternetAddress(config.fromAddress, config.fromName))
+                // The address is always this deployment's; only the name in front of it
+                // changes. ADR 0011 decision 1: one verified sender, so what leaves is signed
+                // by the domain it claims to come from.
+                setFrom(InternetAddress(email.fromAddress ?: config.fromAddress, email.fromName ?: config.fromName))
                 setRecipients(Message.RecipientType.TO, InternetAddress.parse(email.to))
+                email.cc?.let { setRecipients(Message.RecipientType.CC, InternetAddress.parse(it)) }
+                email.replyTo?.let { replyTo = InternetAddress.parse(it) }
                 subject = email.subject
-                setText(email.body, "UTF-8")
+
+                when (val html = email.html) {
+                    // A password reset, which is one line and has no second form.
+                    null -> setText(email.body, "UTF-8")
+                    else ->
+                        setContent(
+                            MimeMultipart("alternative").apply {
+                                // Text first. `multipart/alternative` is ordered worst to
+                                // best, and a client shows the last part it can render — so
+                                // reversing these sends the plain text to everybody.
+                                addBodyPart(MimeBodyPart().apply { setText(email.body, "UTF-8") })
+                                addBodyPart(MimeBodyPart().apply { setContent(html, "text/html; charset=UTF-8") })
+                            },
+                        )
+                }
             }
 
         Transport.send(message)

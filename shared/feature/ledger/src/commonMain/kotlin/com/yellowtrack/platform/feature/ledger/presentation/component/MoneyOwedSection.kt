@@ -30,6 +30,7 @@ internal fun MoneyOwedSection(
     onDeleteDraft: (DraftInvoiceItem) -> Unit,
     onEditDraft: (DraftInvoiceItem) -> Unit,
     onExportInvoice: (OutstandingInvoiceItem) -> Unit,
+    onEmailInvoice: (OutstandingInvoiceItem) -> Unit,
     /** Takes a payment off the invoice it was put against; see `ReceivedPayment`. */
     onRemovePayment: (ReceivedPayment) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -80,7 +81,9 @@ internal fun MoneyOwedSection(
                 )
             } else {
                 HorizontalDivider(color = YTTheme.colors.outlineVariant)
-                summary.invoices.forEach { InvoiceRow(it, onRecordPayment, onVoidInvoice, onExportInvoice) }
+                summary.invoices.forEach {
+                    InvoiceRow(it, onRecordPayment, onVoidInvoice, onExportInvoice, onEmailInvoice)
+                }
             }
 
             if (summary.drafts.isNotEmpty()) {
@@ -258,6 +261,7 @@ private fun InvoiceRow(
     onRecordPayment: (OutstandingInvoiceItem) -> Unit,
     onVoid: (OutstandingInvoiceItem) -> Unit,
     onSave: (OutstandingInvoiceItem) -> Unit,
+    onEmail: (OutstandingInvoiceItem) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -297,14 +301,24 @@ private fun InvoiceRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
         ) {
-            // The document the client actually receives. Saved as a file rather than
-            // copied as text: an invoice is emailed as an attachment, where a call
-            // sheet is pasted into a message.
+            // The document the client actually receives, as a file to keep or attach.
             TextButton(onClick = { onSave(invoice) }) {
                 Text(
                     text = "Save",
                     style = YTTheme.typography.labelMedium,
                     color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
+
+            // Beside Save rather than replacing it. Emailing is not a state change — the
+            // invoice was *sent* when the studio decided the figure was right — so this
+            // sits with the other things you can do to a document rather than with the
+            // ones that move it (ADR 0011 decision 5).
+            TextButton(onClick = { onEmail(invoice) }) {
+                Text(
+                    text = "Email",
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.primary,
                 )
             }
 

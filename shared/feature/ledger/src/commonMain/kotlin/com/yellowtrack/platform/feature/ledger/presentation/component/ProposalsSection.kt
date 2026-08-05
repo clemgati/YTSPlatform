@@ -36,6 +36,7 @@ internal fun ProposalsSection(
     onSendContract: (ContractItem) -> Unit,
     onSignContract: (ContractItem) -> Unit,
     onExportQuote: (QuoteItem) -> Unit,
+    onEmailQuote: (QuoteItem) -> Unit,
     onReviseQuote: (QuoteItem) -> Unit,
     /** False when the studio has no bookings, which all three documents need. */
     hasBookings: Boolean,
@@ -71,7 +72,7 @@ internal fun ProposalsSection(
             if (summary.awaitingDecision.isNotEmpty()) {
                 HorizontalDivider(color = YTTheme.colors.outlineVariant)
                 summary.awaitingDecision.forEach { quote ->
-                    QuoteRow(quote, onAcceptQuote, onDeclineQuote, onExportQuote, onReviseQuote)
+                    QuoteRow(quote, onAcceptQuote, onDeclineQuote, onExportQuote, onEmailQuote, onReviseQuote)
                 }
             }
 
@@ -148,6 +149,7 @@ private fun QuoteRow(
     onAccept: (QuoteItem) -> Unit,
     onDecline: (QuoteItem) -> Unit,
     onSave: (QuoteItem) -> Unit,
+    onEmail: (QuoteItem) -> Unit,
     onRevise: (QuoteItem) -> Unit,
 ) {
     Column(
@@ -206,6 +208,14 @@ private fun QuoteRow(
                     text = "Save",
                     style = YTTheme.typography.labelLarge,
                     color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
+
+            TextButton(onClick = { onEmail(quote) }) {
+                Text(
+                    text = "Email",
+                    style = YTTheme.typography.labelLarge,
+                    color = YTTheme.colors.primary,
                 )
             }
 

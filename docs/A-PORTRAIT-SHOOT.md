@@ -206,8 +206,9 @@ The draft raised when the quote was accepted is under **Raised but not sent**.
 - **Edit** to correct anything — a draft is still being written
 - **Send** when you are ready. That is the step that puts the figure into money owed and
   starts the clock on the due date
-- **Save** writes the document to a file to attach to an email. The application does not
-  send it
+- **Email** sends it to your client, from your studio's name, with their reply coming back
+  to the address in Settings. You are copied on it, so you hold what they received
+- **Save** writes it to a file instead, to attach yourself
 
 Once sent it cannot be edited. If the figure is wrong, **Void** it and raise another — an
 invoice somebody holds a copy of must not quietly change under the same number.
@@ -232,9 +233,10 @@ payment with it.
 
 Worth knowing before you rely on it:
 
-- **It does not send email.** Quotes and invoices are rendered and saved or shared; the
-  sending is yours. Password reset emails are the one exception, and they now reach any
-  address
+- **It sends quotes and invoices, and nothing else.** They go from your studio's name, with
+  replies coming back to you — but from Yellow Track's own address, so a client sees *via
+  yellowtrackstudios.com*. Everything else, including a call sheet, is still saved or shared
+  and sent by you
 - **It does not take payments.** "How to pay you" is text on a document
 - **There is no gallery or proofing.** Deliverables are tracked, not hosted
 - **There is one environment.** Every client — web, desktop, Android, iOS — talks to the

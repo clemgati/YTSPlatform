@@ -1,10 +1,44 @@
 package com.yellowtrack.platform.server.mail
 
-/** One message, in the two forms a mail client might render. */
+/**
+ * One message.
+ *
+ * [body] is plain text and always present. The extra fields are all absent for a password
+ * reset — one line of text from Yellow Track to its own account holder — and all used when a
+ * studio sends a document to its client, which is a different act with different rules. ADR
+ * 0011 sets out why.
+ */
 data class Email(
     val to: String,
     val subject: String,
     val body: String,
+    /**
+     * The same message as a web page, sent alongside [body] rather than instead of it.
+     *
+     * A client that cannot render it falls back to the text part, which is the rendering
+     * that already exists for pasting into a message.
+     */
+    val html: String? = null,
+    /**
+     * What a client reads in its inbox list, in front of the sending address.
+     *
+     * The studio's name goes here. The address cannot be the studio's — SES signs for the
+     * verified domain, and a message signed by one domain claiming to be from another is a
+     * message in a spam folder.
+     */
+    val fromName: String? = null,
+    /** Overrides the configured sender. Documents leave from `DOCUMENT_FROM`, resets from `MAIL_FROM`. */
+    val fromAddress: String? = null,
+    /**
+     * Where a reply should go, which is the studio rather than this deployment.
+     *
+     * The load-bearing half of ADR 0011 decision 2. Without it a client's reply about an
+     * invoice lands in the mailbox that owns the sending address, and the photographer
+     * waiting to be paid never sees it.
+     */
+    val replyTo: String? = null,
+    /** Copied, so the studio holds what its client received. Nothing else keeps the body. */
+    val cc: String? = null,
 )
 
 /**

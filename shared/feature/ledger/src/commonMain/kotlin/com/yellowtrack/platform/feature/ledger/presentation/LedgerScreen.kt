@@ -13,8 +13,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import com.yellowtrack.platform.core.designsystem.component.YTBadge
+import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
+import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.model.auth.EmailAddress
 import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.PaymentId
@@ -74,10 +78,13 @@ internal fun LedgerScreen(
     onDeleteInvoice: (InvoiceId) -> Unit,
     onExportInvoice: (InvoiceId) -> Unit,
     onExportQuote: (QuoteId) -> Unit,
+    onEmailInvoice: (InvoiceId, String) -> Unit,
+    onEmailQuote: (QuoteId, String) -> Unit,
     documentMessage: String?,
     modifier: Modifier = Modifier,
 ) {
     var showExpenseForm by remember { mutableStateOf(false) }
+    var emailing by remember { mutableStateOf<Emailing?>(null) }
     var showMileageForm by remember { mutableStateOf(false) }
     var correctingCost by remember { mutableStateOf<RecordedCost?>(null) }
     var addingPackage by remember { mutableStateOf(false) }
@@ -310,6 +317,7 @@ internal fun LedgerScreen(
                 onDeleteDraft = { onDeleteInvoice(it.id) },
                 onEditDraft = { editingDraft = it },
                 onExportInvoice = { onExportInvoice(it.id) },
+                onEmailInvoice = { emailing = Emailing.Invoice(it.id) },
                 onRemovePayment = { onRemovePayment(it.id) },
             )
 
@@ -325,10 +333,25 @@ internal fun LedgerScreen(
                 onSendContract = { onSendContract(it.id) },
                 onSignContract = { signingContract = it },
                 onExportQuote = { onExportQuote(it.id) },
+                onEmailQuote = { emailing = Emailing.Quote(it.id) },
                 // The option list the three forms are filled from. Empty means no booking
                 // exists to price anything against.
                 hasBookings = content.projects.any { it.id != null },
             )
+
+            emailing?.let { target ->
+                EmailDocumentDialog(
+                    emailing = target,
+                    onDismiss = { emailing = null },
+                    onSend = { address ->
+                        when (target) {
+                            is Emailing.Invoice -> onEmailInvoice(target.id, address)
+                            is Emailing.Quote -> onEmailQuote(target.id, address)
+                        }
+                        emailing = null
+                    },
+                )
+            }
 
             // Where the document went, or why it could not go. A file nobody can find
             // was not saved, and silence is how that happens.
@@ -397,6 +420,68 @@ private fun LedgerHeader(
             text = "What you are owed, what you must charge, and what the studio costs to run.",
             style = YTTheme.typography.bodyLarge,
             color = YTTheme.colors.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Which document is waiting for an address.
+ *
+ * Held by kind rather than by a rendered document, because the render happens after the
+ * address is known — a studio that changes its mind at the dialog has cost nothing.
+ */
+private sealed interface Emailing {
+    val kindLabel: String
+
+    data class Invoice(
+        val id: InvoiceId,
+    ) : Emailing {
+        override val kindLabel = "invoice"
+    }
+
+    data class Quote(
+        val id: QuoteId,
+    ) : Emailing {
+        override val kindLabel = "quote"
+    }
+}
+
+/**
+ * Asks where the document is going.
+ *
+ * Typed rather than prefilled from the client's contact, which is the obvious improvement and
+ * is deliberately not here yet: the address on a contact is often the person who booked
+ * rather than the person who pays, and quietly sending an invoice to the wrong one of those
+ * is worse than asking.
+ */
+@Composable
+private fun EmailDocumentDialog(
+    emailing: Emailing,
+    onDismiss: () -> Unit,
+    onSend: (String) -> Unit,
+) {
+    var address by remember { mutableStateOf("") }
+
+    YTFormDialog(
+        title = "Email this ${emailing.kindLabel}",
+        confirmLabel = "Send it",
+        confirmEnabled = EmailAddress.isPlausible(address),
+        onConfirm = { onSend(address.trim()) },
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text =
+                "It goes from your studio's name, and a reply comes back to the address in " +
+                    "Settings. You are copied on it.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        YTTextField(
+            value = address,
+            onValueChange = { address = it },
+            label = "Your client's email",
+            keyboardType = KeyboardType.Email,
         )
     }
 }
