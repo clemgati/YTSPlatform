@@ -138,4 +138,61 @@ else
     echo "    allowed as $ALLOWED"
 fi
 
+# The third way a deployment succeeds and the studio still runs the old application, and
+# the only one that leaves no trace on the server at all: the files are new, Apache is
+# healthy, and the browser never asks for them.
+#
+# Only the two big .wasm files carry a content hash. yellow-track-web.js keeps its name
+# across every release, so a rule matching *.js and saying "immutable" pins the whole
+# application in the browser for a year. index.html revalidates correctly and points at
+# the same stale name, and the new wasm is never requested because it is referenced from
+# inside the JavaScript that was not re-fetched.
+#
+# Checked here rather than trusted, because the vhost is edited by hand on the instance
+# and nothing else would ever notice it had drifted.
+if [ -n "$SITE_ORIGIN" ]; then
+    echo "==> Checking the browser will notice the next release"
+
+    ENTRY=$(ssh "$HOST" "ls $REMOTE_DIR/*.js 2>/dev/null | grep -v '\.map$' | head -1 | xargs -r basename" || true)
+
+    if [ -z "$ENTRY" ]; then
+        echo "    no .js on the server to check" >&2
+    else
+        CACHE=$(
+            ssh "$HOST" "curl -sS -o /dev/null -D - -m 15 -L \
+                --resolve '$SITE_HOST:443:127.0.0.1' 'https://$SITE_HOST/$ENTRY'" 2>/dev/null |
+                tr -d '\r' |
+                sed -n 's/^[Cc]ache-[Cc]ontrol: //p' |
+                tail -1
+        )
+
+        # Read as a number rather than matched as text. The obvious globs are wrong in a
+        # way that reads as right: "max-age=86400" does not contain "max-age=864" — the
+        # digits carry on — so a pattern per suspicious duration silently passes most of
+        # them. There is one rule, so ask it once.
+        MAX_AGE=$(printf '%s' "$CACHE" | sed -n 's/.*max-age=\([0-9][0-9]*\).*/\1/p')
+
+        # A few minutes is the most a file can be held without a release going unnoticed,
+        # and immutable is unarguable: it tells the browser not to revalidate at all.
+        if [ -z "$CACHE" ]; then
+            echo "    $ENTRY carries no Cache-Control at all." >&2
+            echo "    Apache is left to guess, and browsers guess generously. See" >&2
+            echo "    docs/DEPLOYMENT.md for the <Directory> block." >&2
+            exit 1
+        elif [ "${CACHE#*immutable}" != "$CACHE" ] || [ "${MAX_AGE:-0}" -gt 300 ]; then
+            echo "    $ENTRY is served as '$CACHE'." >&2
+            echo >&2
+            echo "    Its name does not change between releases, so this pins the whole" >&2
+            echo "    application in the browser. Every studio that has opened the site" >&2
+            echo "    keeps running the old one, and nothing here or on the instance" >&2
+            echo "    reports anything wrong." >&2
+            echo >&2
+            echo "    Fix the <Directory> block in the web vhost — docs/DEPLOYMENT.md." >&2
+            exit 1
+        fi
+
+        echo "    $ENTRY is served as '$CACHE'"
+    fi
+fi
+
 echo "Deployed."

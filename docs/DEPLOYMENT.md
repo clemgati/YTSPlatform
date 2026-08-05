@@ -88,6 +88,28 @@ business. `docs/VISION.md` asks for zero avoidable data loss and this is the mos
 kind there is. A `pg_dump` to S3 on a timer, and **a restore you have actually performed
 once** — an untested backup is a belief, not a backup.
 
+### 4. A web deploy the browser never sees
+
+The files upload, Apache is healthy, every check passes, and the studio keeps running last
+month's application. This one leaves no trace anywhere on the instance, because nothing
+went wrong on the instance.
+
+**Only the two large `.wasm` files carry a content hash.** `yellow-track-web.js` — which is
+the whole application — plus the numbered webpack chunks and `sql-wasm.wasm` all keep the
+same name from one release to the next. So a rule matching `*.js` and saying `immutable`
+pins the application in every browser that has ever opened the site, for a year.
+
+`index.html` revalidates correctly and points at the same unchanged name, so it does not
+help. Nor does the new `.wasm` hash: it is referenced from *inside* the JavaScript that was
+never re-fetched, so the browser does not know it exists. The `<Directory>` block below
+revalidates by name and hard-caches only what is hashed, and `deploy-web.sh` now fails if the
+served headers disagree with it.
+
+**Fixing the vhost does not release a browser already holding one.** `immutable` means what
+it says: it will not revalidate, whatever the server sends next, until the year is up.
+Anybody who loaded the site under the old rule needs one hard reload — <kbd>Cmd</kbd> or
+<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> — and never again after that.
+
 ---
 
 ## Choosing the instance
@@ -852,13 +874,19 @@ sudo chown "$USER":"$USER" /var/www/yellowtrack /var/www/yellowtrack-downloads
         Require all granted
         Options -Indexes
 
-        # The filenames carry a content hash, so they can be cached hard. index.html
-        # cannot: it is what points at the new hashes after a deploy.
-        <FilesMatch "\.(wasm|js|css)$">
+        # Revalidate by default, because most of what the build emits is NOT content
+        # hashed. Only the two large .wasm files are; yellow-track-web.js, the numbered
+        # webpack chunks and sql-wasm.wasm all keep the same name from one release to
+        # the next, so anything cached by name is cached straight across a deploy.
+        #
+        # "no-cache" does not mean do not store it. The browser keeps the file and asks
+        # whether it changed, which costs one 304 per file and is always right.
+        Header set Cache-Control "no-cache"
+
+        # These two do carry a hash, and they are 15MB of the 17MB — so almost all of
+        # the bytes are still cached hard, which is the part that matters on mobile data.
+        <FilesMatch "^[0-9a-f]{16,}\.wasm$">
             Header set Cache-Control "public, max-age=31536000, immutable"
-        </FilesMatch>
-        <FilesMatch "^index\.html$">
-            Header set Cache-Control "no-cache"
         </FilesMatch>
     </Directory>
 </VirtualHost>
