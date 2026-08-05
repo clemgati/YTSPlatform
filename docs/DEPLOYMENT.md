@@ -692,6 +692,43 @@ the apex or `www` is the only way to take the other service down, so leave them 
 
 ---
 
+## Changing the version
+
+One line, in the root `build.gradle.kts`:
+
+```kotlin
+allprojects {
+    version = "0.7.0"
+}
+```
+
+Everything that shows a version derives from it: what the application displays, the Android
+`versionName` and `versionCode`, and the desktop installers. Change it, commit, and run
+`release.sh` — the guard there refuses to release a working tree that differs from what CI
+will build, so the commit is not optional.
+
+### The one place it is not literal
+
+**macOS will not accept a leading zero.** jpackage refuses with *"the first number in an
+app-version cannot be zero or negative"*, and this project is pre-1.0, so a zero major is
+carried to 1 for the installer only: **0.7.0 installs as 1.7.0**.
+
+The application still reports 0.7.0, and that is the number to quote. The two agree exactly
+from 1.0.0 onward, and releasing 1.0.0 is the way to stop having to explain it.
+
+### Android's second number
+
+`versionCode` has to be an integer that only ever increases, so it is derived from the same
+three numbers: 0.7.0 becomes 700, 1.2.3 becomes 10203. Nothing to maintain by hand, and it
+cannot go backwards while the version goes forwards.
+
+### iOS
+
+Not wired up. `Info.plist` carries no version, so it takes Xcode's default. Worth fixing
+before there is a TestFlight build to confuse anybody with.
+
+---
+
 ## Everything, in one command
 
 ```sh

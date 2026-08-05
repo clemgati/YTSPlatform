@@ -59,7 +59,25 @@ compose.desktop {
             // What a person sees: the installer, the application folder, the dock. The
             // bundle identifier below stays reverse-DNS; this does not.
             packageName = "Yellow Track"
-            packageVersion = "1.0.0"
+            // From the root build, like everything else that shows a version. Typed here
+            // it said 1.0.0 while the application inside said 0.7.0, so a studio reporting
+            // a problem would have quoted whichever it happened to be looking at.
+            //
+            // macOS will not accept a leading zero — jpackage refuses with "the first
+            // number in an app-version cannot be zero or negative" — and this project is
+            // pre-1.0, so a zero major is carried to 1 for the installer only. 0.7.0
+            // installs as 1.7.0.
+            //
+            // The application still reports 0.7.0, which is the number to quote and the
+            // one BuildInfo generates. The two agree exactly from 1.0.0 onward, and the
+            // way to stop having to explain this is to release 1.0.0.
+            packageVersion =
+                project.version
+                    .toString()
+                    .split(".")
+                    .map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+                    .let { (it + listOf(0, 0, 0)).take(3) }
+                    .let { (major, minor, patch) -> "${major.coerceAtLeast(1)}.$minor.$patch" }
 
             // Each platform wants its own container for the same mark: an .icns for
             // macOS, a multi-size .ico for Windows, and a plain PNG for Linux. All three

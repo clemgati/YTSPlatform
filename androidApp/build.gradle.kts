@@ -37,8 +37,18 @@ android {
             libs.versions.android.targetSdk
                 .get()
                 .toInt()
-        versionCode = 1
-        versionName = "1.0"
+        // Both from the root build. versionName is the string a person reads; versionCode
+        // has to be an integer that only ever increases, so it is derived from the same
+        // three numbers — 0.7.0 becomes 700, 1.2.3 becomes 10203.
+        versionCode =
+            project.version
+                .toString()
+                .split(".")
+                .map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+                .let { (it + listOf(0, 0, 0)).take(3) }
+                .let { (major, minor, patch) -> major * 10_000 + minor * 100 + patch }
+
+        versionName = project.version.toString()
     }
     packaging {
         resources {
