@@ -62,7 +62,27 @@ if [ -z "$WASM" ]; then
     exit 1
 fi
 
-TYPE=$(ssh "$HOST" "curl -sS -o /dev/null -w '%{content_type}' -m 10 http://127.0.0.1/$WASM" || true)
+# Asked of the site's own vhost, not of whatever answers on 127.0.0.1.
+#
+# Apache serves by name. A request to the loopback address with no Host header lands on the
+# first vhost — here, the API — which knows nothing about these files and returns its 404
+# page. That reads as "served as text/html", which is indistinguishable from the MIME type
+# being wrong, and is how this check failed a deployment that had worked.
+#
+# --resolve rather than the public name so it does not depend on the instance being able to
+# reach itself by DNS, and https because that is where certbot redirects real traffic and
+# so the vhost that actually serves anybody.
+if [ -n "$SITE_ORIGIN" ]; then
+    SITE_HOST=${SITE_ORIGIN#*://}
+    SITE_HOST=${SITE_HOST%%/*}
+    TYPE=$(
+        ssh "$HOST" "curl -sS -o /dev/null -w '%{content_type}' -m 15 -L \
+            --resolve '$SITE_HOST:443:127.0.0.1' 'https://$SITE_HOST/$WASM'" || true
+    )
+else
+    echo "    no site origin given, so asking the default vhost — which may not be the site" >&2
+    TYPE=$(ssh "$HOST" "curl -sS -o /dev/null -w '%{content_type}' -m 10 http://127.0.0.1/$WASM" || true)
+fi
 
 case "$TYPE" in
     application/wasm*)

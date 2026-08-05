@@ -3,7 +3,7 @@
 # Puts the desktop installers on the instance, beside the web application.
 #
 #     ./scripts/deploy-installers.sh yellowtrack
-#     ./scripts/deploy-installers.sh yellowtrack 12345678901
+#     ./scripts/deploy-installers.sh yellowtrack 12345678901 https://app.yourdomain
 #
 # The first argument is an ssh host, as the other deploy scripts take. The second is a
 # Release workflow run to take the installers from; without it, the most recent successful
@@ -21,6 +21,8 @@ set -euo pipefail
 
 HOST="${1:-}"
 RUN_ID="${2:-}"
+# Optional, and only used to ask the right vhost in the check at the end.
+SITE_ORIGIN="${3:-}"
 
 # Not under /var/www/yellowtrack. deploy-web.sh rsyncs that directory with --delete, so
 # anything of ours living inside it disappears the next time the site is deployed.
@@ -160,7 +162,18 @@ echo "==> Checking they are served"
 FIRST=$(cd "$STAGING/flat" && ls *.dmg *.msi *.deb 2>/dev/null | head -1 || true)
 
 if [ -n "$FIRST" ]; then
-    CODE=$(ssh "$HOST" "curl -sS -o /dev/null -w '%{http_code}' -m 15 'http://127.0.0.1/downloads/$FIRST'" || true)
+    # The site's own vhost, for the reason deploy-web.sh gives: a request to the loopback
+    # with no Host header lands on the first vhost, which knows nothing about /downloads.
+    if [ -n "$SITE_ORIGIN" ]; then
+        SITE_HOST=${SITE_ORIGIN#*://}
+        SITE_HOST=${SITE_HOST%%/*}
+        CODE=$(
+            ssh "$HOST" "curl -sS -o /dev/null -w '%{http_code}' -m 20 -L \
+                --resolve '$SITE_HOST:443:127.0.0.1' 'https://$SITE_HOST/downloads/$FIRST'" || true
+        )
+    else
+        CODE=$(ssh "$HOST" "curl -sS -o /dev/null -w '%{http_code}' -m 20 'http://127.0.0.1/downloads/$FIRST'" || true)
+    fi
 
     case "$CODE" in
         200)
