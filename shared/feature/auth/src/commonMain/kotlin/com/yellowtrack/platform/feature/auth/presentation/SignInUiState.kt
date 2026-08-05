@@ -1,5 +1,7 @@
 package com.yellowtrack.platform.feature.auth.presentation
 
+import com.yellowtrack.platform.core.model.auth.EmailAddress
+
 /** Whether the form is asking somebody to sign in or to start a studio. */
 internal enum class SignInMode {
     SignIn,
@@ -50,6 +52,21 @@ internal data class SignInUiState(
     val isHardwareBacked: Boolean = true,
 ) {
     /**
+     * The address this was probably meant to be, if it looks like a slip.
+     *
+     * Derived rather than stored, so it cannot describe an address that is no longer in the
+     * field. Null almost always — it only speaks for a near-miss of a domain people
+     * actually use.
+     *
+     * Offered, never enforced, and never applied on the studio's behalf. `@gmail.ocm` is a
+     * well-formed address and the server rightly takes it; the only thing wrong with it is
+     * a guess about intent, and the studio is the one who knows. It does not gate
+     * [canSubmit] for the same reason.
+     */
+    val emailSuggestion: String?
+        get() = EmailAddress.suggestion(fields.email)
+
+    /**
      * Whether the form can be submitted.
      *
      * Deliberately permissive: the server is the authority on whether a credential is
@@ -63,7 +80,14 @@ internal data class SignInUiState(
                 when (mode) {
                     SignInMode.SignIn -> fields.password.isNotBlank()
                     SignInMode.SignUp ->
-                        fields.password.isNotBlank() &&
+                        // The shape is required here and nowhere else. Sign-up is where an
+                        // address becomes the only route back into an account, and the
+                        // server refuses a malformed one anyway, so submitting is a wasted
+                        // round trip. On the other three the address already belongs to
+                        // somebody: accounts were created before this rule existed, and
+                        // enforcing it on sign-in would lock out whoever holds one.
+                        EmailAddress.isPlausible(fields.email) &&
+                            fields.password.isNotBlank() &&
                             fields.name.isNotBlank() &&
                             fields.studioName.isNotBlank()
                     // An address is all the server is being asked for.

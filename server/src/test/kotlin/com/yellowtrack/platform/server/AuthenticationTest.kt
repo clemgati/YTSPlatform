@@ -30,6 +30,34 @@ import kotlin.test.assertTrue
 class AuthenticationTest {
     // -- Signing up ---------------------------------------------------------------------
 
+    /**
+     * The server is the authority on shape, not the form. A client that skips the check —
+     * an old build, a browser with the script blocked, curl — must still be refused.
+     */
+    @Test
+    fun `refuses an address that could not be delivered to`() =
+        withServer { client ->
+            listOf("ada-no-at-sign.test", "ada@localhost", "ada@harbourline.", "@harbourline.test", "ada@a.b.1")
+                .forEach { malformed ->
+                    val response = client.signUp(malformed, PASSWORD, "Ada Okafor", "Harbourline Photography")
+                    assertEquals(HttpStatusCode.BadRequest, response.status, "should refuse $malformed")
+                }
+        }
+
+    /**
+     * The fault that prompted all of this. `@gmail.ocm` is a well-formed address whose
+     * domain does not exist, and the server cannot know that — so it must take it. The
+     * form asks about it instead, which is the only place the answer lives.
+     */
+    @Test
+    fun `accepts a well-formed address even when the domain looks like a slip`() =
+        withServer { client ->
+            val response =
+                client.signUp("ada-${System.nanoTime()}@gmail.ocm", PASSWORD, "Ada Okafor", "Harbourline Photography")
+
+            assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
+        }
+
     @Test
     fun `signing up creates an account, a studio, and the membership between them`() =
         withServer { client ->

@@ -343,7 +343,12 @@ and used.
   permanently. One of them should stop existing, and `adoptStudioName` — a workaround from
   when the profile could not travel — should probably go with it
 - **Account deletion and data export.** The application holds other people's clients,
-  addresses and payment histories, with no way to give that back or remove it
+  addresses and payment histories, with no way to give that back or remove it. The account
+  table has a `deleted_at` that every query already respects and nothing ever sets, so the
+  hard half is done and the reachable half is missing. There is now a concrete one to clear:
+  an account signed up against a mistyped domain, which cannot be recovered — its only route
+  back is an inbox that does not exist — and cannot be removed either, so the address it
+  holds stays taken
 
 - ✓ **What the studio enters can now be removed.** Of the forty-five write methods the
   repositories declare, eleven were never called from any screen — and ten of those were
@@ -405,11 +410,19 @@ and used.
 
 - **Nothing watches the server.** No alert when the process dies, the disk fills, renewal
   fails, or backups stop. Today the studio finds out first
-- ◐ **SES has production access**, granted 4th August 2026, so mail is no longer refused to
+- ✓ **SES has production access**, granted 4th August 2026, so mail is no longer refused to
   every address but a verified one. That was the hard blocker on a second studio and it is
-  gone. Half a tick because a grant is not a delivered message: **no reset has yet arrived
-  at an address that was never an SES identity**, which is the only send the sandbox could
-  not do and therefore the only one that proves anything
+  gone. The first reported non-delivery after it was granted turned out not to be SES at
+  all: the account had been signed up against `gmail.ocm`, a domain that does not exist, so
+  there was never an inbox to arrive at. Worth recording, because "mail is broken" and "the
+  address is wrong" present identically here — see the item below
+- ✓ **An address is checked for shape, and questioned when it looks like a slip.** Sign-up
+  accepted anything containing an `@` until a real account was created against `gmail.ocm`
+  and could not be recovered. `EmailAddress` is shared by the server and all four clients so
+  the rule cannot drift: the server refuses what cannot be delivered to, and the form asks
+  "did you mean `gmail.com`?" for a near-miss of a domain people use — a question, never a
+  correction, because a well-formed address with a dead domain is indistinguishable from an
+  unusual one
 - **Nothing tells anyone when mail stops.** ADR 0010 has the reset endpoint answer `202`
   whether the send worked or not, so every failure is deliberately indistinguishable from
   success and reaches only a log line. `mail:true` on `/ready` is read from the environment
