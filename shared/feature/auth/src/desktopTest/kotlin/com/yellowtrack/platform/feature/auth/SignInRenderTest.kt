@@ -60,6 +60,25 @@ class SignInRenderTest {
                 isHardwareBacked = false,
             ),
         )
+
+        // The address that started this: well-formed, deliverable to nobody, and the only
+        // route back into the account being created. Rendered at phone width because that
+        // is where a suggestion has least room to sit under the field it belongs to, and
+        // where a long address is most likely to wrap away from the question.
+        render(
+            "sign-up-email-typo-phone.png",
+            SignInUiState(
+                mode = SignInMode.SignUp,
+                fields =
+                    SignInFields(
+                        email = "ada.okafor@gmail.ocm",
+                        password = "a long enough password",
+                        name = "Ada Okafor",
+                        studioName = "Harbourline Photography",
+                    ),
+            ),
+            width = 780,
+        )
     }
 
     @OptIn(ExperimentalComposeUiApi::class)

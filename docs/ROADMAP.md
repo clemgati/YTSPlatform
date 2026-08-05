@@ -260,7 +260,7 @@ and deployment waits until there is something worth deploying.
 - ◐ Deployment. `docs/DEPLOYMENT.md` covers one EC2 instance running Apache, Postgres and
   the server, with SES for mail — written for that shape rather than generically, because
   the three things that fail *silently* are all shape-specific: connecting as a superuser
-  makes every row level security policy inert, SES's sandbox makes password reset appear to
+  makes every row level security policy inert, a refused send makes password reset appear to
   work and never arrive, and same-box Postgres means one lost instance is one lost business.
   The code side is done: the server URL is generated from the build rather than hardcoded to
   loopback, CORS is configurable for the browser build, and `/ready` reports whether the
@@ -343,7 +343,12 @@ and used.
   permanently. One of them should stop existing, and `adoptStudioName` — a workaround from
   when the profile could not travel — should probably go with it
 - **Account deletion and data export.** The application holds other people's clients,
-  addresses and payment histories, with no way to give that back or remove it
+  addresses and payment histories, with no way to give that back or remove it. The account
+  table has a `deleted_at` that every query already respects and nothing ever sets, so the
+  hard half is done and the reachable half is missing. There is now a concrete one to clear:
+  an account signed up against a mistyped domain, which cannot be recovered — its only route
+  back is an inbox that does not exist — and cannot be removed either, so the address it
+  holds stays taken
 
 - ✓ **What the studio enters can now be removed.** Of the forty-five write methods the
   repositories declare, eleven were never called from any screen — and ten of those were
@@ -405,11 +410,27 @@ and used.
 
 - **Nothing watches the server.** No alert when the process dies, the disk fills, renewal
   fails, or backups stop. Today the studio finds out first
-- **SES is in the sandbox.** Confirmed, not suspected. `mail:true` says configured, not
-  permitted: until production access is granted, a password reset for anyone but a verified
-  address answers `202` and never arrives — which ADR 0010 makes deliberately
-  indistinguishable from success, so nobody would ever report it. This is the hard blocker
-  on a second studio, and it is an AWS review rather than something to build
+- ✓ **SES has production access**, granted 4th August 2026, so mail is no longer refused to
+  every address but a verified one. That was the hard blocker on a second studio and it is
+  gone. The first reported non-delivery after it was granted turned out not to be SES at
+  all: the account had been signed up against `gmail.ocm`, a domain that does not exist, so
+  there was never an inbox to arrive at. Worth recording, because "mail is broken" and "the
+  address is wrong" present identically here — see the item below
+- ✓ **An address is checked for shape, and questioned when it looks like a slip.** Sign-up
+  accepted anything containing an `@` until a real account was created against `gmail.ocm`
+  and could not be recovered. `EmailAddress` is shared by the server and all four clients so
+  the rule cannot drift: the server refuses what cannot be delivered to, and the form asks
+  "did you mean `gmail.com`?" for a near-miss of a domain people use — a question, never a
+  correction, because a well-formed address with a dead domain is indistinguishable from an
+  unusual one
+- **Nothing tells anyone when mail stops.** ADR 0010 has the reset endpoint answer `202`
+  whether the send worked or not, so every failure is deliberately indistinguishable from
+  success and reaches only a log line. `mail:true` on `/ready` is read from the environment
+  at boot, never from a send — it stays `true` through a wrong password, an expired
+  credential, or sending suspended over a bounce rate nobody subscribed to. The sandbox
+  used to be the reason resets did not arrive; now it would be one of these, and the
+  studio still finds out first. **A readiness check that reflects the last send** is the
+  small version of this, and it wants the item below more than it wants code
 - ✓ **Backups run, and the restore rehearses itself.** `yellowtrack-backup.timer` writes a
   dump nightly; `yellowtrack-restore-check.timer` rebuilds the newest one weekly into a
   scratch database and exits non-zero if fewer tables come back than the schema has.
@@ -453,7 +474,7 @@ before it, renumbered rather than dropped.
 - no second shooters or editors with roles of their own
 - no accessibility or localisation pass — `DateFormats` is English-only
 - one environment, no staging
-- password reset limited to verified addresses until SES leaves the sandbox
+- password reset that reaches any address, but tells nobody when it stops
 
 ## 1.1.0 — Collaboration
 

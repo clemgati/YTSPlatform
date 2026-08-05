@@ -140,6 +140,17 @@ internal fun SignInScreen(
                         keyboardType = KeyboardType.Email,
                     )
 
+                    // A question rather than a correction. Nothing here knows whether a
+                    // domain exists, only that this one is a keystroke away from one people
+                    // use — so the studio is asked, and pressing it is the only thing that
+                    // changes the field.
+                    uiState.emailSuggestion?.let { suggested ->
+                        YTTextButton(
+                            text = "Did you mean $suggested?",
+                            onClick = { onEmailChanged(suggested) },
+                        )
+                    }
+
                     if (entering) {
                         YTTextField(
                             value = uiState.fields.code,

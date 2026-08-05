@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.server.auth
 
 import com.yellowtrack.platform.core.model.auth.AccountResponse
+import com.yellowtrack.platform.core.model.auth.EmailAddress
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.auth.ForgotPasswordRequest
 import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
@@ -150,7 +151,10 @@ private fun SignedIn.toResponse() =
  */
 private fun validate(request: SignUpRequest): String? =
     when {
-        !request.email.contains('@') -> "that does not look like an email address"
+        // Shape only, and shared with the clients so the two cannot disagree. It cannot
+        // tell whether the domain exists, which is the fault that actually happens — see
+        // EmailAddress.suggestion, which is offered in the form rather than enforced here.
+        !EmailAddress.isPlausible(request.email) -> "that does not look like an email address"
         request.password.length < MINIMUM_PASSWORD_LENGTH ->
             "a password needs at least $MINIMUM_PASSWORD_LENGTH characters"
         request.name.isBlank() -> "a name is required"

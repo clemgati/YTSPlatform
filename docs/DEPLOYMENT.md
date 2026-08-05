@@ -64,16 +64,22 @@ It clears the moment `DATABASE_USER` becomes `yellowtrack_app`, for which settin
 role is trivially permitted. Do not fix it with `GRANT yellowtrack_app TO yellowtrack_owner`;
 that makes the wrong state work.
 
-### 2. SES starts in sandbox, and a password reset will not say so
+### 2. A password reset never says it failed
 
-In the sandbox SES rejects mail to any address you have not verified. The reset endpoint
-answers `202 If that address has an account, a code is on its way` **whether or not the
-send succeeded** — deliberately, because saying otherwise would reveal which addresses have
-accounts (`ADR 0010` decision 3). So in the sandbox, resets appear to work and silently
-never arrive.
+The reset endpoint answers `202 If that address has an account, a code is on its way`
+**whether or not the send succeeded** — deliberately, because saying otherwise would reveal
+which addresses have accounts (`ADR 0010` decision 3). Every way mail can fail is therefore
+invisible from the outside. The failure goes to the log and nowhere else.
 
-The failure goes to the log and nowhere else. Request production access before anybody
-needs to reset a password, and until it is granted, treat reset as not working.
+A new deployment starts in the SES sandbox, where mail to any address you have not verified
+is rejected: resets appear to work and silently never arrive. Request production access
+before anybody needs to reset a password, and until it is granted, treat reset as not
+working.
+
+**Production access does not close this hole, it moves it.** Once SES accepts mail to any
+address, a send stops failing loudly at the API and starts failing quietly afterwards — a
+bounce, a throttle, an expired SMTP credential, or sending suspended over a bounce rate you
+were not watching. The reassuring `202` is unchanged throughout.
 
 ### 3. Nothing is backed up unless you back it up
 
@@ -414,7 +420,7 @@ an invoice to a studio's client, a session reminder in the studio's name. Then o
 stale address list can sink deliverability for all of them, which is the case tenants exist
 for. It would want an ADR: it changes who the sender is.
 
-### The sandbox is the silent failure
+### Mail fails silently, whatever stage you are at
 
 `ADR 0010` has the reset endpoint answer `202 If that address has an account, a code is on
 its way` regardless of what happened, because answering differently would tell an attacker
@@ -429,9 +435,29 @@ curl -s localhost:8080/ready | grep '"mail"'         # false means nothing is ev
 sudo journalctl -u yellowtrack | grep -i mail        # a refused send is logged, not raised
 ```
 
+Note what the first one actually proves. `mail:true` means `MAIL_HOST` is set — it is read
+from the environment at boot and never from a send. It reads `true` with a wrong password,
+an expired credential, and an SES account whose sending has been suspended. It is a check
+that mail was *configured*, and there is no check that mail *works*.
+
 This is why `verify-deployment.sh` fails rather than warns on `mail:false`, and why the
-first thing to do after production access is granted is to reset a password end to end and
-watch it arrive.
+first thing to do after production access is granted is to reset a password end to end,
+**to an address that was never an SES identity**, and watch it arrive. Resetting to a
+verified address proves only what already worked in the sandbox.
+
+### After production access, bounces are yours to watch
+
+In the sandbox a bad address is refused at the API, in the request, where it is logged. In
+production SES accepts it and bounces asynchronously — and holds the account to a bounce
+rate under 5% and a complaint rate under 0.1%, above which sending goes under review and
+then away. Nothing here subscribes to the SNS bounce topic, so the first sign would be
+resets no longer arriving for anyone.
+
+The volume protects you more than the code does: the only mail this application sends is a
+password reset, to an address somebody typed at sign-up and has to still control to have
+got in. That is a small number of sends and a small number of ways to bounce. It is worth
+knowing rather than acting on today — but it is now a thing that can be got wrong, and in
+the sandbox it was not.
 
 ---
 

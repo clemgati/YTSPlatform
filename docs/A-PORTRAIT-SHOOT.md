@@ -233,8 +233,8 @@ payment with it.
 Worth knowing before you rely on it:
 
 - **It does not send email.** Quotes and invoices are rendered and saved or shared; the
-  sending is yours. Password reset emails are the one exception, and they are limited to
-  verified addresses until AWS grants production access
+  sending is yours. Password reset emails are the one exception, and they now reach any
+  address
 - **It does not take payments.** "How to pay you" is text on a document
 - **There is no gallery or proofing.** Deliverables are tracked, not hosted
 - **There is one environment.** Every client — web, desktop, Android, iOS — talks to the
