@@ -2,6 +2,9 @@
 
 The roadmap uses semantic versioning and milestone codenames.
 
+**1.0.0 shipped.** The version list immediately below was written before the domain existed
+and is kept for the record; the plan that matters starts at *Current plan*.
+
 ## 0.1.0 — Genesis
 
 - Compose Multiplatform bootstrap
@@ -434,18 +437,35 @@ and used.
   closed. The interval is a guess its own comment asks to revisit once somebody has used
   this on a shoot day
 
-## 0.8.0 — Collaboration
+## 1.0.0 — Launch ✓
+
+Cut when the application became usable end to end and installable, not when the original
+1.0 list was finished. A studio can take an enquiry to a paid invoice, on four platforms,
+against one server — see `docs/A-PORTRAIT-SHOOT.md`.
+
+The number says the data model is stable and the upgrade path is documented. It does not say
+the list below is done, and the two milestones after it are the same work that used to sit
+before it, renumbered rather than dropped.
+
+**What 1.0.0 does not include**, said plainly because a 1.0 implies more than a 0.x does:
+
+- no client proofing or galleries
+- no second shooters or editors with roles of their own
+- no accessibility or localisation pass — `DateFormats` is English-only
+- one environment, no staging
+- password reset limited to verified addresses until SES leaves the sandbox
+
+## 1.1.0 — Collaboration
+
+Was 0.8.0. The gallery is the largest thing this application does not do.
 
 - Client proofing, selections, and approvals — and the object storage they need, moved here
   from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
-## 0.9.0 — Release Candidate
+## 1.2.0 — Hardening
+
+Was 0.9.0. Named for what it is rather than "release candidate", which it no longer is.
 
 - Accessibility, performance, and migration validation
 - Localisation — `DateFormats` is English-only today
-
-## 1.0.0 — Launch
-
-- Production-ready Studio OS
-- Stable data model and documented upgrade path

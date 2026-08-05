@@ -31,5 +31,5 @@ subprojects {
 // typed by hand and read three milestones behind twice — the second time found by running
 // the application and looking at it. Generated from here now.
 allprojects {
-    version = "0.7.0"
+    version = "1.0.0"
 }
