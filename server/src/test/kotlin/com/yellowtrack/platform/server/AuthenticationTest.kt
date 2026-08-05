@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.server
 
 import com.yellowtrack.platform.core.model.auth.AccountResponse
+import com.yellowtrack.platform.core.model.auth.DeleteAccountRequest
+import com.yellowtrack.platform.core.model.auth.DeleteAccountResponse
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
@@ -28,8 +30,6 @@ import kotlin.test.assertTrue
  * schema a device would meet.
  */
 class AuthenticationTest {
-    // -- Signing up ---------------------------------------------------------------------
-
     // -- Taking your work with you -------------------------------------------------------
 
     @Test
@@ -57,6 +57,54 @@ class AuthenticationTest {
         withServer { client ->
             assertEquals(HttpStatusCode.Unauthorized, client.get("/auth/export").status)
         }
+
+    // -- Asking to be deleted --------------------------------------------------------------
+
+    /**
+     * The token is not enough. A signed-in laptop somebody else is holding already has one,
+     * and this is the action nobody can undo for themselves afterwards.
+     */
+    @Test
+    fun `deleting refuses a token without the password`() =
+        withServer { client ->
+            val session = client.signUpSuccessfully(uniqueEmail())
+
+            val response =
+                client.post("/auth/delete-account") {
+                    bearerAuth(session.token)
+                    contentType(ContentType.Application.Json)
+                    setBody(apiJson.encodeToString(DeleteAccountRequest("not the password")))
+                }
+
+            assertEquals(HttpStatusCode.Unauthorized, response.status)
+            // Still usable, which is the point of refusing.
+            assertEquals(HttpStatusCode.OK, client.me(session.token).status)
+        }
+
+    @Test
+    fun `deleting signs every device out and says when it becomes final`() =
+        withServer { client ->
+            val session = client.signUpSuccessfully(uniqueEmail())
+
+            val response =
+                client.post("/auth/delete-account") {
+                    bearerAuth(session.token)
+                    contentType(ContentType.Application.Json)
+                    setBody(apiJson.encodeToString(DeleteAccountRequest(PASSWORD)))
+                }
+
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            val deleted = apiJson.decodeFromString<DeleteAccountResponse>(response.bodyAsText())
+            assertTrue(
+                deleted.purgeAfter > System.currentTimeMillis(),
+                "the window has to be in the future to be a window",
+            )
+
+            // The token was good a moment ago and is not any more.
+            assertEquals(HttpStatusCode.Unauthorized, client.me(session.token).status)
+        }
+
+    // -- Signing up ---------------------------------------------------------------------
 
     /**
      * The server is the authority on shape, not the form. A client that skips the check —

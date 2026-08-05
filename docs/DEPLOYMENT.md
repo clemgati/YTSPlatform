@@ -350,6 +350,8 @@ here — every one of them is a laptop default.
 | `MAIL_TLS` | `true` | Defaults to *false*, which is right only for a local capture server |
 | `MAIL_FROM` | `no-reply@yourdomain` | Must be on a domain verified in SES |
 | `ALLOWED_ORIGINS` | `https://app.yourdomain` | Only needed for the browser build |
+| `ALERT_EMAIL` | `you@yourdomain` | Where `watch-deployment.sh` reports a change of state |
+| `DELETION_RETENTION_DAYS` | `30` | How long a deleted studio can still be put back. Defaults to 30 |
 | `PORT` | `8080` | Bound to loopback; Apache is the only thing that reaches it |
 
 `MAIL_USERNAME` catches people out: SES SMTP credentials are generated separately in the

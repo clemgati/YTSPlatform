@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.server.auth
 
 import com.yellowtrack.platform.core.model.auth.AccountResponse
+import com.yellowtrack.platform.core.model.auth.DeleteAccountRequest
+import com.yellowtrack.platform.core.model.auth.DeleteAccountResponse
 import com.yellowtrack.platform.core.model.auth.EmailAddress
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.auth.ForgotPasswordRequest
@@ -8,6 +10,7 @@ import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
+import com.yellowtrack.platform.server.account.AccountDeletion
 import com.yellowtrack.platform.server.account.StudioExport
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -37,6 +40,7 @@ fun Route.authRoutes(
     accounts: Accounts,
     resets: PasswordResets,
     export: StudioExport? = null,
+    deletion: AccountDeletion? = null,
 ) {
     route("/auth") {
         post("/sign-up") {
@@ -157,6 +161,34 @@ fun Route.authRoutes(
                         )
                         call.respond(export.of(session.studioId, session.accountId))
                     }
+                }
+            }
+
+            /**
+             * Deletes the studio and everything in it.
+             *
+             * A POST rather than a DELETE on `/auth/account`, because it carries a body: the
+             * password is checked again here, and a DELETE with a body is the kind of thing
+             * proxies and clients disagree about.
+             */
+            post("/delete-account") {
+                val session = call.principal<SessionPrincipal>()!!.session
+                val request = call.receive<DeleteAccountRequest>()
+
+                when (deletion) {
+                    null ->
+                        call.respond(HttpStatusCode.NotImplemented, ErrorResponse("deletion is not configured"))
+                    else ->
+                        when (val done = deletion.request(session.accountId, session.studioId, request.password)) {
+                            // The same answer a wrong password gets anywhere else here, and
+                            // for the same reason it is not more specific.
+                            null ->
+                                call.respond(
+                                    HttpStatusCode.Unauthorized,
+                                    ErrorResponse("that password is wrong"),
+                                )
+                            else -> call.respond(HttpStatusCode.OK, DeleteAccountResponse(done.purgeAfter))
+                        }
                 }
             }
         }
