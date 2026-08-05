@@ -342,19 +342,29 @@ and used.
   `studio_profile.name` is the editable one every document carries. They can disagree
   permanently. One of them should stop existing, and `adoptStudioName` — a workaround from
   when the profile could not travel — should probably go with it
+- ✓ **A studio can delete itself, with a window to change its mind.** `POST
+  /auth/delete-account` asks for the password again — a token is what a borrowed laptop
+  already has — then revokes every session and marks the studio and account deleted at once.
+  The records go for good thirty days later (`DELETION_RETENTION_DAYS`), from a daily job in
+  the server, which is where it has to live: the purge needs the sync entity registry to know
+  which tables a studio owns and in what order they can be removed, and a shell script would
+  need that list a second time. **The purge runs inside the studio's row level security
+  scope, and that is load-bearing rather than tidy** — `unscoped` leaves `app.studio_id`
+  unset, so every `DELETE` matches nothing, removes nothing, and reports success while
+  leaving every client and invoice behind
 - ◐ **A studio can take its work with it.** `GET /auth/export` returns everything it has as
   one JSON file — every table sync knows about, read inside the row level security scope so
   Postgres does the tenanting rather than a `WHERE` clause that could be got wrong. Built on
   the sync entities so it cannot describe a record differently from the way the application
   already does, and a table added to sync appears in the export without anybody remembering.
-  Half a tick because **deletion is the other half and is not built**: the application still
-  holds other people's clients, addresses and payment histories with no way to remove them.
-  `account.deleted_at` is respected by every query and set by nothing. There is a concrete
-  one waiting: an account signed up against a mistyped domain, which cannot be recovered —
-  its only route back is an inbox that does not exist — and cannot be removed either, so the
-  address it holds stays taken
+  Half a tick because **no screen reaches either of these yet** — both are endpoints, and a
+  studio cannot press them. Settings is where they go, and export has to be the thing next
+  to the delete button rather than a URL somebody is told about
   - Export came first deliberately. Offering to erase a business's records without first
     offering it a copy is not a choice anybody should be asked to make
+  - The account signed up against a mistyped domain can now be cleared: it cannot be
+    recovered, since its only route back is an inbox that does not exist, but it no longer
+    has to keep the address it holds
 
 - ✓ **What the studio enters can now be removed.** Of the forty-five write methods the
   repositories declare, eleven were never called from any screen — and ten of those were

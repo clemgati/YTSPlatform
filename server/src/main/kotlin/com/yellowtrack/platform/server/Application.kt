@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.server
 
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.server.account.AccountDeletion
 import com.yellowtrack.platform.server.account.StudioExport
 import com.yellowtrack.platform.server.auth.Accounts
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
@@ -31,7 +32,11 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.hours
 
 /**
  * The API in front of Postgres.
@@ -65,6 +70,14 @@ fun main() {
  */
 private const val DEFAULT_PORT = 8080
 
+/**
+ * How often deleted studios are looked for.
+ *
+ * Daily. The window is measured in days, so checking more often would only move a purge a
+ * few hours earlier than a studio was told to expect it.
+ */
+private val PURGE_INTERVAL = 24.hours
+
 fun Application.module(
     database: Database,
     deployment: Deployment = Deployment(allowedOrigins = emptyList()),
@@ -86,6 +99,27 @@ fun Application.module(
             mailConfig?.let { MonitoredMailer(SmtpMail(it), mailHealth) },
             onSendFailure = { log.error("could not send mail", it) },
         )
+
+    val deletion = AccountDeletion(database, AccountDeletion.retentionFromEnvironment())
+
+    // Deletion is a promise with a date on it, and a promise nothing ever runs is a way of
+    // keeping data somebody asked to be rid of. In the server rather than a systemd timer
+    // because the purge needs the entity registry to know which tables a studio owns and in
+    // what order they can be removed — a shell script would need that list written out a
+    // second time, and a second list is one that goes stale.
+    launch {
+        while (isActive) {
+            // Delayed first, so a server restarting in a loop does not purge on every boot.
+            delay(PURGE_INTERVAL)
+            runCatching { deletion.purge() }
+                .onSuccess { report ->
+                    if (!report.isEmpty) log.info("purged ${report.studios} deleted studios (${report.rows} rows)")
+                }
+                // Logged rather than fatal. A purge that cannot run is a promise slipping,
+                // not a reason to stop serving the studios still working.
+                .onFailure { log.error("could not purge deleted studios", it) }
+        }
+    }
 
     install(ContentNegotiation) {
         json(apiJson)
@@ -167,7 +201,7 @@ fun Application.module(
             )
         }
 
-        authRoutes(accounts, resets, StudioExport(database))
+        authRoutes(accounts, resets, StudioExport(database), deletion)
         syncRoutes(Reconciler(database))
     }
 }

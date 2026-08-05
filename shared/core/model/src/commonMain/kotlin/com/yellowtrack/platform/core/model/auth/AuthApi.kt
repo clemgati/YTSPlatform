@@ -80,3 +80,26 @@ data class ResetPasswordRequest(
 data class ErrorResponse(
     val error: String,
 )
+
+/**
+ * Asks for the studio and everything in it to be deleted.
+ *
+ * The password is asked for again even though the request is already authenticated. A token
+ * is what a borrowed laptop already has, and this is the one action nobody can undo for
+ * themselves afterwards.
+ */
+@Serializable
+data class DeleteAccountRequest(
+    val password: String,
+)
+
+/**
+ * What was done, and until when it can still be undone.
+ *
+ * [purgeAfter] is given so the answer to "how long have I got" comes from the server that
+ * will act on it rather than from a sentence in a screen that could drift from the setting.
+ */
+@Serializable
+data class DeleteAccountResponse(
+    val purgeAfter: Long,
+)
