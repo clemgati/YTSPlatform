@@ -72,6 +72,25 @@ else
     note "cannot say whether an address has an account — so this check is the only warning."
 fi
 
+# Configured is not working, and the gap between them is where every real mail failure
+# lives: a wrong password, an expired credential, an unverified sender, a region still in
+# the sandbox. The check above reads an environment variable set at boot and would pass
+# through all of them.
+mail_error="$(echo "$readiness" | sed -n 's/.*"mailError":"\([^"]*\)".*/\1/p')"
+
+if [ -n "$mail_error" ]; then
+    fail "the last attempt to send mail failed: $mail_error"
+    note "Password reset is answering 202 and delivering nothing. Nobody is being told."
+elif echo "$readiness" | grep -q '"mailLastSucceededAt":[0-9]'; then
+    pass "mail has sent successfully since the server started"
+else
+    # Not a failure. Nothing has been sent, which is the normal state of a deployment where
+    # nobody has needed a password reset since the last restart — and reporting an absence
+    # of evidence as a fault is how a check stops being believed.
+    skip "no mail sent since the server started, so sending is unproved"
+    note "Reset a password to an address that is not an SES identity to prove it."
+fi
+
 # --- 3. The tenant boundary is actually enforced ---------------------------------------------
 
 echo

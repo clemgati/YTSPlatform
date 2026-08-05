@@ -642,6 +642,103 @@ the bucket beside the dumps, where one compromise would yield both.
 
 ---
 
+## Being told
+
+Everything above knows how to fail loudly and nothing listens. `verify-deployment.sh` has
+always found the failures that do not announce themselves; the backup and restore-check
+timers have always exited non-zero. All of it went into the journal, and the studio still
+got there first — every time, so far.
+
+`watch-deployment.sh` adds no checks. It runs the ones that exist and emails when the answer
+*changes*.
+
+### The one new setting
+
+```
+ALERT_EMAIL=you@yourdomain
+```
+
+in `/etc/yellowtrack/env`. It sends through the SES credentials already there, so there is
+no MTA to install and nothing new to hold a secret — `curl` speaks SMTP.
+
+### The units
+
+`/etc/systemd/system/yellowtrack-watch.service`:
+
+```ini
+[Unit]
+Description=Check the Yellow Track deployment and report what changed
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Root, because the checks read /etc/yellowtrack/env and query Postgres as a superuser.
+# Both are read-only; nothing here writes to the database.
+User=root
+ExecStartPre=/usr/bin/install -d -o root -g root -m 750 /var/lib/yellowtrack
+ExecStart=/usr/local/bin/watch-deployment.sh https://api.yourdomain
+```
+
+`/etc/systemd/system/yellowtrack-watch.timer`:
+
+```ini
+[Unit]
+Description=Check the deployment every fifteen minutes
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=15m
+# Deliberately absent: Persistent=true. Catching up on missed runs after a restart tells
+# you what was wrong an hour ago, which is not a thing anybody can act on.
+
+[Install]
+WantedBy=timers.target
+```
+
+`watch-deployment.sh` and `verify-deployment.sh` must sit **beside each other** — the first
+runs the second from its own directory:
+
+```sh
+sudo install -m 755 scripts/watch-deployment.sh scripts/verify-deployment.sh /usr/local/bin/
+sudo systemctl daemon-reload
+sudo systemctl enable --now yellowtrack-watch.timer
+sudo systemctl start yellowtrack-watch.service    # once, now, rather than waiting
+sudo journalctl -u yellowtrack-watch -n 40 --no-pager
+```
+
+### What it sends, and what it does not
+
+Mail goes out on a **change of state**: healthy to failing, failing to healthy. While
+something stays broken it says so once a day and is otherwise quiet. A full disk stays full
+for days; at four runs an hour that would be several hundred identical messages, and the
+next real alert would arrive underneath them.
+
+The recovery message matters as much as the alarm. Without it the last thing you heard was
+that something broke, and silence afterwards is indistinguishable from the watchdog having
+died too.
+
+### It cannot report a failure of the thing it reports through
+
+**If mail is what is broken, the mail saying mail is broken does not arrive.** There is no
+way around that from a single instance. So instead:
+
+- every run writes its verdict to `/var/lib/yellowtrack/watch-state`
+- a failure to send is itself logged at error level
+- the unit exits non-zero, so `systemctl status yellowtrack-watch` shows it failed
+- the full report is in the journal whether or not anybody could be reached
+
+```sh
+sudo systemctl status yellowtrack-watch
+cat /var/lib/yellowtrack/watch-state
+```
+
+That is the offline answer, and it is worth knowing it exists *before* the day mail stops.
+
+A second instance watching the first is the real fix, and it is the same missing piece as
+staging: there is only one box. Recorded in `docs/ROADMAP.md` rather than pretended away.
+
+---
+
 ## Apache
 
 The server binds to `127.0.0.1` on purpose: Apache terminates TLS and is the only thing

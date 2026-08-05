@@ -7,6 +7,8 @@ import com.yellowtrack.platform.server.auth.PasswordResets
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
 import com.yellowtrack.platform.server.mail.MailConfig
+import com.yellowtrack.platform.server.mail.MailHealth
+import com.yellowtrack.platform.server.mail.MonitoredMailer
 import com.yellowtrack.platform.server.mail.SmtpMail
 import com.yellowtrack.platform.server.sync.Reconciler
 import com.yellowtrack.platform.server.sync.syncRoutes
@@ -73,8 +75,16 @@ fun Application.module(
     // so it is said once at boot rather than discovered at the first reset.
     val mailConfig = MailConfig.fromEnvironment()
     if (mailConfig == null) log.warn("MAIL_HOST is not set: password reset codes will be issued but not sent.")
+
+    // Wrapped rather than watched from outside, so what /ready reports is what actually
+    // happened on the socket rather than what the environment said at boot.
+    val mailHealth = MailHealth()
     val resets =
-        PasswordResets(database, mailConfig?.let(::SmtpMail), onSendFailure = { log.error("could not send mail", it) })
+        PasswordResets(
+            database,
+            mailConfig?.let { MonitoredMailer(SmtpMail(it), mailHealth) },
+            onSendFailure = { log.error("could not send mail", it) },
+        )
 
     install(ContentNegotiation) {
         json(apiJson)
@@ -137,6 +147,8 @@ fun Application.module(
                 Readiness(
                     database = reached.isSuccess,
                     mail = mailConfig != null,
+                    mailError = mailHealth.lastFailure,
+                    mailLastSucceededAt = mailHealth.lastSucceededAt,
                     // Postgres says "permission denied to set role" here, which names the
                     // problem exactly. Worth forwarding: this endpoint is reachable only
                     // from the instance, so there is no one to disclose it to.
@@ -187,4 +199,24 @@ data class Readiness(
      * migrations succeeded, and says nothing about which of the two it was.
      */
     val databaseError: String? = null,
+    /**
+     * Why the last attempt to send mail failed, or null if it worked.
+     *
+     * [mail] says a host is configured; this says what happened when one was last used.
+     * The two disagree in exactly the case worth catching — configured and refusing — which
+     * is where a wrong credential, an unverified sender and a sandboxed region all land.
+     *
+     * Only SMTP-level failures. A bounce happens after SES has accepted the message and is
+     * invisible from here.
+     */
+    val mailError: String? = null,
+    /**
+     * When a send last worked, or null if none has *in this process*.
+     *
+     * Null is not a failure and must not be read as one. It means unproved: a server that
+     * has just restarted has sent nothing, and a deployment where nobody has needed a
+     * password reset can sit here for weeks while mail is perfectly healthy. It separates
+     * "working" from "never tried", which `mail` alone cannot.
+     */
+    val mailLastSucceededAt: Long? = null,
 )
