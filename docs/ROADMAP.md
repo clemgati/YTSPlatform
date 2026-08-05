@@ -476,6 +476,19 @@ before it, renumbered rather than dropped.
 - one environment, no staging
 - password reset that reaches any address, but tells nobody when it stops
 
+### 1.0.1
+
+Two faults that only a deployed application could have shown, both found by a studio using
+it rather than by anything in this repository.
+
+- An address is checked for shape at sign-up, and questioned when it looks like a slip. An
+  account had been created against a domain that does not exist, making it unrecoverable —
+  the address is the only route back in
+- The web vhost cached the application under a filename that does not change between
+  releases, so 1.0.0 deployed successfully and the browser kept running 0.7.0. Only the two
+  large `.wasm` files carry a content hash; everything else now revalidates, and
+  `deploy-web.sh` fails if that ever drifts back
+
 ## 1.1.0 — Collaboration
 
 Was 0.8.0. The gallery is the largest thing this application does not do.
