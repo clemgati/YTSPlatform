@@ -19,6 +19,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -255,6 +256,61 @@ class SignInViewModelTest {
         }
     }
 
+    // -- Changing your mind ------------------------------------------------------------------
+
+    /**
+     * The gap this was written for. Deleting revokes every session, so the sign-in screen is
+     * the only door left — and it used to answer "email or password is wrong" to somebody
+     * whose password was right and whose studio was still there.
+     */
+    @Test
+    fun `signing in to a deleted studio offers it back rather than refusing`() =
+        runTest {
+            val world = world(api = PendingDeletionApi())
+
+            world.viewModel.onEmailChanged("ada@harbourline.test")
+            world.viewModel.onPasswordChanged("a long enough password")
+            world.viewModel.submit()
+
+            val state = world.viewModel.uiState.value
+            assertEquals(1_788_000_000_000L, state.pendingDeletion, "the screen has to know there is a way back")
+            assertNull(state.error, "the password was right, so this is not an error to apologise for")
+        }
+
+    @Test
+    fun `restoring signs the studio back in`() =
+        runTest {
+            val world = world(api = PendingDeletionApi())
+
+            world.viewModel.onEmailChanged("ada@harbourline.test")
+            world.viewModel.onPasswordChanged("a long enough password")
+            world.viewModel.submit()
+            world.viewModel.restore()
+
+            assertNotNull(world.store.written, "restoring has to leave the device signed in")
+        }
+
+    private class PendingDeletionApi : AuthApi by AcceptingApi() {
+        override suspend fun signIn(
+            email: String,
+            password: String,
+        ): StoredSession = throw AuthFailure.PendingDeletion(1_788_000_000_000L)
+
+        override suspend fun restoreAccount(
+            email: String,
+            password: String,
+        ): StoredSession =
+            StoredSession(
+                token = "restored",
+                expiresAt = Long.MAX_VALUE,
+                accountId = "account-1",
+                email = email,
+                name = "Ada Okafor",
+                studioId = "studio-1",
+                studioName = "Harbourline Photography",
+            )
+    }
+
     private class AcceptingApi : AuthApi {
         override suspend fun signIn(
             email: String,
@@ -267,6 +323,11 @@ class SignInViewModelTest {
             name: String,
             studioName: String,
         ) = session
+
+        override suspend fun restoreAccount(
+            email: String,
+            password: String,
+        ): StoredSession = error("unused")
 
         override suspend fun exportStudio(token: String): String = error("unused")
 
@@ -300,6 +361,11 @@ class SignInViewModelTest {
             name: String,
             studioName: String,
         ): StoredSession = throw failure
+
+        override suspend fun restoreAccount(
+            email: String,
+            password: String,
+        ): StoredSession = error("unused")
 
         override suspend fun exportStudio(token: String): String = error("unused")
 

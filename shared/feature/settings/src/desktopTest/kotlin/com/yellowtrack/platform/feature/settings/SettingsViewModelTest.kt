@@ -227,6 +227,11 @@ class SettingsViewModelTest {
     private class ExportingAuthApi(
         private val body: String,
     ) : AuthApi by UnusedAuthApi {
+        override suspend fun restoreAccount(
+            email: String,
+            password: String,
+        ): StoredSession = error("unused")
+
         override suspend fun exportStudio(token: String): String = body
     }
 
@@ -258,6 +263,11 @@ class SettingsViewModelTest {
         ): StoredSession = error("unused")
 
         override suspend fun signOut(token: String) = Unit
+
+        override suspend fun restoreAccount(
+            email: String,
+            password: String,
+        ): StoredSession = error("unused")
 
         override suspend fun exportStudio(token: String): String = error("unused")
 

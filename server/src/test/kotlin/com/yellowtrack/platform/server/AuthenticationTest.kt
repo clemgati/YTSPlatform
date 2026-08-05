@@ -3,6 +3,8 @@ package com.yellowtrack.platform.server
 import com.yellowtrack.platform.core.model.auth.AccountResponse
 import com.yellowtrack.platform.core.model.auth.DeleteAccountRequest
 import com.yellowtrack.platform.core.model.auth.DeleteAccountResponse
+import com.yellowtrack.platform.core.model.auth.PendingDeletionResponse
+import com.yellowtrack.platform.core.model.auth.RestoreAccountRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
@@ -105,6 +107,68 @@ class AuthenticationTest {
         }
 
     // -- Signing up ---------------------------------------------------------------------
+
+    // -- Changing your mind ------------------------------------------------------------------
+
+    /**
+     * The gap this was written for. The window is thirty days of rows nobody could reach:
+     * deletion revokes every session, and sign-in, password reset and `whoami` all filter on
+     * `deleted_at`, so a studio was told it had thirty days to change its mind and had no
+     * door to knock on.
+     */
+    @Test
+    fun `a deleted studio can sign in far enough to be told it can come back`() =
+        withServer { client ->
+            val email = uniqueEmail()
+            val session = client.signUpSuccessfully(email)
+            client.deleteAccount(session.token, PASSWORD)
+
+            val response = client.signIn(email, PASSWORD)
+
+            assertEquals(HttpStatusCode.Forbidden, response.status, response.bodyAsText())
+            val pending = apiJson.decodeFromString<PendingDeletionResponse>(response.bodyAsText())
+            assertTrue(pending.purgeAfter > System.currentTimeMillis(), "the window has to be ahead to be a window")
+            assertTrue("restore" in pending.error.lowercase(), "it has to say a way back exists: ${pending.error}")
+        }
+
+    @Test
+    fun `restoring brings the studio back and signs in`() =
+        withServer { client ->
+            val email = uniqueEmail()
+            val first = client.signUpSuccessfully(email)
+            client.deleteAccount(first.token, PASSWORD)
+
+            val restored = client.restore(email, PASSWORD)
+            assertEquals(HttpStatusCode.OK, restored.status, restored.bodyAsText())
+
+            val session = apiJson.decodeFromString<SessionResponse>(restored.bodyAsText())
+            assertEquals(email, session.email)
+            assertEquals("Harbourline Photography", session.studioName)
+
+            // The real test of a restore: the token works and signing in plainly works again.
+            assertEquals(HttpStatusCode.OK, client.me(session.token).status)
+            assertEquals(HttpStatusCode.OK, client.signIn(email, PASSWORD).status)
+        }
+
+    /** A wrong password must not undelete anything, or the window is a hole. */
+    @Test
+    fun `restoring refuses a wrong password`() =
+        withServer { client ->
+            val email = uniqueEmail()
+            val session = client.signUpSuccessfully(email)
+            client.deleteAccount(session.token, PASSWORD)
+
+            assertEquals(HttpStatusCode.Unauthorized, client.restore(email, "not the password").status)
+            // Still deleted.
+            assertEquals(HttpStatusCode.Forbidden, client.signIn(email, PASSWORD).status)
+        }
+
+    /** The address is not a way to ask whether somebody has an account here. */
+    @Test
+    fun `restoring an address with no account is refused like any other`() =
+        withServer { client ->
+            assertEquals(HttpStatusCode.Unauthorized, client.restore(uniqueEmail(), PASSWORD).status)
+        }
 
     /**
      * The server is the authority on shape, not the form. A client that skips the check —
@@ -417,6 +481,23 @@ class AuthenticationTest {
     }
 
     private suspend fun HttpClient.me(token: String) = get("/auth/me") { bearerAuth(token) }
+
+    private suspend fun HttpClient.deleteAccount(
+        token: String,
+        password: String,
+    ) = post("/auth/delete-account") {
+        bearerAuth(token)
+        contentType(ContentType.Application.Json)
+        setBody(apiJson.encodeToString(DeleteAccountRequest(password)))
+    }
+
+    private suspend fun HttpClient.restore(
+        email: String,
+        password: String,
+    ) = post("/auth/restore-account") {
+        contentType(ContentType.Application.Json)
+        setBody(apiJson.encodeToString(RestoreAccountRequest(email, password)))
+    }
 
     private fun countOf(
         db: java.sql.Connection,

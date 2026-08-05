@@ -16,6 +16,8 @@ fun SignInRoute(modifier: Modifier = Modifier) {
     SignInScreen(
         uiState = uiState,
         onEmailChanged = viewModel::onEmailChanged,
+        onRestore = viewModel::restore,
+        onDismissPendingDeletion = viewModel::dismissPendingDeletion,
         onPasswordChanged = viewModel::onPasswordChanged,
         onNameChanged = viewModel::onNameChanged,
         onStudioNameChanged = viewModel::onStudioNameChanged,

@@ -103,3 +103,29 @@ data class DeleteAccountRequest(
 data class DeleteAccountResponse(
     val purgeAfter: Long,
 )
+
+/**
+ * Undoes a deletion that has not been purged yet.
+ *
+ * Takes the credentials rather than a token because there is no session to present: every
+ * one was revoked the moment the studio asked to go, which is the whole reason this cannot
+ * be a button inside the application.
+ */
+@Serializable
+data class RestoreAccountRequest(
+    val email: String,
+    val password: String,
+)
+
+/**
+ * The answer to a sign-in for a studio that is waiting to be purged.
+ *
+ * Sent only when the password was right. It carries the date rather than a sentence so the
+ * screen can say it in the reader's own format, and so the number comes from the server that
+ * will act on it rather than from a string that could drift from the setting.
+ */
+@Serializable
+data class PendingDeletionResponse(
+    val purgeAfter: Long,
+    val error: String,
+)

@@ -7,7 +7,9 @@ import com.yellowtrack.platform.core.model.auth.DeleteAccountRequest
 import com.yellowtrack.platform.core.model.auth.DeleteAccountResponse
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.auth.ForgotPasswordRequest
+import com.yellowtrack.platform.core.model.auth.PendingDeletionResponse
 import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
+import com.yellowtrack.platform.core.model.auth.RestoreAccountRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
@@ -97,6 +99,17 @@ class HttpAuthApi(
         }
     }
 
+    override suspend fun restoreAccount(
+        email: String,
+        password: String,
+    ): StoredSession =
+        reaching {
+            client.post("$baseUrl/auth/restore-account") {
+                contentType(ContentType.Application.Json)
+                setBody(RestoreAccountRequest(email.trim(), password))
+            }
+        }.toSession()
+
     override suspend fun signOut(token: String) {
         reaching {
             client.post("$baseUrl/auth/sign-out") { bearerAuth(token) }
@@ -161,6 +174,14 @@ class HttpAuthApi(
         throw when (response.status) {
             HttpStatusCode.Unauthorized -> AuthFailure.BadCredentials
             HttpStatusCode.Conflict -> AuthFailure.EmailAlreadyRegistered
+            // The password was right and the studio is on its way out. Its own case because
+            // the screen has something to offer rather than something to apologise for.
+            HttpStatusCode.Forbidden ->
+                runCatching { response.body<PendingDeletionResponse>() }
+                    .fold(
+                        onSuccess = { AuthFailure.PendingDeletion(it.purgeAfter) },
+                        onFailure = { AuthFailure.Rejected(response.status.description) },
+                    )
             // The server's validation messages are written for a person to read, so they
             // are passed through rather than replaced with something vaguer.
             HttpStatusCode.BadRequest -> AuthFailure.Rejected(response.reason())

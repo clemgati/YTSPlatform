@@ -373,8 +373,9 @@ private fun AccountSection(
 
         Text(
             text =
-                "Deleting removes this studio and everything in it. You have 30 days to change " +
-                    "your mind; after that it cannot be recovered by anybody.",
+                "Deleting removes this studio and everything in it, on every device. For 30 " +
+                    "days you can bring it back by signing in again; after that it cannot be " +
+                    "recovered by anybody.",
             style = YTTheme.typography.bodyMedium,
             color = YTTheme.colors.onSurfaceVariant,
         )
@@ -435,8 +436,8 @@ internal fun DeleteStudioDialog(
         Text(
             text =
                 "This removes every client, booking, document and payment belonging to " +
-                    "$studioName, on every device. For 30 days it can be put back; after that " +
-                    "it is gone.",
+                    "$studioName, on every device. You will be signed out everywhere. For 30 " +
+                    "days, signing in again offers it back; after that it is gone.",
             style = YTTheme.typography.bodyMedium,
             color = YTTheme.colors.onSurfaceVariant,
         )

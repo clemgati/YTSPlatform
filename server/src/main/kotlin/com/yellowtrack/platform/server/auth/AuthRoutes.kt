@@ -6,7 +6,9 @@ import com.yellowtrack.platform.core.model.auth.DeleteAccountResponse
 import com.yellowtrack.platform.core.model.auth.EmailAddress
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.auth.ForgotPasswordRequest
+import com.yellowtrack.platform.core.model.auth.PendingDeletionResponse
 import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
+import com.yellowtrack.platform.core.model.auth.RestoreAccountRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
@@ -74,7 +76,47 @@ fun Route.authRoutes(
             accounts
                 .signIn(request.email, request.password)
                 .onSuccess { call.respond(HttpStatusCode.OK, it.toResponse()) }
-                .onFailure { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("email or password is wrong")) }
+                .onFailure { failure ->
+                    // 403 rather than 401: the credentials were accepted and the state of
+                    // the studio is what stands in the way, which is a different thing for a
+                    // client to act on — one offers a password reset, the other offers the
+                    // studio back.
+                    //
+                    // Not 409, though it fits the meaning better. Sign-up already answers 409
+                    // for an address that is taken, and one status carrying two meanings
+                    // makes the client tell them apart by sniffing the body — which works
+                    // until a message changes.
+                    when (val reason = (failure as? SignInRefused)?.failure) {
+                        is SignInFailure.PendingDeletion ->
+                            call.respond(
+                                HttpStatusCode.Forbidden,
+                                PendingDeletionResponse(
+                                    purgeAfter = reason.purgeAfter,
+                                    error = "This studio is waiting to be deleted. You can still restore it.",
+                                ),
+                            )
+                        else ->
+                            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("email or password is wrong"))
+                    }
+                }
+        }
+
+        /**
+         * Brings a deleted studio back.
+         *
+         * Unauthenticated in the bearer sense and password-checked instead, because the
+         * deletion revoked every session — a studio in the window has no token to present,
+         * and requiring one would make the window unusable by the only person it is for.
+         */
+        post("/restore-account") {
+            val request = call.receive<RestoreAccountRequest>()
+
+            accounts
+                .restore(request.email, request.password)
+                .onSuccess { call.respond(HttpStatusCode.OK, it.toResponse()) }
+                .onFailure {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("email or password is wrong"))
+                }
         }
 
         // Always 202, always the same body. ADR 0010 decision 3: any difference between a

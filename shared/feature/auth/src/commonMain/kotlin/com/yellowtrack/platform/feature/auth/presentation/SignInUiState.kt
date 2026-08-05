@@ -50,6 +50,14 @@ internal data class SignInUiState(
      * knowing before it signs in on a shared machine.
      */
     val isHardwareBacked: Boolean = true,
+    /**
+     * When this studio will be purged, if signing in found it on its way out.
+     *
+     * Non-null replaces the form with the offer to bring it back. Kept apart from [error]
+     * because it is not one: the password was right, and the screen has something to give
+     * rather than something to refuse.
+     */
+    val pendingDeletion: Long? = null,
 ) {
     /**
      * The address this was probably meant to be, if it looks like a slip.

@@ -24,6 +24,16 @@ sealed class AuthFailure(
      * because on a shoot day with no signal it is by far the most likely.
      */
     data object Unreachable : AuthFailure("Could not reach the server. Check your connection.")
+
+    /**
+     * The credentials were right and the studio is waiting to be purged.
+     *
+     * Its own case because the screen has something to offer rather than something to
+     * apologise for. Sent by the server only when the password was correct.
+     */
+    data class PendingDeletion(
+        val purgeAfter: Long,
+    ) : AuthFailure("This studio is waiting to be deleted. You can still restore it.")
 }
 
 /** What the server is asked to do. Implemented over HTTP in `core:network`. */
@@ -63,6 +73,12 @@ interface AuthApi {
      * keep somebody signed in on the device in front of them.
      */
     suspend fun signOut(token: String)
+
+    /** Undoes a deletion that has not been purged. Throws [AuthFailure] if refused. */
+    suspend fun restoreAccount(
+        email: String,
+        password: String,
+    ): StoredSession
 
     /**
      * The studio's whole record, as the JSON the server sends.
@@ -189,6 +205,19 @@ class AuthRepository(
         state.value = SessionState.SignedOut
 
         current?.let { runCatching { api.signOut(it.token) } }
+    }
+
+    /**
+     * Brings a deleted studio back, and signs in.
+     *
+     * Adopts the session exactly as signing in does — restoring is signing in, for somebody
+     * whose studio happened to be on its way out.
+     */
+    suspend fun restoreAccount(
+        email: String,
+        password: String,
+    ) {
+        adopt(api.restoreAccount(email, password))
     }
 
     /**

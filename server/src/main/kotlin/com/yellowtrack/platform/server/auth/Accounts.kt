@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.server.auth
 
 import com.yellowtrack.platform.server.Database
+import com.yellowtrack.platform.server.account.AccountDeletion
 import java.sql.Connection
 import java.util.UUID
 import kotlin.time.Duration
@@ -42,6 +43,18 @@ sealed interface SignInFailure {
     data object BadCredentials : SignInFailure
 
     data object NoStudio : SignInFailure
+
+    /**
+     * The credentials are right and the studio is waiting to be purged.
+     *
+     * Coarse everywhere else, specific here, and that is not a leak: it is only ever reached
+     * by somebody who has just proved they know the password. Withholding it would be
+     * withholding it from the one person entitled to act on it — and the window is worthless
+     * if the studio cannot be told it is in one.
+     */
+    data class PendingDeletion(
+        val purgeAfter: Long,
+    ) : SignInFailure
 }
 
 class EmailAlreadyRegistered : Exception("that email address already has an account")
@@ -58,6 +71,9 @@ class Accounts(
     private val database: Database,
     private val now: () -> Long = System::currentTimeMillis,
     private val sessionLifetime: Duration = DEFAULT_SESSION_LIFETIME,
+    /** Matches [com.yellowtrack.platform.server.account.AccountDeletion], so the date a studio
+     *  is told at sign-in is the date the purge will act on. */
+    private val retention: Duration = AccountDeletion.DEFAULT_RETENTION,
 ) {
     /**
      * Registers a person, creates the studio they own, and signs them in.
@@ -148,7 +164,11 @@ class Accounts(
         password: String,
     ): Result<SignedIn> =
         database.unscoped { connection ->
-            val account = findByEmail(connection, normaliseEmail(email))
+            // Deleted accounts included, because one of them still has thirty days in which
+            // it may want to come back and this is the only door it can knock on. Refused
+            // below unless the password is right, so nothing is revealed that was not
+            // already known.
+            val account = findByEmail(connection, normaliseEmail(email), includeDeleted = true)
 
             val verified =
                 when (val hash = account?.passwordHash) {
@@ -165,6 +185,11 @@ class Accounts(
                 return@unscoped Result.failure(SignInRefused(SignInFailure.BadCredentials))
             }
 
+            // Only now, having proved the password, is the studio told what state it is in.
+            deletionPending(connection, account.id)?.let { purgeAfter ->
+                return@unscoped Result.failure(SignInRefused(SignInFailure.PendingDeletion(purgeAfter)))
+            }
+
             val membership =
                 studioFor(connection, account.id)
                     ?: return@unscoped Result.failure(SignInRefused(SignInFailure.NoStudio))
@@ -173,6 +198,94 @@ class Accounts(
             val (token, expiresAt) = openSession(connection, account.id, membership.first, timestamp)
             Result.success(SignedIn(token, account, membership.first, membership.second, expiresAt))
         }
+
+    /**
+     * Undoes a deletion that has not been purged, and signs in.
+     *
+     * Its own call rather than a flag on sign-in, because restoring is a decision and sign-in
+     * is a habit. It takes the password rather than a token for the same reason deletion
+     * does — there is no session to present, every one of them was revoked when the studio
+     * asked to go.
+     *
+     * Returns [SignInFailure.BadCredentials] for a wrong password and for an account that was
+     * never deleted, which is the same answer sign-in gives and reveals nothing either way.
+     */
+    fun restore(
+        email: String,
+        password: String,
+    ): Result<SignedIn> =
+        database.unscoped { connection ->
+            val account = findByEmail(connection, normaliseEmail(email), includeDeleted = true)
+
+            val verified =
+                when (val hash = account?.passwordHash) {
+                    null -> {
+                        Passwords.verify(password, DUMMY_HASH)
+                        false
+                    }
+                    else -> Passwords.verify(password, hash)
+                }
+
+            if (account == null || !verified) {
+                return@unscoped Result.failure(SignInRefused(SignInFailure.BadCredentials))
+            }
+
+            val timestamp = now()
+
+            // The studio first. If it has already been purged there is no row to clear, the
+            // membership lookup below finds nothing, and this answers NoStudio rather than
+            // pretending something was brought back.
+            listOf(
+                """
+                UPDATE studio SET deleted_at = NULL, updated_at = ?
+                WHERE deleted_at IS NOT NULL
+                  AND id IN (SELECT studio_id FROM studio_member WHERE account_id = ?)
+                """.trimIndent(),
+                "UPDATE studio_member SET deleted_at = NULL, updated_at = ? WHERE account_id = ?",
+                "UPDATE account SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+            ).forEach { sql ->
+                connection.prepareStatement(sql).use { statement ->
+                    statement.setLong(1, timestamp)
+                    statement.setString(2, account.id)
+                    statement.executeUpdate()
+                }
+            }
+
+            val membership =
+                studioFor(connection, account.id)
+                    ?: return@unscoped Result.failure(SignInRefused(SignInFailure.NoStudio))
+
+            val (token, expiresAt) = openSession(connection, account.id, membership.first, timestamp)
+            Result.success(SignedIn(token, account, membership.first, membership.second, expiresAt))
+        }
+
+    /**
+     * When this account's studio is due to be purged, or null if it is not going anywhere.
+     *
+     * Reads the studio rather than the account, because the studio is what carries the work
+     * and what the window is measured against.
+     */
+    private fun deletionPending(
+        connection: Connection,
+        accountId: String,
+    ): Long? =
+        connection
+            .prepareStatement(
+                """
+                SELECT studio.deleted_at
+                FROM studio_member
+                JOIN studio ON studio.id = studio_member.studio_id
+                WHERE studio_member.account_id = ?
+                  AND studio.deleted_at IS NOT NULL
+                ORDER BY studio.deleted_at DESC
+                LIMIT 1
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setString(1, accountId)
+                statement.executeQuery().use { rows ->
+                    if (rows.next()) rows.getLong(1) + retention.inWholeMilliseconds else null
+                }
+            }
 
     /**
      * Resolves a presented token, or null if it is unknown, expired or revoked.
@@ -292,10 +405,12 @@ class Accounts(
     private fun findByEmail(
         connection: Connection,
         email: String,
+        includeDeleted: Boolean = false,
     ): Account? =
         connection
             .prepareStatement(
-                "SELECT id, email, name, password_hash FROM account WHERE email = ? AND deleted_at IS NULL",
+                "SELECT id, email, name, password_hash FROM account WHERE email = ?" +
+                    if (includeDeleted) "" else " AND deleted_at IS NULL",
             ).use { statement ->
                 statement.setString(1, email)
                 statement.executeQuery().use { rows ->
