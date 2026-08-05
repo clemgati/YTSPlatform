@@ -8,10 +8,13 @@ import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignInRequest
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
+import com.yellowtrack.platform.server.account.StudioExport
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -33,6 +36,7 @@ data class SessionPrincipal(
 fun Route.authRoutes(
     accounts: Accounts,
     resets: PasswordResets,
+    export: StudioExport? = null,
 ) {
     route("/auth") {
         post("/sign-up") {
@@ -126,6 +130,33 @@ fun Route.authRoutes(
                                 studioName = whoami.studioName,
                             ),
                         )
+                }
+            }
+
+            /**
+             * The whole studio, as a file it can keep.
+             *
+             * Under `/auth` beside `/me` because it is answered for whoever the token is,
+             * and takes no parameters for the same reason: the studio is the session's, not
+             * something a caller may name. There is no path by which one studio asks for
+             * another's, which is the only property that matters here.
+             */
+            get("/export") {
+                val session = call.principal<SessionPrincipal>()!!.session
+
+                when (export) {
+                    null -> call.respond(HttpStatusCode.NotImplemented, ErrorResponse("export is not configured"))
+                    else -> {
+                        // An attachment, so a browser saves it rather than rendering a few
+                        // megabytes of JSON into a tab. The file carries its own
+                        // `exportedAt`, which survives being renamed on the way to a disk
+                        // in a way a date in the filename does not.
+                        call.response.header(
+                            HttpHeaders.ContentDisposition,
+                            "attachment; filename=\"yellowtrack-export.json\"",
+                        )
+                        call.respond(export.of(session.studioId, session.accountId))
+                    }
                 }
             }
         }
