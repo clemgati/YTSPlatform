@@ -19,6 +19,7 @@ import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.data.document.DocumentSender
 import com.yellowtrack.platform.core.data.observeCurrency
 import com.yellowtrack.platform.core.export.Document
 import com.yellowtrack.platform.core.export.DocumentFormat
@@ -111,6 +112,7 @@ internal class LedgerViewModel(
     private val clientRepository: ClientRepository,
     private val studioProfileRepository: StudioProfileRepository,
     private val documentSink: DocumentSink,
+    private val documentSender: DocumentSender,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
@@ -380,6 +382,52 @@ internal class LedgerViewModel(
                 } else {
                     "Saved to ${saved.location}"
                 },
+            )
+        }
+    }
+
+    /**
+     * Emails a rendered document to a client, as the studio.
+     *
+     * Not a state change. An invoice is *sent* when the studio decides the figure is right;
+     * emailing it twice has emailed it twice, and the number owed is unchanged — ADR 0011
+     * decision 5.
+     *
+     * The refusal is shown as the server words it, because every one of them is something the
+     * studio can act on: a studio email it has not filled in, a daily limit, a mail server
+     * that would not take the message. Flattening those to "that did not work" would throw
+     * away the only useful part.
+     */
+    fun emailDocument(
+        to: String,
+        sheet: suspend () -> Sheet?,
+        onResult: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            documentBlocker()?.let {
+                onResult(it)
+                return@launch
+            }
+
+            val document =
+                sheet() ?: run {
+                    onResult("That document could not be read.")
+                    return@launch
+                }
+
+            runCatching {
+                documentSender.send(
+                    to = to.trim(),
+                    subject = document.title,
+                    html = document.toHtml(),
+                    // The rendering that already exists for pasting into a message, sent
+                    // alongside rather than instead — a client that cannot show the page
+                    // still gets the document.
+                    text = document.toPlainText(),
+                )
+            }.fold(
+                onSuccess = { onResult("Sent to ${to.trim()}. A copy is in your inbox.") },
+                onFailure = { onResult(it.message ?: "That could not be sent.") },
             )
         }
     }

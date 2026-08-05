@@ -338,15 +338,20 @@ and used.
   recorded, a contract signed is an agreement struck. A sent invoice is deliberately *not*
   editable; `voidInvoice` is the remedy, and this entry previously named that as the case to
   fix, which was wrong
-- ◐ **Emailing a document.** Quotes and invoices render and can be shared; sending one from
-  inside the application is decided but not built —
+- ◐ **Emailing a document.** A studio can now email a quote or an invoice to its client from
+  the Ledger, and the decision it needed first is
   `docs/adr/0011-sending-a-document-to-a-client.md`. Half a tick for the decision, which was
   the part that was actually missing: this was called wiring twice in this file, and it is
   not. Sending *as* a studio to *its* client is a different act from sending to a studio, and
   it turns on DKIM alignment, on a sender a client will not read as fraud, on whose mailbox a
   reply lands in, and on one reputation shared by everybody. One address on the verified
   domain, the studio's name in the display name, its own address in `Reply-To`, and rate
-  limiting before it ships, because sign-up is open and this would otherwise be a relay
+  limiting before it ships, because sign-up is open and this would otherwise be a relay.
+  Still half a tick for two things: **nothing records that a document was emailed**, so a
+  studio reloading the screen cannot tell whether it pressed the button — that wants
+  `last_emailed_at` on the document and a migration to carry it — and the client's address is
+  typed each time rather than offered from the contact, because the address on a contact is
+  often the person who booked rather than the person who pays
 - **The share sheet on Android and iOS** is compiled and has never been run. Sign-in has
   now been exercised on both, so the session stores are proved — this is not
 - **Two studio names.** `studio.name` is fixed at sign-up and shown in Settings → Account;

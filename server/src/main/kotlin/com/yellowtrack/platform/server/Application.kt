@@ -8,6 +8,8 @@ import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.PasswordResets
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
+import com.yellowtrack.platform.server.document.DocumentMail
+import com.yellowtrack.platform.server.document.documentRoutes
 import com.yellowtrack.platform.server.mail.MailConfig
 import com.yellowtrack.platform.server.mail.MailHealth
 import com.yellowtrack.platform.server.mail.MonitoredMailer
@@ -98,6 +100,18 @@ fun Application.module(
             database,
             mailConfig?.let { MonitoredMailer(SmtpMail(it), mailHealth) },
             onSendFailure = { log.error("could not send mail", it) },
+        )
+
+    // Its own sender, and its own health story. A document goes outwards to somebody with no
+    // account here, which is a different act from a reset — ADR 0011.
+    val documentFrom = DocumentMail.fromEnvironment()
+    if (documentFrom == null) log.warn("DOCUMENT_FROM is not set: a studio cannot email a document to its client.")
+    val documentMail =
+        DocumentMail(
+            database = database,
+            mailer = mailConfig?.let { MonitoredMailer(SmtpMail(it), mailHealth) },
+            fromAddress = documentFrom,
+            onSendFailure = { log.error("could not send a document", it) },
         )
 
     val deletion = AccountDeletion(database, AccountDeletion.retentionFromEnvironment())
@@ -202,6 +216,7 @@ fun Application.module(
         }
 
         authRoutes(accounts, resets, StudioExport(database), deletion)
+        documentRoutes(documentMail)
         syncRoutes(Reconciler(database))
     }
 }

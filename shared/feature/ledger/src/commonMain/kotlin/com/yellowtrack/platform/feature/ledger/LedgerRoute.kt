@@ -44,6 +44,12 @@ fun LedgerRoute(modifier: Modifier = Modifier) {
         onExportQuote = { quoteId ->
             viewModel.saveDocument({ viewModel.quoteSheet(quoteId) }) { documentMessage = it }
         },
+        onEmailInvoice = { invoiceId, to ->
+            viewModel.emailDocument(to, { viewModel.invoiceSheet(invoiceId) }) { documentMessage = it }
+        },
+        onEmailQuote = { quoteId, to ->
+            viewModel.emailDocument(to, { viewModel.quoteSheet(quoteId) }) { documentMessage = it }
+        },
         documentMessage = documentMessage,
         modifier = modifier,
     )

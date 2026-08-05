@@ -129,3 +129,22 @@ data class PendingDeletionResponse(
     val purgeAfter: Long,
     val error: String,
 )
+
+/**
+ * A rendered document, on its way to a studio's client.
+ *
+ * The body is rendered on the device rather than the server, because the device already
+ * renders it — the same HTML that is saved to a file or handed to a share sheet. Rendering it
+ * a second time on the server would be a second renderer to keep in step with the first.
+ *
+ * Neither the sender nor the reply address is here. Both are the server's to decide, from the
+ * studio the token belongs to — see `ADR 0011`. A caller that could name its own sender would
+ * be a caller that could send as anybody.
+ */
+@Serializable
+data class SendDocumentRequest(
+    val to: String,
+    val subject: String,
+    val html: String,
+    val text: String,
+)

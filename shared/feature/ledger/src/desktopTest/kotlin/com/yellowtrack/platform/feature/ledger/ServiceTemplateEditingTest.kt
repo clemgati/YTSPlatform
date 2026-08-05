@@ -19,6 +19,7 @@ import com.yellowtrack.platform.core.testing.FakeQuoteRepository
 import com.yellowtrack.platform.core.testing.FakeServiceTemplateRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
+import com.yellowtrack.platform.core.testing.RecordingDocumentSender
 import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.feature.ledger.presentation.LedgerViewModel
@@ -181,6 +182,7 @@ class ServiceTemplateEditingTest {
             clientRepository = FakeClientRepository(),
             studioProfileRepository = FakeStudioProfileRepository(),
             documentSink = RecordingDocumentSink(),
+            documentSender = RecordingDocumentSender(),
             studioContext = LocalStudioContext(),
             clock = TestAppClock(),
             timeZone = TimeZone.UTC,

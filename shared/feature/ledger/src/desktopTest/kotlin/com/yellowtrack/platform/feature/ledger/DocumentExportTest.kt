@@ -29,6 +29,7 @@ import com.yellowtrack.platform.core.testing.FakeQuoteRepository
 import com.yellowtrack.platform.core.testing.FakeServiceTemplateRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
+import com.yellowtrack.platform.core.testing.RecordingDocumentSender
 import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
@@ -78,13 +79,54 @@ class DocumentExportTest {
     private class Harness(
         val viewModel: LedgerViewModel,
         val sink: RecordingDocumentSink,
+        val sender: RecordingDocumentSender,
     )
+
+    // -- Emailing it, rather than saving it ---------------------------------------------
+
+    @Test
+    fun `emails the rendered document to the address the studio typed`() =
+        runTest {
+            val harness = harness()
+            var message: String? = null
+
+            harness.viewModel.emailDocument("client@example.com", { harness.viewModel.invoiceSheet(invoiceId) }) {
+                message = it
+            }
+
+            val sent = assertNotNull(harness.sender.last, "nothing was sent")
+            assertEquals("client@example.com", sent.to)
+            assertTrue(sent.html.contains("<"), "the client should get the page, not a description of it")
+            assertTrue(sent.text.isNotBlank(), "a client that cannot render html still needs the document")
+            assertTrue(sent.subject.isNotBlank(), "an email with no subject is an email nobody opens")
+            assertEquals("Sent to client@example.com. A copy is in your inbox.", message)
+        }
+
+    /**
+     * Every refusal here is something the studio can act on — no studio email, a daily limit,
+     * a mail server that would not take it. Flattening them to "that did not work" throws
+     * away the only useful part.
+     */
+    @Test
+    fun `shows the server's own words when a send is refused`() =
+        runTest {
+            val harness = harness(refusal = "Add your studio's email address in Settings first.")
+            var message: String? = null
+
+            harness.viewModel.emailDocument("client@example.com", { harness.viewModel.invoiceSheet(invoiceId) }) {
+                message = it
+            }
+
+            assertEquals("Add your studio's email address in Settings first.", message)
+        }
 
     private fun harness(
         profile: StudioProfile? = studioProfile(),
         invoices: List<Invoice> = listOf(invoice()),
+        refusal: String? = null,
     ): Harness {
         val sink = RecordingDocumentSink()
+        val sender = RecordingDocumentSender(refusal = refusal)
         val expenses = FakeExpenseRepository()
 
         return Harness(
@@ -102,11 +144,13 @@ class DocumentExportTest {
                     clientRepository = FakeClientRepository(listOf(client())),
                     studioProfileRepository = FakeStudioProfileRepository(profile),
                     documentSink = sink,
+                    documentSender = sender,
                     studioContext = LocalStudioContext(),
                     clock = TestAppClock(),
                     timeZone = TimeZone.UTC,
                 ),
             sink = sink,
+            sender = sender,
         )
     }
 

@@ -102,6 +102,8 @@ class LedgerScreenRenderTest {
                             onDeleteInvoice = {},
                             onExportInvoice = {},
                             onExportQuote = {},
+                            onEmailInvoice = { _, _ -> },
+                            onEmailQuote = { _, _ -> },
                             documentMessage = null,
                         )
                     }
