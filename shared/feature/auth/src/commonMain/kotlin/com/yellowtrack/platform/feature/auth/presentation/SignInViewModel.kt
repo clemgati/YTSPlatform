@@ -68,8 +68,14 @@ internal class SignInViewModel(
                     }
                 }
 
+            val pending = outcome.exceptionOrNull() as? AuthFailure.PendingDeletion
+
             state.value =
-                if (outcome.isFailure) {
+                if (pending != null) {
+                    // Not an error. The password was right and there is something to offer,
+                    // so this replaces the form rather than colouring it red.
+                    state.value.copy(isWorking = false, error = null, pendingDeletion = pending.purgeAfter)
+                } else if (outcome.isFailure) {
                     state.value.copy(isWorking = false, error = outcome.exceptionOrNull()?.readable())
                 } else {
                     // Signing in and signing up set nothing here: the session changes and the
@@ -99,6 +105,37 @@ internal class SignInViewModel(
                     }
                 }
         }
+    }
+
+    /**
+     * Brings the studio back, with the credentials already on the screen.
+     *
+     * Nothing is reported on success: the session arrives and the shell swaps this screen
+     * out, exactly as an ordinary sign-in does. That is the point — restoring is signing in,
+     * for somebody whose studio happened to be on its way out.
+     */
+    fun restore() {
+        val current = state.value
+        if (current.isWorking) return
+
+        state.value = current.copy(isWorking = true, error = null)
+
+        viewModelScope.launch {
+            runCatching { auth.restoreAccount(current.fields.email, current.fields.password) }
+                .onFailure {
+                    state.value =
+                        state.value.copy(
+                            isWorking = false,
+                            pendingDeletion = null,
+                            error = it.readable(),
+                        )
+                }
+        }
+    }
+
+    /** Goes back to the form without restoring, for somebody who meant to delete it. */
+    fun dismissPendingDeletion() {
+        state.value = state.value.copy(pendingDeletion = null, fields = state.value.fields.copy(password = ""))
     }
 
     /**

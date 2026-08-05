@@ -18,14 +18,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
 import com.yellowtrack.platform.core.designsystem.component.YTTextButton
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import kotlinx.datetime.TimeZone
 import org.jetbrains.compose.resources.painterResource
 import yellow_track_platform.shared.feature.auth.generated.resources.Res
 import yellow_track_platform.shared.feature.auth.generated.resources.yellow_track_mark
+import kotlin.time.Instant
 
 /**
  * The way in.
@@ -41,6 +44,8 @@ import yellow_track_platform.shared.feature.auth.generated.resources.yellow_trac
 internal fun SignInScreen(
     uiState: SignInUiState,
     onEmailChanged: (String) -> Unit,
+    onRestore: () -> Unit,
+    onDismissPendingDeletion: () -> Unit,
     onPasswordChanged: (String) -> Unit,
     onNameChanged: (String) -> Unit,
     onStudioNameChanged: (String) -> Unit,
@@ -101,6 +106,16 @@ internal fun SignInScreen(
                     style = YTTheme.typography.headlineMedium,
                     color = YTTheme.colors.onBackground,
                 )
+
+                if (uiState.pendingDeletion != null) {
+                    PendingDeletionCard(
+                        purgeAfter = uiState.pendingDeletion,
+                        isWorking = uiState.isWorking,
+                        onRestore = onRestore,
+                        onDismiss = onDismissPendingDeletion,
+                    )
+                    return@Column
+                }
 
                 YTSectionCard(
                     title =
@@ -257,5 +272,50 @@ internal fun SignInScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * The way back, for a studio that deleted itself and changed its mind.
+ *
+ * Reached by signing in, which is the only door left: deleting revoked every session, so
+ * there is no screen inside the application to put this on. Shown only after the password
+ * was accepted, so it tells nobody anything they had not already proved.
+ *
+ * It replaces the form rather than sitting above it. Somebody who has just been told their
+ * business is scheduled for deletion is not also choosing between signing in and starting a
+ * new studio, and a screen offering both makes them read it twice.
+ */
+@Composable
+private fun PendingDeletionCard(
+    purgeAfter: Long,
+    isWorking: Boolean,
+    onRestore: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    YTSectionCard(title = "This studio is waiting to be deleted") {
+        Text(
+            text =
+                "Everything in it will be removed for good on " +
+                    "${DateFormats.fullDate(
+                        Instant.fromEpochMilliseconds(purgeAfter),
+                        TimeZone.currentSystemDefault(),
+                    )}. " +
+                    "Until then it can be brought back exactly as it was.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        YTButton(
+            text = "Restore this studio",
+            onClick = onRestore,
+            enabled = !isWorking,
+        )
+
+        YTTextButton(
+            text = "Leave it deleted",
+            onClick = onDismiss,
+            enabled = !isWorking,
+        )
     }
 }

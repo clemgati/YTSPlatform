@@ -65,6 +65,17 @@ class SignInRenderTest {
         // route back into the account being created. Rendered at phone width because that
         // is where a suggestion has least room to sit under the field it belongs to, and
         // where a long address is most likely to wrap away from the question.
+        // The screen a studio meets after deleting its own business and thinking again.
+        // Rendered at phone width, where the date and both actions have least room.
+        render(
+            "sign-in-pending-deletion-phone.png",
+            SignInUiState(
+                fields = SignInFields(email = "ada@harbourline.test", password = "a long enough password"),
+                pendingDeletion = 1_788_000_000_000L,
+            ),
+            width = 780,
+        )
+
         render(
             "sign-up-email-typo-phone.png",
             SignInUiState(
@@ -98,6 +109,8 @@ class SignInRenderTest {
                         SignInScreen(
                             uiState = state,
                             onEmailChanged = {},
+                            onRestore = {},
+                            onDismissPendingDeletion = {},
                             onPasswordChanged = {},
                             onNameChanged = {},
                             onStudioNameChanged = {},

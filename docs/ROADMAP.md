@@ -526,6 +526,11 @@ needs before it can be asked to trust this with a business.
 
 - ✓ **Account deletion**, with thirty days to change its mind, and a purge that makes the
   promise true rather than a setting nobody runs
+  - ◐ Shipped in 1.1.0 with the window unreachable. Deleting revokes every session, and
+    sign-in, password reset and `whoami` all filter on `deleted_at` — so the rows survived
+    for thirty days and the studio had no door to knock on. The screen said "you have 30
+    days to change your mind" and only an operator with `psql` could act on it. Signing in
+    now recognises the state and offers the studio back; fixed in 1.1.1
 - ✓ **Data export** — everything a studio has, as one file it keeps, built on the sync
   entities so it cannot describe a record differently from the application
 - ✓ **Both reachable from Settings.** They were endpoints for one release and no screen
