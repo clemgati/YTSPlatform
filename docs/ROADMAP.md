@@ -517,17 +517,37 @@ it rather than by anything in this repository.
   large `.wasm` files carry a content hash; everything else now revalidates, and
   `deploy-web.sh` fails if that ever drifts back
 
-## 1.1.0 — Collaboration
+## 1.1.0 — Leaving ✓
 
-Was 0.8.0. The gallery is the largest thing this application does not do.
+Not the milestone this number was reserved for. It went to the work that turned out to be
+needed first: a studio being able to get its records out, delete them, and be told when
+something breaks — none of which the original list had, and all of which a second studio
+needs before it can be asked to trust this with a business.
+
+- ✓ **Account deletion**, with thirty days to change its mind, and a purge that makes the
+  promise true rather than a setting nobody runs
+- ✓ **Data export** — everything a studio has, as one file it keeps, built on the sync
+  entities so it cannot describe a record differently from the application
+- ✓ **Both reachable from Settings.** They were endpoints for one release and no screen
+  called them, which is not a feature
+- ✓ **Something watches the server** and emails when the answer changes. `/ready` reports
+  whether mail *works* rather than whether it was configured
+- ✓ **An address is checked at sign-up**, and questioned when it looks like a slip — an
+  account created against a domain that does not exist can never be recovered
+- ✓ **A web deploy the browser actually sees.** The vhost pinned the application under a
+  filename that does not change between releases
+
+## 1.2.0 — Collaboration
+
+Was 0.8.0, then 1.1.0. The gallery is the largest thing this application does not do.
 
 - Client proofing, selections, and approvals — and the object storage they need, moved here
   from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
-## 1.2.0 — Hardening
+## 1.3.0 — Hardening
 
-Was 0.9.0. Named for what it is rather than "release candidate", which it no longer is.
+Was 0.9.0, then 1.2.0. Named for what it is rather than "release candidate", which it no longer is.
 
 - Accessibility, performance, and migration validation
 - Localisation — `DateFormats` is English-only today
