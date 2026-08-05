@@ -260,7 +260,7 @@ and deployment waits until there is something worth deploying.
 - ◐ Deployment. `docs/DEPLOYMENT.md` covers one EC2 instance running Apache, Postgres and
   the server, with SES for mail — written for that shape rather than generically, because
   the three things that fail *silently* are all shape-specific: connecting as a superuser
-  makes every row level security policy inert, SES's sandbox makes password reset appear to
+  makes every row level security policy inert, a refused send makes password reset appear to
   work and never arrive, and same-box Postgres means one lost instance is one lost business.
   The code side is done: the server URL is generated from the build rather than hardcoded to
   loopback, CORS is configurable for the browser build, and `/ready` reports whether the
@@ -405,11 +405,19 @@ and used.
 
 - **Nothing watches the server.** No alert when the process dies, the disk fills, renewal
   fails, or backups stop. Today the studio finds out first
-- **SES is in the sandbox.** Confirmed, not suspected. `mail:true` says configured, not
-  permitted: until production access is granted, a password reset for anyone but a verified
-  address answers `202` and never arrives — which ADR 0010 makes deliberately
-  indistinguishable from success, so nobody would ever report it. This is the hard blocker
-  on a second studio, and it is an AWS review rather than something to build
+- ◐ **SES has production access**, granted 4th August 2026, so mail is no longer refused to
+  every address but a verified one. That was the hard blocker on a second studio and it is
+  gone. Half a tick because a grant is not a delivered message: **no reset has yet arrived
+  at an address that was never an SES identity**, which is the only send the sandbox could
+  not do and therefore the only one that proves anything
+- **Nothing tells anyone when mail stops.** ADR 0010 has the reset endpoint answer `202`
+  whether the send worked or not, so every failure is deliberately indistinguishable from
+  success and reaches only a log line. `mail:true` on `/ready` is read from the environment
+  at boot, never from a send — it stays `true` through a wrong password, an expired
+  credential, or sending suspended over a bounce rate nobody subscribed to. The sandbox
+  used to be the reason resets did not arrive; now it would be one of these, and the
+  studio still finds out first. **A readiness check that reflects the last send** is the
+  small version of this, and it wants the item below more than it wants code
 - ✓ **Backups run, and the restore rehearses itself.** `yellowtrack-backup.timer` writes a
   dump nightly; `yellowtrack-restore-check.timer` rebuilds the newest one weekly into a
   scratch database and exits non-zero if fewer tables come back than the schema has.
@@ -453,7 +461,7 @@ before it, renumbered rather than dropped.
 - no second shooters or editors with roles of their own
 - no accessibility or localisation pass — `DateFormats` is English-only
 - one environment, no staging
-- password reset limited to verified addresses until SES leaves the sandbox
+- password reset that reaches any address, but tells nobody when it stops
 
 ## 1.1.0 — Collaboration
 
