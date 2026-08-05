@@ -16,6 +16,15 @@ enum class DocumentFormat(
 
     /** For pasting into a message, which is how a call sheet actually reaches people. */
     PlainText("txt", "text/plain"),
+
+    /**
+     * The studio's own records, for keeping rather than reading.
+     *
+     * The only format here nobody is expected to open. It exists so a studio can hold a copy
+     * of everything before deleting itself, and so that copy is something a program could
+     * read back one day rather than a page that has to be retyped.
+     */
+    Json("json", "application/json"),
 }
 
 /**

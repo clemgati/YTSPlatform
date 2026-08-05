@@ -13,6 +13,9 @@ import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.sync.SyncStatus
 import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.data.sync.differences
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentFormat
+import com.yellowtrack.platform.core.export.DocumentSink
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.sync.SyncConflict
@@ -38,6 +41,7 @@ internal class SettingsViewModel(
     private val conflictRepository: SyncConflictRepository,
     private val synchroniser: Synchroniser,
     private val auth: AuthRepository,
+    private val documentSink: DocumentSink,
     private val studioContext: StudioContext,
     private val clock: AppClock,
 ) : ViewModel() {
@@ -136,6 +140,61 @@ internal class SettingsViewModel(
      */
     fun signOut() {
         viewModelScope.launch { auth.signOut() }
+    }
+
+    /**
+     * Writes the studio's whole record to a file it keeps.
+     *
+     * Reported through the same note as everything else on this screen, because the only
+     * thing worth saying is where the file went — and on a phone, that it was offered to the
+     * share sheet as well, since a file saved somewhere a studio cannot find is not a copy
+     * of anything.
+     */
+    fun exportStudio() {
+        viewModelScope.launch {
+            savedNote.value = "Collecting everything…"
+
+            runCatching { auth.exportStudio() }
+                .onSuccess { content ->
+                    val file =
+                        Document(
+                            baseName = "yellowtrack-export",
+                            format = DocumentFormat.Json,
+                            content = content,
+                        )
+
+                    val saved =
+                        runCatching {
+                            if (documentSink.canShare) documentSink.share(file) else documentSink.save(file)
+                        }
+
+                    savedNote.value =
+                        saved.fold(
+                            onSuccess = { "Saved to ${it.location}" },
+                            // The download arrived and the disk refused it. Said as its own
+                            // failure, because "could not export" would send somebody
+                            // looking at the server.
+                            onFailure = { "Everything was collected, but it could not be written: ${it.message}" },
+                        )
+                }.onFailure { savedNote.value = it.message ?: "That could not be downloaded." }
+        }
+    }
+
+    /**
+     * Deletes the studio, after the password.
+     *
+     * Nothing is reported on success and nothing needs to be: the session is gone with the
+     * studio, and the shell swaps itself for the sign-in screen the moment it notices. A
+     * message written to a screen that is about to be replaced is a message nobody reads.
+     */
+    fun deleteAccount(
+        password: String,
+        onRefused: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            runCatching { auth.deleteAccount(password) }
+                .onFailure { onRefused(it.message ?: "That could not be done.") }
+        }
     }
 
     private fun SessionState.SignedIn.toSummary(): AccountSummary =

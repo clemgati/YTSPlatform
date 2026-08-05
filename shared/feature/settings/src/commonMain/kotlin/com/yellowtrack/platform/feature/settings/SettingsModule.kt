@@ -12,6 +12,7 @@ val settingsModule =
                 conflictRepository = get(),
                 synchroniser = get(),
                 auth = get(),
+                documentSink = get(),
                 studioContext = get(),
                 clock = get(),
             )

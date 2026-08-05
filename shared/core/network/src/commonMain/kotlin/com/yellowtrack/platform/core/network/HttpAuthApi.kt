@@ -3,6 +3,8 @@ package com.yellowtrack.platform.core.network
 import com.yellowtrack.platform.core.data.auth.AuthApi
 import com.yellowtrack.platform.core.data.auth.AuthFailure
 import com.yellowtrack.platform.core.data.auth.StoredSession
+import com.yellowtrack.platform.core.model.auth.DeleteAccountRequest
+import com.yellowtrack.platform.core.model.auth.DeleteAccountResponse
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.auth.ForgotPasswordRequest
 import com.yellowtrack.platform.core.model.auth.ResetPasswordRequest
@@ -12,9 +14,11 @@ import com.yellowtrack.platform.core.model.auth.SignUpRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -98,6 +102,34 @@ class HttpAuthApi(
             client.post("$baseUrl/auth/sign-out") { bearerAuth(token) }
         }
     }
+
+    /**
+     * The export, as the text the server sent.
+     *
+     * `bodyAsText` rather than a decode. The body is the studio's file and this only carries
+     * it to a disk — parsing it here would mean teaching the client every entity a second
+     * time, and quietly dropping whichever ones it had not been taught.
+     */
+    override suspend fun exportStudio(token: String): String =
+        readable {
+            reaching {
+                client.get("$baseUrl/auth/export") { bearerAuth(token) }
+            }.bodyAsText()
+        }
+
+    override suspend fun deleteAccount(
+        token: String,
+        password: String,
+    ): Long =
+        readable {
+            reaching {
+                client.post("$baseUrl/auth/delete-account") {
+                    bearerAuth(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(DeleteAccountRequest(password))
+                }
+            }.body<DeleteAccountResponse>().purgeAfter
+        }
 
     /**
      * Separates "could not ask" from "was told no".

@@ -20,6 +20,8 @@ fun SettingsRoute(modifier: Modifier = Modifier) {
         onDismissConflict = viewModel::dismissConflict,
         onSyncNow = viewModel::syncNow,
         onSignOut = viewModel::signOut,
+        onExport = viewModel::exportStudio,
+        onDeleteAccount = viewModel::deleteAccount,
         modifier = modifier,
     )
 }

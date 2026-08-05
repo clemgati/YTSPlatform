@@ -148,6 +148,13 @@ class SynchroniserTest {
 
         override suspend fun signOut(token: String) = Unit
 
+        override suspend fun exportStudio(token: String): String = error("unused")
+
+        override suspend fun deleteAccount(
+            token: String,
+            password: String,
+        ): Long = error("unused")
+
         override suspend fun requestPasswordReset(email: String) = error("unused")
 
         override suspend fun resetPassword(
