@@ -39,6 +39,18 @@ rsync -az --delete \
     server/build/install/server/ \
     "$HOST:$REMOTE_DIR/"
 
+echo "==> Installing the operational scripts"
+# These two run ON the instance and nothing else puts them there. Without this they arrive
+# by hand once and then quietly drift: yellowtrack-watch.timer would go on running whatever
+# checks were current the day somebody copied them across, against a server that has moved
+# on — and a stale check that passes is worse than no check, because it is believed.
+#
+# Not to $REMOTE_DIR, which is rsynced with --delete and would take them away again on the
+# next deployment of the server.
+rsync -az scripts/verify-deployment.sh scripts/watch-deployment.sh "$HOST:/tmp/"
+ssh "$HOST" "sudo install -m 755 /tmp/verify-deployment.sh /tmp/watch-deployment.sh /usr/local/bin/ &&
+    rm -f /tmp/verify-deployment.sh /tmp/watch-deployment.sh"
+
 echo "==> Restarting $SERVICE"
 ssh "$HOST" "sudo systemctl restart $SERVICE"
 
@@ -65,4 +77,5 @@ echo "==> Readiness"
 ssh "$HOST" "curl -sS -m 5 -w ' (HTTP %{http_code})' http://127.0.0.1:8080/ready" || true
 echo
 
-echo "Deployed. Run ./scripts/verify-deployment.sh on the instance for the full checks."
+echo "Deployed. Run verify-deployment.sh on the instance for the full checks — it was just"
+echo "installed to /usr/local/bin, along with watch-deployment.sh."

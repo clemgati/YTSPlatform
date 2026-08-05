@@ -695,11 +695,24 @@ OnUnitActiveSec=15m
 WantedBy=timers.target
 ```
 
-`watch-deployment.sh` and `verify-deployment.sh` must sit **beside each other** — the first
-runs the second from its own directory:
+`watch-deployment.sh` and `verify-deployment.sh` must sit **beside each other** in
+`/usr/local/bin` — the first runs the second from its own directory.
+
+**`deploy-server.sh` puts them there**, every time it runs, so they cannot drift from the
+repository. The instance has no checkout of its own, which is why `sudo install` from a
+`scripts/` directory does not work there — there isn't one.
+
+To place them without a full server deploy, from the repository on your own machine:
 
 ```sh
-sudo install -m 755 scripts/watch-deployment.sh scripts/verify-deployment.sh /usr/local/bin/
+scp scripts/watch-deployment.sh scripts/verify-deployment.sh yellowtrack:/tmp/
+ssh yellowtrack 'sudo install -m 755 /tmp/watch-deployment.sh /tmp/verify-deployment.sh /usr/local/bin/ &&
+    rm -f /tmp/watch-deployment.sh /tmp/verify-deployment.sh'
+```
+
+Then, on the instance:
+
+```sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now yellowtrack-watch.timer
 sudo systemctl start yellowtrack-watch.service    # once, now, rather than waiting
