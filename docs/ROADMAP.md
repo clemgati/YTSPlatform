@@ -593,25 +593,17 @@ reply lands in, and on one reputation shared by everybody. This file called it "
 - **Nothing records that a document was emailed**, so a studio reloading cannot tell whether
   it pressed the button. Wants `last_emailed_at` and a migration
 
----
+## 1.3.0 — Collaboration
 
-The two milestones below carry no version number, and that is deliberate.
-
-Collaboration has now been renumbered three times — 0.8.0, then 1.1.0, then 1.2.0 — never
-because the work changed, always because a release overtook it. A number on unbuilt work is a
-guess about what ships before it, and that guess has been wrong every time. They take whatever
-number they land on.
-
-## Collaboration
-
-Was 0.8.0, then 1.1.0, then 1.2.0. The gallery is the largest thing this application does not
-do, and the one a studio replaces with another product today.
+Was 0.8.0, then 1.1.0, then 1.2.0 — renumbered each time a release overtook it rather than
+because the work changed. The gallery is the largest thing this application does not do, and
+the one a studio replaces with another product today.
 
 - Client proofing, selections, and approvals — and the object storage they need, moved here
   from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
-## Hardening
+## 1.4.0 — Hardening
 
 Was 0.9.0, then 1.2.0, then 1.3.0. Named for what it is rather than "release candidate",
 which it no longer is.
