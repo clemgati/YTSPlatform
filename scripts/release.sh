@@ -144,7 +144,7 @@ fi
 
 step "Publishing the installers"
 
-run ./scripts/deploy-installers.sh "$HOST" "$RUN_ID"
+run ./scripts/deploy-installers.sh "$HOST" "$RUN_ID" "$SITE_ORIGIN"
 
 printf '\nDone in %dm%02ds.\n' $(((SECONDS - STARTED) / 60)) $(((SECONDS - STARTED) % 60))
 echo "  web        $SITE_ORIGIN"
