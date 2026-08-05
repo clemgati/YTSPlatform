@@ -342,13 +342,19 @@ and used.
   `studio_profile.name` is the editable one every document carries. They can disagree
   permanently. One of them should stop existing, and `adoptStudioName` — a workaround from
   when the profile could not travel — should probably go with it
-- **Account deletion and data export.** The application holds other people's clients,
-  addresses and payment histories, with no way to give that back or remove it. The account
-  table has a `deleted_at` that every query already respects and nothing ever sets, so the
-  hard half is done and the reachable half is missing. There is now a concrete one to clear:
-  an account signed up against a mistyped domain, which cannot be recovered — its only route
-  back is an inbox that does not exist — and cannot be removed either, so the address it
-  holds stays taken
+- ◐ **A studio can take its work with it.** `GET /auth/export` returns everything it has as
+  one JSON file — every table sync knows about, read inside the row level security scope so
+  Postgres does the tenanting rather than a `WHERE` clause that could be got wrong. Built on
+  the sync entities so it cannot describe a record differently from the way the application
+  already does, and a table added to sync appears in the export without anybody remembering.
+  Half a tick because **deletion is the other half and is not built**: the application still
+  holds other people's clients, addresses and payment histories with no way to remove them.
+  `account.deleted_at` is respected by every query and set by nothing. There is a concrete
+  one waiting: an account signed up against a mistyped domain, which cannot be recovered —
+  its only route back is an inbox that does not exist — and cannot be removed either, so the
+  address it holds stays taken
+  - Export came first deliberately. Offering to erase a business's records without first
+    offering it a copy is not a choice anybody should be asked to make
 
 - ✓ **What the studio enters can now be removed.** Of the forty-five write methods the
   repositories declare, eleven were never called from any screen — and ten of those were

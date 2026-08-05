@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.server
 
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.server.account.StudioExport
 import com.yellowtrack.platform.server.auth.Accounts
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.PasswordResets
@@ -166,7 +167,7 @@ fun Application.module(
             )
         }
 
-        authRoutes(accounts, resets)
+        authRoutes(accounts, resets, StudioExport(database))
         syncRoutes(Reconciler(database))
     }
 }

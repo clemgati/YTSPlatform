@@ -30,6 +30,34 @@ import kotlin.test.assertTrue
 class AuthenticationTest {
     // -- Signing up ---------------------------------------------------------------------
 
+    // -- Taking your work with you -------------------------------------------------------
+
+    @Test
+    fun `a studio can download everything it has`() =
+        withServer { client ->
+            val session = client.signUpSuccessfully(uniqueEmail())
+
+            val response = client.get("/auth/export") { bearerAuth(session.token) }
+
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            // An attachment, or a browser renders megabytes of JSON into a tab.
+            assertTrue(
+                response.headers["Content-Disposition"]?.contains("attachment") == true,
+                "should download rather than display: ${response.headers["Content-Disposition"]}",
+            )
+
+            val body = response.bodyAsText()
+            assertTrue("\"application\":\"Yellow Track\"" in body, body.take(200))
+            assertTrue(session.studioId in body, "the export should name the studio it is of")
+        }
+
+    /** A studio's whole history is not something to hand to an unauthenticated caller. */
+    @Test
+    fun `the export refuses a caller with no token`() =
+        withServer { client ->
+            assertEquals(HttpStatusCode.Unauthorized, client.get("/auth/export").status)
+        }
+
     /**
      * The server is the authority on shape, not the form. A client that skips the check —
      * an old build, a browser with the script blocked, curl — must still be refused.
