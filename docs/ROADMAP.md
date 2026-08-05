@@ -165,8 +165,12 @@ The biggest gap in the original roadmap.
   hand the file to the system share sheet, saving it first so a sheet that fails to appear
   costs nothing — though **neither has been run**, only compiled, so treat the sheet itself
   as unproven until someone opens the app on a phone. Emailing a document without leaving
-  the application is still to come; the mail transport it was waiting for now exists in the
-  server (ADR 0010), so this is wiring rather than a missing piece
+  the application is still to come, and this file called it "wiring rather than a missing
+  piece" until `docs/adr/0011-sending-a-document-to-a-client.md` was written. It is not.
+  Every message the server sends today goes *to* a studio; an invoice goes to somebody who
+  has never heard of Yellow Track, about money, on behalf of a business whose domain this
+  system does not control — which decides whether it aligns, whether it reads as fraud, and
+  whose reputation it spends
 - ✓ Studio details, which every document carries — the Settings screen has claimed since
   0.1.0 that there was nothing to configure, and an invoice with no name on it is not an
   invoice
@@ -334,8 +338,15 @@ and used.
   recorded, a contract signed is an agreement struck. A sent invoice is deliberately *not*
   editable; `voidInvoice` is the remedy, and this entry previously named that as the case to
   fix, which was wrong
-- **Emailing a document.** Quotes and invoices render and can be shared; sending one from
-  inside the application is wiring, since the mail transport exists
+- ◐ **Emailing a document.** Quotes and invoices render and can be shared; sending one from
+  inside the application is decided but not built —
+  `docs/adr/0011-sending-a-document-to-a-client.md`. Half a tick for the decision, which was
+  the part that was actually missing: this was called wiring twice in this file, and it is
+  not. Sending *as* a studio to *its* client is a different act from sending to a studio, and
+  it turns on DKIM alignment, on a sender a client will not read as fraud, on whose mailbox a
+  reply lands in, and on one reputation shared by everybody. One address on the verified
+  domain, the studio's name in the display name, its own address in `Reply-To`, and rate
+  limiting before it ships, because sign-up is open and this would otherwise be a relay
 - **The share sheet on Android and iOS** is compiled and has never been run. Sign-in has
   now been exercised on both, so the session stores are proved — this is not
 - **Two studio names.** `studio.name` is fixed at sign-up and shown in Settings → Account;
