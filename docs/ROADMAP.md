@@ -577,17 +577,36 @@ One fix, for a hole 1.1.0 put in itself.
   is the second time in this release something survived the tests and was caught by somebody
   using it — the first was a desktop installer that died before drawing a window
 
-## 1.2.0 — Collaboration
+## 1.2.0 — Sending ✓
 
-Was 0.8.0, then 1.1.0. The gallery is the largest thing this application does not do.
+A studio can email a quote or an invoice to its client from the Ledger, from its own name,
+with the reply coming back to it. The twentieth step of `docs/A-PORTRAIT-SHOOT.md` ended with
+"the application does not send it" until this.
+
+The decision took longer than the code, and `docs/adr/0011-sending-a-document-to-a-client.md`
+is why: sending *as* a studio to *its* client is a different act from sending to a studio, and
+it turns on DKIM alignment, on a sender a client will not read as fraud, on whose mailbox a
+reply lands in, and on one reputation shared by everybody. This file called it "wiring" twice.
+
+- ✓ One verified sender, the studio's name in the display name, its address in `Reply-To`
+- ✓ Rate limited per studio per day, because sign-up is open
+- **Nothing records that a document was emailed**, so a studio reloading cannot tell whether
+  it pressed the button. Wants `last_emailed_at` and a migration
+
+## 1.3.0 — Collaboration
+
+Was 0.8.0, then 1.1.0, then 1.2.0 — renumbered each time a release overtook it rather than
+because the work changed. The gallery is the largest thing this application does not do, and
+the one a studio replaces with another product today.
 
 - Client proofing, selections, and approvals — and the object storage they need, moved here
   from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
-## 1.3.0 — Hardening
+## 1.4.0 — Hardening
 
-Was 0.9.0, then 1.2.0. Named for what it is rather than "release candidate", which it no longer is.
+Was 0.9.0, then 1.2.0, then 1.3.0. Named for what it is rather than "release candidate",
+which it no longer is.
 
 - Accessibility, performance, and migration validation
 - Localisation — `DateFormats` is English-only today
