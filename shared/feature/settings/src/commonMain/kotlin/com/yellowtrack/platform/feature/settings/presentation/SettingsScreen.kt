@@ -18,7 +18,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTDropdownField
+import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
+import com.yellowtrack.platform.core.designsystem.component.YTTextButton
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
@@ -40,6 +42,8 @@ internal fun SettingsScreen(
     onDismissConflict: (SyncConflictId) -> Unit,
     onSyncNow: () -> Unit,
     onSignOut: () -> Unit,
+    onExport: () -> Unit,
+    onDeleteAccount: (password: String, onRefused: (String) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     StatefulContent(
@@ -112,7 +116,12 @@ internal fun SettingsScreen(
             }
 
             content.account?.let { account ->
-                AccountSection(account = account, onSignOut = onSignOut)
+                AccountSection(
+                    account = account,
+                    onSignOut = onSignOut,
+                    onExport = onExport,
+                    onDeleteAccount = onDeleteAccount,
+                )
             }
 
             YTSectionCard(title = "Your studio") {
@@ -313,7 +322,11 @@ private fun ConflictsSection(
 private fun AccountSection(
     account: AccountSummary,
     onSignOut: () -> Unit,
+    onExport: () -> Unit,
+    onDeleteAccount: (password: String, onRefused: (String) -> Unit) -> Unit,
 ) {
+    var confirmingDelete by remember { mutableStateOf(false) }
+
     YTSectionCard(title = "Account") {
         Text(
             text = "Signed in as ${account.email}, for ${account.studioName}.",
@@ -341,6 +354,104 @@ private fun AccountSection(
         YTButton(
             text = "Sign out",
             onClick = onSignOut,
+        )
+    }
+
+    YTSectionCard(title = "Your data") {
+        Text(
+            text =
+                "Everything this studio has — clients, bookings, quotes, contracts, invoices, " +
+                    "payments and the rest — as one file you keep.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        YTButton(
+            text = "Download everything",
+            onClick = onExport,
+        )
+
+        Text(
+            text =
+                "Deleting removes this studio and everything in it. You have 30 days to change " +
+                    "your mind; after that it cannot be recovered by anybody.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        // Deliberately below the download, and deliberately in the same card. The moment
+        // somebody reads "cannot be recovered" is the moment to be able to take a copy, and
+        // a copy offered on a different screen is advice rather than an option.
+        YTTextButton(
+            text = "Delete this studio",
+            onClick = { confirmingDelete = true },
+            contentColor = YTTheme.colors.error,
+        )
+    }
+
+    if (confirmingDelete) {
+        DeleteStudioDialog(
+            studioName = account.studioName,
+            onDismiss = { confirmingDelete = false },
+            onConfirm = onDeleteAccount,
+        )
+    }
+}
+
+/**
+ * The last thing between a studio and its own deletion.
+ *
+ * Asks for the password rather than for the word DELETE. The server requires it either way —
+ * a token is what a borrowed laptop already has — so typing it here is the same act, and
+ * a confirmation somebody can satisfy without knowing the password is not one.
+ */
+@Composable
+internal fun DeleteStudioDialog(
+    studioName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (password: String, onRefused: (String) -> Unit) -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    var refusal by remember { mutableStateOf<String?>(null) }
+    var isWorking by remember { mutableStateOf(false) }
+
+    YTFormDialog(
+        title = "Delete $studioName?",
+        confirmLabel = "Delete everything",
+        confirmEnabled = password.isNotBlank() && !isWorking,
+        isDestructive = true,
+        onConfirm = {
+            isWorking = true
+            refusal = null
+            onConfirm(password) { reason ->
+                // Back to the form rather than closed. A dialog that shuts on a wrong
+                // password looks exactly like one that worked.
+                refusal = reason
+                isWorking = false
+            }
+        },
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text =
+                "This removes every client, booking, document and payment belonging to " +
+                    "$studioName, on every device. For 30 days it can be put back; after that " +
+                    "it is gone.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        YTTextField(
+            value = password,
+            onValueChange = {
+                password = it
+                refusal = null
+            },
+            label = "Your password",
+            keyboardType = KeyboardType.Password,
+            isPassword = true,
+            errorMessage = refusal,
+            help = "Asked for again because a signed-in device alone is not enough to do this.",
         )
     }
 }

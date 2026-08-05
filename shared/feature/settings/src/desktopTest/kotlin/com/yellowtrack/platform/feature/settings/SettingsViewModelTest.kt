@@ -2,11 +2,15 @@ package com.yellowtrack.platform.feature.settings
 
 import com.yellowtrack.platform.core.data.LocalStudioContext
 import com.yellowtrack.platform.core.data.auth.AuthApi
+import com.yellowtrack.platform.core.data.auth.AuthFailure
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.auth.SessionStore
 import com.yellowtrack.platform.core.data.auth.StoredSession
 import com.yellowtrack.platform.core.data.sync.Synchroniser
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentSink
+import com.yellowtrack.platform.core.export.SavedDocument
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.studio.StudioProfileId
@@ -14,6 +18,7 @@ import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
 import com.yellowtrack.platform.core.testing.FakeSyncConflictRepository
+import com.yellowtrack.platform.core.testing.RecordingDocumentSink
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
@@ -147,8 +152,96 @@ class SettingsViewModelTest {
             )
         }
 
+    // -- Taking your work with you, and leaving ---------------------------------------------
+
+    @Test
+    fun `exporting writes what the server sent to a file`() =
+        runTest {
+            val sink = RecordingDocumentSink()
+            val harness = harness(api = ExportingAuthApi("""{"application":"Yellow Track"}"""), sink = sink)
+            harness.auth.restore(now = 0)
+
+            harness.viewModel.exportStudio()
+
+            val written = assertNotNull(sink.last, "nothing was written for the studio to keep")
+            assertEquals("yellowtrack-export.json", written.fileName)
+            assertEquals("""{"application":"Yellow Track"}""", written.content)
+            assertEquals(
+                "Saved to recorded/yellowtrack-export.json",
+                harness.viewModel.content().savedNote,
+                "a file saved somewhere nobody is told about is not a copy of anything",
+            )
+        }
+
+    /**
+     * The download arriving and the disk refusing it are different failures, and saying
+     * "could not export" for the second sends somebody to look at the server.
+     */
+    @Test
+    fun `a file that cannot be written says so as its own failure`() =
+        runTest {
+            val harness = harness(api = ExportingAuthApi("{}"), sink = RefusingDocumentSink)
+            harness.auth.restore(now = 0)
+
+            harness.viewModel.exportStudio()
+
+            val note = assertNotNull(harness.viewModel.content().savedNote)
+            assertTrue("collected" in note, "should say the download worked: $note")
+        }
+
+    @Test
+    fun `deleting signs the device out`() =
+        runTest {
+            val harness = harness(api = DeletingAuthApi())
+            harness.auth.restore(now = 0)
+
+            harness.viewModel.deleteAccount("a long enough password") { error("should not have been refused: $it") }
+
+            assertTrue(
+                harness.auth.session.value is SessionState.SignedOut,
+                "the server revoked the session, so the device must not still think it is signed in",
+            )
+        }
+
+    /**
+     * A wrong password must leave the studio exactly where it was. Signing the device out
+     * here would report a deletion that did not happen.
+     */
+    @Test
+    fun `a refused deletion keeps the studio signed in`() =
+        runTest {
+            val harness = harness(api = DeletingAuthApi(refuse = true))
+            harness.auth.restore(now = 0)
+
+            var refusal: String? = null
+            harness.viewModel.deleteAccount("wrong") { refusal = it }
+
+            assertNotNull(refusal, "the screen has to be told, or the dialog closes as though it worked")
+            assertTrue(harness.auth.session.value is SessionState.SignedIn)
+        }
+
     private companion object {
         val CONFLICT_TIME: Instant = Instant.fromEpochMilliseconds(1_781_100_000_000)
+    }
+
+    private class ExportingAuthApi(
+        private val body: String,
+    ) : AuthApi by UnusedAuthApi {
+        override suspend fun exportStudio(token: String): String = body
+    }
+
+    /** A disk that will not take it. The download still worked, and that has to be said. */
+    private object RefusingDocumentSink : DocumentSink {
+        override suspend fun save(document: Document): SavedDocument = error("no room on the device")
+    }
+
+    private class DeletingAuthApi(
+        private val refuse: Boolean = false,
+    ) : AuthApi by UnusedAuthApi {
+        override suspend fun deleteAccount(
+            token: String,
+            password: String,
+        ): Long = if (refuse) throw AuthFailure.Rejected("That password is wrong.") else 1_700_000_000_000L
     }
 
     private object UnusedAuthApi : AuthApi {
@@ -165,6 +258,13 @@ class SettingsViewModelTest {
         ): StoredSession = error("unused")
 
         override suspend fun signOut(token: String) = Unit
+
+        override suspend fun exportStudio(token: String): String = error("unused")
+
+        override suspend fun deleteAccount(
+            token: String,
+            password: String,
+        ): Long = error("unused")
 
         override suspend fun requestPasswordReset(email: String) = error("unused")
 
@@ -206,15 +306,18 @@ class SettingsViewModelTest {
         val repository: FakeStudioProfileRepository,
         val conflicts: FakeSyncConflictRepository,
         val auth: AuthRepository,
+        val sink: DocumentSink,
     )
 
     private fun harness(
         existing: StudioProfile? = null,
         conflicts: List<SyncConflict> = emptyList(),
+        api: AuthApi = UnusedAuthApi,
+        sink: DocumentSink = RecordingDocumentSink(),
     ): Harness {
         val repository = FakeStudioProfileRepository(existing)
         val conflictRepository = FakeSyncConflictRepository(conflicts)
-        val auth = AuthRepository(store = InMemorySessionStore(), api = UnusedAuthApi)
+        val auth = AuthRepository(store = InMemorySessionStore(), api = api)
 
         return Harness(
             viewModel =
@@ -230,10 +333,12 @@ class SettingsViewModelTest {
                     auth = auth,
                     studioContext = LocalStudioContext(),
                     clock = TestAppClock(),
+                    documentSink = sink,
                 ),
             repository = repository,
             conflicts = conflictRepository,
             auth = auth,
+            sink = sink,
         )
     }
 

@@ -268,6 +268,13 @@ class SignInViewModelTest {
             studioName: String,
         ) = session
 
+        override suspend fun exportStudio(token: String): String = error("unused")
+
+        override suspend fun deleteAccount(
+            token: String,
+            password: String,
+        ): Long = error("unused")
+
         override suspend fun signOut(token: String) = Unit
 
         override suspend fun requestPasswordReset(email: String) = Unit
@@ -293,6 +300,13 @@ class SignInViewModelTest {
             name: String,
             studioName: String,
         ): StoredSession = throw failure
+
+        override suspend fun exportStudio(token: String): String = error("unused")
+
+        override suspend fun deleteAccount(
+            token: String,
+            password: String,
+        ): Long = error("unused")
 
         override suspend fun signOut(token: String) = Unit
 

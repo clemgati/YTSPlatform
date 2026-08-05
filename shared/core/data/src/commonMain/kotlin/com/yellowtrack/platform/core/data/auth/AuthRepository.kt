@@ -63,6 +63,27 @@ interface AuthApi {
      * keep somebody signed in on the device in front of them.
      */
     suspend fun signOut(token: String)
+
+    /**
+     * The studio's whole record, as the JSON the server sends.
+     *
+     * Returned as text rather than parsed. Nothing here reads it — it is written to a file
+     * for the studio to keep — and a client that decoded it into models would have to be
+     * taught every entity again, and would start dropping the ones it had not been taught.
+     */
+    suspend fun exportStudio(token: String): String
+
+    /**
+     * Asks for the studio and everything in it to be deleted.
+     *
+     * Returns when the records stop being recoverable. Throws [AuthFailure] if the password
+     * is wrong, which is the only thing standing between a borrowed laptop and a deleted
+     * business.
+     */
+    suspend fun deleteAccount(
+        token: String,
+        password: String,
+    ): Long
 }
 
 /** Whether anybody is signed in, as a screen needs to know it. */
@@ -168,6 +189,36 @@ class AuthRepository(
         state.value = SessionState.SignedOut
 
         current?.let { runCatching { api.signOut(it.token) } }
+    }
+
+    /**
+     * The studio's whole record, for the device to write somewhere.
+     *
+     * Throws if nobody is signed in, which cannot happen from a screen that is only reachable
+     * when somebody is.
+     */
+    suspend fun exportStudio(): String {
+        val token = token() ?: throw AuthFailure.Rejected("You are not signed in.")
+        return api.exportStudio(token)
+    }
+
+    /**
+     * Deletes the studio, and signs this device out because the server already has.
+     *
+     * The order is the opposite of [signOut]'s, and deliberately so. Signing out clears the
+     * device first so a failing server cannot strand somebody signed in; here the server has
+     * to succeed first, because clearing the device on a request that was refused would
+     * report a deleted studio that is still there — and the studio would sign back in to
+     * find it, having been told it was gone.
+     */
+    suspend fun deleteAccount(password: String): Long {
+        val token = token() ?: throw AuthFailure.Rejected("You are not signed in.")
+        val purgeAfter = api.deleteAccount(token, password)
+
+        store.clear()
+        state.value = SessionState.SignedOut
+
+        return purgeAfter
     }
 
     /** The token for the signed-in device, or null. Read per request, never cached. */

@@ -13,6 +13,7 @@ import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.settings.presentation.AccountSummary
 import com.yellowtrack.platform.feature.settings.presentation.ConflictSummary
+import com.yellowtrack.platform.feature.settings.presentation.DeleteStudioDialog
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
 import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
 import com.yellowtrack.platform.feature.settings.presentation.SettingsUiState
@@ -45,6 +46,8 @@ class SettingsRenderTest {
                             onDismissConflict = {},
                             onSyncNow = {},
                             onSignOut = {},
+                            onExport = {},
+                            onDeleteAccount = { _, _ -> },
                         )
                     }
                 }
@@ -52,6 +55,54 @@ class SettingsRenderTest {
 
         try {
             val bytes = requireNotNull(scene.render().encodeToData()) { "Skia produced no image data" }.bytes
+            target.writeBytes(bytes)
+        } finally {
+            scene.close()
+        }
+
+        assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
+        println("Rendered ${target.absolutePath}")
+    }
+
+    /**
+     * The dialog that stands between a studio and its own deletion.
+     *
+     * Rendered at phone width, where the wording has least room and the password field is
+     * closest to the button that acts on it.
+     */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `renders the confirmation before deleting a studio`() {
+        val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
+        outputDir.mkdirs()
+        val target = File(outputDir, "settings-delete-confirm-phone.png")
+
+        val scene =
+            ImageComposeScene(width = 780, height = 1_400, density = Density(2f)) {
+                YellowTrackTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = YTTheme.colors.background,
+                    ) {
+                        DeleteStudioDialog(
+                            studioName = "Harbourline Photography",
+                            onDismiss = {},
+                            onConfirm = { _, _ -> },
+                        )
+                    }
+                }
+            }
+
+        try {
+            // A dialog fades in, and a single frame at time zero catches it at almost no
+            // opacity — which looks exactly like a colour problem and is not one. Rendered
+            // half a second in, where the animation has finished and the colours are the
+            // ones a studio actually sees.
+            scene.render(0)
+            val bytes =
+                requireNotNull(scene.render(500_000_000L).encodeToData()) {
+                    "Skia produced no image data"
+                }.bytes
             target.writeBytes(bytes)
         } finally {
             scene.close()
@@ -83,6 +134,8 @@ class SettingsRenderTest {
                             onDismissConflict = {},
                             onSyncNow = {},
                             onSignOut = {},
+                            onExport = {},
+                            onDeleteAccount = { _, _ -> },
                         )
                     }
                 }

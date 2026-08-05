@@ -34,6 +34,14 @@ fun YTFormDialog(
     modifier: Modifier = Modifier,
     confirmEnabled: Boolean = true,
     dismissLabel: String = "Cancel",
+    /**
+     * Colours the confirm for an action that cannot be taken back.
+     *
+     * The accent this application uses everywhere else is the one it uses to encourage
+     * something. A button that ends a business wearing it reads as the recommended step, and
+     * the studio's eye has been trained by every other dialog to press exactly there.
+     */
+    isDestructive: Boolean = false,
     supportingText: String? = null,
     content: @Composable () -> Unit,
 ) {
@@ -81,10 +89,10 @@ fun YTFormDialog(
                     text = confirmLabel,
                     style = YTTheme.typography.labelLarge,
                     color =
-                        if (confirmEnabled) {
-                            YTTheme.colors.primary
-                        } else {
-                            YTTheme.colors.onSurfaceVariant
+                        when {
+                            !confirmEnabled -> YTTheme.colors.onSurfaceVariant
+                            isDestructive -> YTTheme.colors.error
+                            else -> YTTheme.colors.primary
                         },
                 )
             }
