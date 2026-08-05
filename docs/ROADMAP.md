@@ -352,19 +352,17 @@ and used.
   scope, and that is load-bearing rather than tidy** — `unscoped` leaves `app.studio_id`
   unset, so every `DELETE` matches nothing, removes nothing, and reports success while
   leaving every client and invoice behind
-- ◐ **A studio can take its work with it.** `GET /auth/export` returns everything it has as
+- ✓ **A studio can take its work with it.** `GET /auth/export` returns everything it has as
   one JSON file — every table sync knows about, read inside the row level security scope so
   Postgres does the tenanting rather than a `WHERE` clause that could be got wrong. Built on
   the sync entities so it cannot describe a record differently from the way the application
   already does, and a table added to sync appears in the export without anybody remembering.
-  Half a tick because **no screen reaches either of these yet** — both are endpoints, and a
-  studio cannot press them. Settings is where they go, and export has to be the thing next
-  to the delete button rather than a URL somebody is told about
+  Reachable from Settings → Your data, beside the delete button rather than as a URL somebody
+  is told about
   - Export came first deliberately. Offering to erase a business's records without first
     offering it a copy is not a choice anybody should be asked to make
-  - The account signed up against a mistyped domain can now be cleared: it cannot be
-    recovered, since its only route back is an inbox that does not exist, but it no longer
-    has to keep the address it holds
+  - The account signed up against a mistyped domain has been deleted through the screen like
+    any other, and is due to purge on 4th September 2026
 
 - ✓ **What the studio enters can now be removed.** Of the forty-five write methods the
   repositories declare, eleven were never called from any screen — and ten of those were
@@ -432,12 +430,20 @@ and used.
   out through the mail path it is watching**, so a failure of that path reports itself only
   to the journal, the unit's exit status and `/var/lib/yellowtrack/watch-state`. A second
   instance watching the first is the real answer and is the same missing piece as staging
+  - ✓ It has fired. A run pointed at a dead port produced the "started failing" mail and a
+    second run against the real API produced "recovered" — the pair, in an inbox. A watchdog
+    nobody has seen alert is indistinguishable from a healthy system, which is the failure it
+    exists to catch
 - ✓ **`/ready` reports whether mail works rather than whether it was configured.** `mail`
   was read from `MAIL_HOST` at boot and stayed true through a wrong password, an expired
   credential, an unverified sender and a sandboxed region — every way mail actually stops.
   `mailError` now carries what the last send did, and `mailLastSucceededAt` separates
   *working* from *never tried*, which one boolean could not. Bounces are still invisible:
   SES accepts the message first and bounces out of band
+  - ✓ Proved rather than reported. A password reset to an address that was never an SES
+    identity put a real timestamp in `mailLastSucceededAt`, from the process now running —
+    it is held in memory, so it is this server's own evidence and not a memory of a previous
+    one. That is the send the sandbox could never have done
 - ✓ **SES has production access**, granted 4th August 2026, so mail is no longer refused to
   every address but a verified one. That was the hard blocker on a second studio and it is
   gone. The first reported non-delivery after it was granted turned out not to be SES at
@@ -451,14 +457,6 @@ and used.
   "did you mean `gmail.com`?" for a near-miss of a domain people use — a question, never a
   correction, because a well-formed address with a dead domain is indistinguishable from an
   unusual one
-- **Nothing tells anyone when mail stops.** ADR 0010 has the reset endpoint answer `202`
-  whether the send worked or not, so every failure is deliberately indistinguishable from
-  success and reaches only a log line. `mail:true` on `/ready` is read from the environment
-  at boot, never from a send — it stays `true` through a wrong password, an expired
-  credential, or sending suspended over a bounce rate nobody subscribed to. The sandbox
-  used to be the reason resets did not arrive; now it would be one of these, and the
-  studio still finds out first. **A readiness check that reflects the last send** is the
-  small version of this, and it wants the item below more than it wants code
 - ✓ **Backups run, and the restore rehearses itself.** `yellowtrack-backup.timer` writes a
   dump nightly; `yellowtrack-restore-check.timer` rebuilds the newest one weekly into a
   scratch database and exits non-zero if fewer tables come back than the schema has.
@@ -526,11 +524,19 @@ needs before it can be asked to trust this with a business.
 
 - ✓ **Account deletion**, with thirty days to change its mind, and a purge that makes the
   promise true rather than a setting nobody runs
-  - ◐ Shipped in 1.1.0 with the window unreachable. Deleting revokes every session, and
-    sign-in, password reset and `whoami` all filter on `deleted_at` — so the rows survived
-    for thirty days and the studio had no door to knock on. The screen said "you have 30
-    days to change your mind" and only an operator with `psql` could act on it. Signing in
-    now recognises the state and offers the studio back; fixed in 1.1.1
+  - ✓ Shipped in 1.1.0 with the window unreachable, and fixed in 1.1.1. Deleting revokes
+    every session, and sign-in, password reset and `whoami` all filter on `deleted_at` — so
+    the rows survived for thirty days and the studio had no door to knock on. The screen said
+    "you have 30 days to change your mind" and only an operator with `psql` could act on it.
+    Signing in now recognises the state and offers the studio back. **Found by being asked
+    "how am I supposed to recover it if I cannot log back in", not by any test**: deletion was
+    tested and recovery was never tested as a path
+  - ✓ Deleting and restoring have both been done against production, on a real studio
+  - **The purge itself has never run against real data.** It has tests, and tests are not the
+    same as a job firing on a timer in a process nobody is watching. The first real one is due
+    on 4th September 2026, when the mistyped-domain account falls out — and **nothing
+    announces it**: the purge logs at info and neither `verify-deployment.sh` nor the watchdog
+    looks. `journalctl -u yellowtrack | grep purged` is the whole of the evidence
 - ✓ **Data export** — everything a studio has, as one file it keeps, built on the sync
   entities so it cannot describe a record differently from the application
 - ✓ **Both reachable from Settings.** They were endpoints for one release and no screen
@@ -541,6 +547,19 @@ needs before it can be asked to trust this with a business.
   account created against a domain that does not exist can never be recovered
 - ✓ **A web deploy the browser actually sees.** The vhost pinned the application under a
   filename that does not change between releases
+
+### 1.1.1
+
+One fix, for a hole 1.1.0 put in itself.
+
+- ✓ **The thirty-day window has a door.** Deletion revoked every session and every lookup
+  filtered on `deleted_at`, so the rows survived and the studio could not reach them —
+  a promise the screen made and the application could not keep. Signing in now recognises
+  the state and offers the studio back
+- Found by being asked *"how am I supposed to recover it if I cannot log back in"*. Every
+  test passed, because deletion was tested and coming back was never tested as a path. That
+  is the second time in this release something survived the tests and was caught by somebody
+  using it — the first was a desktop installer that died before drawing a window
 
 ## 1.2.0 — Collaboration
 
