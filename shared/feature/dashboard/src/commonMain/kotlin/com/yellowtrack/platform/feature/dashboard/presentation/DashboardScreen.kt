@@ -41,6 +41,7 @@ internal fun DashboardScreen(
     onMarkEnquiryReplied: (LeadId) -> Unit,
     onSaveEnquiry: (NewEnquiry, LeadId?) -> Unit,
     onRemoveEnquiry: (LeadId) -> Unit,
+    onConvertEnquiry: (LeadId) -> Unit,
     onOpenSession: (SessionId) -> Unit,
     onOpenClient: (ClientId) -> Unit,
     modifier: Modifier = Modifier,
@@ -85,6 +86,7 @@ internal fun DashboardScreen(
             onAddEnquiry = { showEnquiryForm = true },
             onRemoveEnquiry = onRemoveEnquiry,
             onEditEnquiry = { editingEnquiry = it },
+            onConvertEnquiry = onConvertEnquiry,
             onOpenSession = onOpenSession,
             onOpenClient = onOpenClient,
             modifier = contentModifier,
@@ -99,6 +101,7 @@ private fun DashboardContent(
     onAddEnquiry: () -> Unit,
     onRemoveEnquiry: (LeadId) -> Unit,
     onEditEnquiry: (DashboardEnquiry) -> Unit,
+    onConvertEnquiry: (LeadId) -> Unit,
     onOpenSession: (SessionId) -> Unit,
     onOpenClient: (ClientId) -> Unit,
     modifier: Modifier = Modifier,
@@ -138,6 +141,8 @@ private fun DashboardContent(
             enquiries = summary.allEnquiries,
             onRemoveEnquiry = onRemoveEnquiry,
             onEditEnquiry = onEditEnquiry,
+            onConvertEnquiry = onConvertEnquiry,
+            outcomes = summary.outcomes,
             modifier = Modifier.fillMaxWidth(),
         )
 

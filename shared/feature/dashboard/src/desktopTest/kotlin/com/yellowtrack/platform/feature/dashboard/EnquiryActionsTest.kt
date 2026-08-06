@@ -82,6 +82,71 @@ class EnquiryActionsTest {
             )
         }
 
+    // -- Turning one into a client --------------------------------------------------------
+
+    /**
+     * `Lead.convertedClientId` has existed since the schema was first written and nothing
+     * ever set it, so no studio could say which enquiries turned into work.
+     */
+    @Test
+    fun `converting an enquiry creates the client it describes and links the two`() =
+        runTest {
+            val enquiry =
+                lead(firstResponseAt = null, status = LeadStatus.Contacted)
+                    .copy(name = "Ada Okafor", email = "ada@okafor.example", phone = "+44 7700 900123")
+            val leads = FakeLeadRepository(listOf(enquiry))
+            val clients = FakeClientRepository()
+            val viewModel = viewModel(leads, clients = clients)
+
+            viewModel.convertEnquiryToClient(enquiry.id)
+
+            val client = assertNotNull(clients.observeClients().first().lastOrNull(), "no client was created")
+            assertEquals("Ada Okafor", client.accountName)
+            assertEquals(
+                "ada@okafor.example",
+                client.contacts
+                    .single()
+                    .contact.emails
+                    .single()
+                    .value,
+            )
+
+            val converted = assertNotNull(leads.getLead(enquiry.id))
+            assertEquals(client.id, converted.convertedClientId, "the link is what makes the count possible")
+            assertEquals(LeadStatus.Won, converted.status)
+            assertNotNull(converted.firstResponseAt, "winning one is answering it")
+        }
+
+    /** A screen can be pressed twice, and two clients for one person is worse than no button. */
+    @Test
+    fun `converting twice does not make a second client`() =
+        runTest {
+            val enquiry = lead(firstResponseAt = null, status = LeadStatus.Contacted)
+            val leads = FakeLeadRepository(listOf(enquiry))
+            val clients = FakeClientRepository()
+            val viewModel = viewModel(leads, clients = clients)
+
+            viewModel.convertEnquiryToClient(enquiry.id)
+            viewModel.convertEnquiryToClient(enquiry.id)
+
+            assertEquals(1, clients.observeClients().first().size)
+        }
+
+    @Test
+    fun `the dashboard says what became of them`() =
+        runTest {
+            val enquiry = lead(firstResponseAt = null, status = LeadStatus.Contacted)
+            val lost = lead(firstResponseAt = TestAppClock.DEFAULT_NOW, status = LeadStatus.Lost)
+            val leads = FakeLeadRepository(listOf(enquiry, lost))
+            val viewModel = viewModel(leads)
+
+            viewModel.convertEnquiryToClient(enquiry.id)
+
+            val outcomes = assertNotNull(viewModel.summary().outcomes)
+            assertEquals("50% of settled enquiries became clients", outcomes.headline)
+            assertEquals("1 became clients, 1 went elsewhere, 0 still open.", outcomes.detail)
+        }
+
     @Test
     fun `a won enquiry is still listed`() =
         runTest {
@@ -190,8 +255,9 @@ class EnquiryActionsTest {
     private fun viewModel(
         leads: FakeLeadRepository,
         conflicts: FakeSyncConflictRepository = FakeSyncConflictRepository(),
+        clients: FakeClientRepository = FakeClientRepository(),
     ) = DashboardViewModel(
-        clientRepository = FakeClientRepository(),
+        clientRepository = clients,
         projectRepository = FakeProjectRepository(),
         sessionRepository = FakeSessionRepository(),
         leadRepository = leads,

@@ -14,9 +14,12 @@ import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.SyncConflictRepository
 import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
+import com.yellowtrack.platform.core.model.contact.ContactId
 import com.yellowtrack.platform.core.model.gear.GearItem
 import com.yellowtrack.platform.core.model.lead.Lead
+import com.yellowtrack.platform.core.model.lead.LeadConversion
 import com.yellowtrack.platform.core.model.lead.LeadId
 import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.StorageVolume
@@ -130,6 +133,29 @@ internal class DashboardViewModel(
 
     fun retry() {
         retryTrigger.value += 1
+    }
+
+    /**
+     * Turns a won enquiry into a client, without retyping what it already says.
+     *
+     * The client is saved first. If that fails the enquiry is untouched and the studio can
+     * try again; the other order would leave an enquiry claiming a client that does not
+     * exist, which is a broken link nothing would ever notice.
+     *
+     * Refuses one that has already produced a client, because converting twice makes a second
+     * client for the same person — and a screen can be pressed twice.
+     */
+    fun convertEnquiryToClient(leadId: LeadId) {
+        viewModelScope.launch {
+            val lead = leadRepository.getLead(leadId) ?: return@launch
+            if (lead.convertedClientId != null) return@launch
+
+            val now = clock.now()
+            val clientId = ClientId.new()
+
+            clientRepository.saveClient(LeadConversion.clientFrom(lead, clientId, ContactId.new(), now))
+            leadRepository.saveLead(LeadConversion.converted(lead, clientId, now))
+        }
     }
 
     /**
