@@ -258,6 +258,8 @@ class SyncFieldCoverageTest {
                     issuedAt = Instant.fromEpochMilliseconds(1_781_000_000_000),
                     dueAt = Instant.fromEpochMilliseconds(1_781_900_000_000),
                     notes = "Balance due two weeks before the date.",
+                    lastEmailedAt = Instant.fromEpochMilliseconds(1_781_950_000_000),
+                    lastEmailedTo = "sarah@johnson.example",
                     audit = audit(),
                 ),
             // ADR 0008 decision 5, and the case it was written for. `lines` is not exempt:
@@ -507,6 +509,8 @@ class SyncFieldCoverageTest {
                     declinedAt = Instant.fromEpochMilliseconds(1_781_200_000_000),
                     notes = "Held for fourteen days.",
                     terms = "Fifty per cent to book.",
+                    lastEmailedAt = Instant.fromEpochMilliseconds(1_781_250_000_000),
+                    lastEmailedTo = "priya@sandhu.example",
                     audit = audit(),
                 ),
         )

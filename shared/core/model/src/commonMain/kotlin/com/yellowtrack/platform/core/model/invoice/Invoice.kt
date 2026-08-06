@@ -36,6 +36,19 @@ data class Invoice(
     val issuedAt: Instant? = null,
     val dueAt: Instant? = null,
     val notes: String? = null,
+    /**
+     * When this document was last emailed to a client, and where it went.
+     *
+     * Not part of its state. ADR 0011 decision 5: emailing does not move a document, and a
+     * studio that emails one twice has emailed it twice. This exists so the screen can answer
+     * "did I press that button", which it could not — the send reported itself once, in a
+     * line of text that disappeared on the next reload.
+     *
+     * The address is kept as well as the time, because "which address did this go to" is the
+     * question actually asked weeks later, usually because nobody has paid.
+     */
+    val lastEmailedAt: Instant? = null,
+    val lastEmailedTo: String? = null,
     override val audit: AuditMetadata,
 ) : StudioScoped {
     val subtotal: Money get() = lines.subtotal(currency)

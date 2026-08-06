@@ -58,6 +58,18 @@ interface InvoiceRepository {
 
     suspend fun deleteInvoice(invoiceId: InvoiceId)
 
+    /**
+     * Records that this invoice was emailed to a client, and where it went.
+     *
+     * Not `saveInvoice` with two fields changed. Emailing does not edit the document — ADR
+     * 0011 decision 5 — and routing it through the ordinary save would make a send look like
+     * a correction to every device that received it.
+     */
+    suspend fun recordInvoiceEmailed(
+        invoiceId: InvoiceId,
+        to: String,
+    )
+
     suspend fun recordPayment(payment: Payment)
 
     suspend fun deletePayment(paymentId: PaymentId)
@@ -82,6 +94,12 @@ interface QuoteRepository {
     suspend fun getQuote(quoteId: QuoteId): Quote?
 
     suspend fun saveQuote(quote: Quote)
+
+    /** See [InvoiceRepository.recordInvoiceEmailed]. */
+    suspend fun recordQuoteEmailed(
+        quoteId: QuoteId,
+        to: String,
+    )
 
     suspend fun deleteQuote(quoteId: QuoteId)
 }

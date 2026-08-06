@@ -34,6 +34,9 @@ data class Quote(
     val declinedAt: Instant? = null,
     val notes: String? = null,
     val terms: String? = null,
+    /** See [com.yellowtrack.platform.core.model.invoice.Invoice.lastEmailedAt]. */
+    val lastEmailedAt: Instant? = null,
+    val lastEmailedTo: String? = null,
     override val audit: AuditMetadata,
 ) : StudioScoped {
     val subtotal: Money get() = lines.subtotal(currency)

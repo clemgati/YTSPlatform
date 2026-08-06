@@ -74,6 +74,8 @@ internal class SqlDelightInvoiceRepository(
                 updated_at = now,
                 deleted_at = invoice.audit.deletedAt.toEpochMillisOrNull(),
                 version = invoice.audit.version.toLong(),
+                last_emailed_at = invoice.lastEmailedAt.toEpochMillisOrNull(),
+                last_emailed_to = invoice.lastEmailedTo,
             )
 
             db.invoiceQueries.update(
@@ -89,6 +91,8 @@ internal class SqlDelightInvoiceRepository(
                 updatedAt = now,
                 deletedAt = invoice.audit.deletedAt.toEpochMillisOrNull(),
                 version = invoice.audit.version.toLong(),
+                lastEmailedAt = invoice.lastEmailedAt.toEpochMillisOrNull(),
+                lastEmailedTo = invoice.lastEmailedTo,
                 id = invoice.id.value,
             )
 
@@ -114,6 +118,22 @@ internal class SqlDelightInvoiceRepository(
         db.transaction {
             db.invoiceQueries.softDelete(deletedAt = now, id = invoiceId.value)
             db.enqueueForSync(studioId, SyncTables.INVOICE, invoiceId.value, OutboxOperation.Delete, now)
+        }
+    }
+
+    override suspend fun recordInvoiceEmailed(
+        invoiceId: InvoiceId,
+        to: String,
+    ) {
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.invoiceQueries.recordEmailed(emailedAt = now, emailedTo = to, id = invoiceId.value)
+
+            // Queued like any other change, so the studio's other devices learn it was sent
+            // without anybody having to remember which one did the sending.
+            db.enqueueForSync(studioId, SyncTables.INVOICE, invoiceId.value, OutboxOperation.Upsert, now)
         }
     }
 

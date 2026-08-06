@@ -435,6 +435,8 @@ sealed interface SyncedEntity<T> {
                 issuedAt = rows.getNullableLong("issued_at")?.let { Instant.fromEpochMilliseconds(it) },
                 dueAt = rows.getNullableLong("due_at")?.let { Instant.fromEpochMilliseconds(it) },
                 notes = rows.getString("notes"),
+                lastEmailedAt = rows.getNullableLong("last_emailed_at")?.let { Instant.fromEpochMilliseconds(it) },
+                lastEmailedTo = rows.getString("last_emailed_to"),
                 audit = rows.audit(),
             )
 
@@ -450,8 +452,9 @@ sealed interface SyncedEntity<T> {
                     """
                     INSERT INTO invoice(id, studio_id, project_id, number, kind, status, currency,
                                         lines, issued_at, due_at, notes,
-                                        created_at, updated_at, deleted_at, version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        created_at, updated_at, deleted_at, version,
+                                        last_emailed_at, last_emailed_to)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (id) DO UPDATE SET
                         project_id = EXCLUDED.project_id,
                         number     = EXCLUDED.number,
@@ -464,7 +467,9 @@ sealed interface SyncedEntity<T> {
                         notes      = EXCLUDED.notes,
                         updated_at = EXCLUDED.updated_at,
                         deleted_at = EXCLUDED.deleted_at,
-                        version    = EXCLUDED.version
+                        version    = EXCLUDED.version,
+                        last_emailed_at = EXCLUDED.last_emailed_at,
+                        last_emailed_to = EXCLUDED.last_emailed_to
                     """.trimIndent(),
                 ).use { statement ->
                     statement.setString(1, entity.id.value)
@@ -482,6 +487,8 @@ sealed interface SyncedEntity<T> {
                     statement.setLong(13, entity.audit.updatedAt.toEpochMilliseconds())
                     statement.setNullableLong(14, entity.audit.deletedAt?.toEpochMilliseconds())
                     statement.setInt(15, version)
+                    statement.setNullableLong(16, entity.lastEmailedAt?.toEpochMilliseconds())
+                    statement.setString(17, entity.lastEmailedTo)
                     statement.executeUpdate()
                 }
         }
@@ -1336,6 +1343,8 @@ sealed interface SyncedEntity<T> {
                 declinedAt = rows.getNullableLong("declined_at")?.let { Instant.fromEpochMilliseconds(it) },
                 notes = rows.getString("notes"),
                 terms = rows.getString("terms"),
+                lastEmailedAt = rows.getNullableLong("last_emailed_at")?.let { Instant.fromEpochMilliseconds(it) },
+                lastEmailedTo = rows.getString("last_emailed_to"),
                 audit = rows.audit(),
             )
 
@@ -1351,8 +1360,9 @@ sealed interface SyncedEntity<T> {
                     """
                     INSERT INTO quote(id, studio_id, project_id, number, status, currency, lines,
                                       issued_at, valid_until, accepted_at, declined_at, notes, terms,
-                                      created_at, updated_at, deleted_at, version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      created_at, updated_at, deleted_at, version,
+                                      last_emailed_at, last_emailed_to)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (id) DO UPDATE SET
                         project_id  = EXCLUDED.project_id,
                         number      = EXCLUDED.number,
@@ -1367,7 +1377,9 @@ sealed interface SyncedEntity<T> {
                         terms       = EXCLUDED.terms,
                         updated_at  = EXCLUDED.updated_at,
                         deleted_at  = EXCLUDED.deleted_at,
-                        version     = EXCLUDED.version
+                        version     = EXCLUDED.version,
+                        last_emailed_at = EXCLUDED.last_emailed_at,
+                        last_emailed_to = EXCLUDED.last_emailed_to
                     """.trimIndent(),
                 ).use { statement ->
                     statement.setString(1, entity.id.value)
@@ -1387,6 +1399,8 @@ sealed interface SyncedEntity<T> {
                     statement.setLong(15, entity.audit.updatedAt.toEpochMilliseconds())
                     statement.setNullableLong(16, entity.audit.deletedAt?.toEpochMilliseconds())
                     statement.setInt(17, version)
+                    statement.setNullableLong(18, entity.lastEmailedAt?.toEpochMilliseconds())
+                    statement.setString(19, entity.lastEmailedTo)
                     statement.executeUpdate()
                 }
         }

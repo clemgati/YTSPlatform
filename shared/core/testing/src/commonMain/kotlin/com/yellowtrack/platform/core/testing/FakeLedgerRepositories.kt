@@ -77,6 +77,17 @@ class FakeInvoiceRepository(
         invoices.value = invoices.value.filterNot { it.id == invoiceId }
     }
 
+    override suspend fun recordInvoiceEmailed(
+        invoiceId: InvoiceId,
+        to: String,
+    ) {
+        val existing = invoices.value.firstOrNull { it.id == invoiceId } ?: return
+        invoices.value =
+            invoices.value.map {
+                if (it.id == invoiceId) it.copy(lastEmailedAt = existing.audit.updatedAt, lastEmailedTo = to) else it
+            }
+    }
+
     override suspend fun recordPayment(payment: Payment) {
         payments.value = payments.value.filterNot { it.id == payment.id } + payment
     }
@@ -107,6 +118,17 @@ class FakeQuoteRepository(
                 .filter { it.status.isAwaitingDecision }
                 .sortedBy { it.issuedAt ?: it.audit.createdAt }
         }
+
+    override suspend fun recordQuoteEmailed(
+        quoteId: QuoteId,
+        to: String,
+    ) {
+        val existing = state.value.firstOrNull { it.id == quoteId } ?: return
+        state.value =
+            state.value.map {
+                if (it.id == quoteId) it.copy(lastEmailedAt = existing.audit.updatedAt, lastEmailedTo = to) else it
+            }
+    }
 
     override suspend fun getQuote(quoteId: QuoteId): Quote? = state.value.firstOrNull { it.id == quoteId }
 

@@ -1466,7 +1466,7 @@ class MigrationTest {
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(17L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(18L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

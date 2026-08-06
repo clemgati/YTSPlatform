@@ -28,6 +28,8 @@ CREATE TABLE invoice (
     updated_at INTEGER NOT NULL,
     deleted_at INTEGER,
     version    INTEGER NOT NULL DEFAULT 1,
+    last_emailed_at INTEGER,
+    last_emailed_to TEXT,
     FOREIGN KEY (project_id) REFERENCES project(id)
 );
 
@@ -87,9 +89,10 @@ ORDER BY paid_at;
 insertOrIgnore:
 INSERT OR IGNORE INTO invoice(
     id, studio_id, project_id, number, kind, status, currency, lines,
-    issued_at, due_at, notes, created_at, updated_at, deleted_at, version
+    issued_at, due_at, notes, created_at, updated_at, deleted_at, version,
+    last_emailed_at, last_emailed_to
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 update:
 UPDATE invoice
@@ -104,7 +107,23 @@ SET project_id = :projectId,
     notes      = :notes,
     updated_at = :updatedAt,
     deleted_at = :deletedAt,
-    version    = :version
+    version    = :version,
+    last_emailed_at = :lastEmailedAt,
+    last_emailed_to = :lastEmailedTo
+WHERE id = :id;
+
+-- Records that this document was emailed, without touching anything else about it.
+--
+-- Its own statement rather than a field on `update`, because emailing is not an edit. ADR
+-- 0011 decision 5: the invoice is unchanged, and a studio that emails one twice has emailed
+-- it twice rather than sent it twice. `version` still moves, so the fact reaches the studio's
+-- other devices like any other change.
+recordEmailed:
+UPDATE invoice
+SET last_emailed_at = :emailedAt,
+    last_emailed_to = :emailedTo,
+    updated_at      = :emailedAt,
+    version         = version + 1
 WHERE id = :id;
 
 softDelete:

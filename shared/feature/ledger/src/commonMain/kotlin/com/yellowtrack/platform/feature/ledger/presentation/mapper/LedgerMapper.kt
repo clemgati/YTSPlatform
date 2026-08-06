@@ -113,6 +113,11 @@ internal fun buildMoneyOwed(
                 overdueDays = overdue?.inWholeDays,
                 dueLabel = invoice.dueAt?.let { DateFormats.shortDate(it, TimeZone.currentSystemDefault()) },
                 canVoid = invoice.payments.isEmpty(),
+                emailedLabel =
+                    invoice.lastEmailedAt?.let { at ->
+                        "Emailed to ${invoice.lastEmailedTo.orEmpty()} on " +
+                            DateFormats.shortDate(at, TimeZone.currentSystemDefault())
+                    },
             )
         }
 

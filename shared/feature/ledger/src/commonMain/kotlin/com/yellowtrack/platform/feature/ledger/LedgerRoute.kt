@@ -45,10 +45,20 @@ fun LedgerRoute(modifier: Modifier = Modifier) {
             viewModel.saveDocument({ viewModel.quoteSheet(quoteId) }) { documentMessage = it }
         },
         onEmailInvoice = { invoiceId, to ->
-            viewModel.emailDocument(to, { viewModel.invoiceSheet(invoiceId) }) { documentMessage = it }
+            viewModel.emailDocument(
+                to = to,
+                sheet = { viewModel.invoiceSheet(invoiceId) },
+                onResult = { documentMessage = it },
+                record = { viewModel.recordInvoiceEmailed(invoiceId, it) },
+            )
         },
         onEmailQuote = { quoteId, to ->
-            viewModel.emailDocument(to, { viewModel.quoteSheet(quoteId) }) { documentMessage = it }
+            viewModel.emailDocument(
+                to = to,
+                sheet = { viewModel.quoteSheet(quoteId) },
+                onResult = { documentMessage = it },
+                record = { viewModel.recordQuoteEmailed(quoteId, it) },
+            )
         },
         documentMessage = documentMessage,
         modifier = modifier,
