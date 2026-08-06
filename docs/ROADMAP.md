@@ -594,19 +594,37 @@ reply lands in, and on one reputation shared by everybody. This file called it "
 - **Nothing records that a document was emailed**, so a studio reloading cannot tell whether
   it pressed the button. Wants `last_emailed_at` and a migration
 
-## 1.3.0 — Collaboration
+## 1.3.0 — Enquiries into clients ✓
 
-Was 0.8.0, then 1.1.0, then 1.2.0 — renumbered each time a release overtook it rather than
-because the work changed. The gallery is the largest thing this application does not do, and
+An enquiry that is won becomes a client without retyping what it already said, and the
+Dashboard says what became of all of them.
+
+`Lead.convertedClientId` had existed since the schema was first written and nothing ever set
+it, so no studio could say which enquiries turned into work.
+
+- ✓ **Make client** builds the client and its contact from the enquiry, marks it won, and
+  links the two
+- ✓ **Three numbers, not two.** Converted over *settled*, with the still-open ones reported
+  beside it rather than counted as failures — a rate that moved every time an enquiry arrived
+  would be measuring the wrong thing
+- ✓ Converted is measured by the link rather than the `Won` status: ticking won by hand is
+  telling yourself something, converting leaves a client to show for it
+- Converting does not open a booking. `convertedProjectId` is still unset and the enquiry
+  carries the service line, date and budget a booking wants, so this is a small follow-up
+
+## 1.4.0 — Collaboration
+
+Was 0.8.0, then 1.1.0, then 1.2.0, then 1.3.0 — renumbered each time a release overtook it
+rather than because the work changed. The gallery is the largest thing this application does not do, and
 the one a studio replaces with another product today.
 
 - Client proofing, selections, and approvals — and the object storage they need, moved here
   from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
-## 1.4.0 — Hardening
+## 1.5.0 — Hardening
 
-Was 0.9.0, then 1.2.0, then 1.3.0. Named for what it is rather than "release candidate",
+Was 0.9.0, then 1.2.0, then 1.3.0, then 1.4.0. Named for what it is rather than "release candidate",
 which it no longer is.
 
 - Accessibility, performance, and migration validation
