@@ -11,6 +11,7 @@ import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSe
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardStudioStatus
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardStudioStatusItem
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSummary
+import com.yellowtrack.platform.feature.dashboard.presentation.model.EnquiryOutcomesSummary
 
 internal object DashboardPreviewData {
     val summary =
@@ -41,6 +42,7 @@ internal object DashboardPreviewData {
                         waitingLabel = "waiting 2 days",
                         isUrgent = true,
                         statusLabel = "Awaiting a reply",
+                        canConvert = true,
                     ),
                     DashboardEnquiry(
                         id = LeadId("lead-2"),
@@ -49,6 +51,7 @@ internal object DashboardPreviewData {
                         waitingLabel = "",
                         isUrgent = false,
                         statusLabel = "Won",
+                        convertedLabel = "Became a client",
                     ),
                     DashboardEnquiry(
                         id = LeadId("lead-3"),
@@ -58,6 +61,11 @@ internal object DashboardPreviewData {
                         isUrgent = false,
                         statusLabel = "Replied",
                     ),
+                ),
+            outcomes =
+                EnquiryOutcomesSummary(
+                    headline = "62% of settled enquiries became clients",
+                    detail = "8 became clients, 5 went elsewhere, 3 still open.",
                 ),
             recentClients =
                 listOf(

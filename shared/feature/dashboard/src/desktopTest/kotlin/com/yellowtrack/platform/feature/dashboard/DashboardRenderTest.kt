@@ -58,6 +58,7 @@ class DashboardRenderTest {
                             onOpenSession = {},
                             onOpenClient = {},
                             onRemoveEnquiry = {},
+                            onConvertEnquiry = {},
                         )
                     }
                 }
@@ -109,6 +110,7 @@ class DashboardRenderTest {
                             onOpenSession = {},
                             onOpenClient = {},
                             onRemoveEnquiry = {},
+                            onConvertEnquiry = {},
                         )
                     }
                 }

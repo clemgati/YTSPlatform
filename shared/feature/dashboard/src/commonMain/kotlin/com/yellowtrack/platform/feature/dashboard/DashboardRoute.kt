@@ -25,6 +25,7 @@ fun DashboardRoute(
         onMarkEnquiryReplied = viewModel::markEnquiryReplied,
         onSaveEnquiry = viewModel::saveEnquiry,
         onRemoveEnquiry = viewModel::deleteEnquiry,
+        onConvertEnquiry = viewModel::convertEnquiryToClient,
         onOpenSession = onOpenSession,
         onOpenClient = onOpenClient,
         modifier = modifier,

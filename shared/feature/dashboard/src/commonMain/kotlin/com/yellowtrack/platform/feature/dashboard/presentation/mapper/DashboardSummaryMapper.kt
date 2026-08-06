@@ -3,9 +3,11 @@ package com.yellowtrack.platform.feature.dashboard.presentation.mapper
 import com.yellowtrack.platform.core.common.time.DateFormats
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.gear.GearItem
+import com.yellowtrack.platform.core.model.lead.EnquiryOutcomes
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.lead.LeadSource
 import com.yellowtrack.platform.core.model.lead.LeadStatus
+import com.yellowtrack.platform.core.model.lead.outcomes
 import com.yellowtrack.platform.core.model.media.StorageVolume
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.service.ServiceLine
@@ -17,6 +19,7 @@ import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSe
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardStudioStatus
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardStudioStatusItem
 import com.yellowtrack.platform.feature.dashboard.presentation.model.DashboardSummary
+import com.yellowtrack.platform.feature.dashboard.presentation.model.EnquiryOutcomesSummary
 import com.yellowtrack.platform.feature.dashboard.presentation.model.NewEnquiry
 import kotlinx.datetime.TimeZone
 import kotlin.time.Duration
@@ -99,10 +102,41 @@ internal fun toDashboardSummary(
                         isUrgent = false,
                         statusLabel = lead.statusLabel,
                         editable = lead.toForm(),
+                        // Offered on anything that has not already produced one, including a
+                        // lost enquiry: a studio that marked one lost and then won it back
+                        // should not have to retype what it already has.
+                        canConvert = lead.convertedClientId == null,
+                        convertedLabel = "Became a client".takeIf { lead.convertedClientId != null },
                     )
                 },
+        outcomes = allEnquiries.outcomes().toSummary(),
     )
 }
+
+/**
+ * The conversion figures, in a sentence rather than a chart.
+ *
+ * Null when the studio has no enquiries at all: a panel reading "0 of 0" on a first run is
+ * worse than no panel, because it looks like a measurement rather than an absence.
+ */
+private fun EnquiryOutcomes.toSummary(): EnquiryOutcomesSummary? {
+    if (!hasAny) return null
+
+    val headline =
+        when (val rate = conversionRate) {
+            // Said plainly rather than as 0%, which would be a number the studio has not
+            // earned yet and would read as a verdict on it.
+            null -> "$total ${"enquiry".pluralised(total)}, none settled yet"
+            else -> "$rate% of settled enquiries became clients"
+        }
+
+    return EnquiryOutcomesSummary(
+        headline = headline,
+        detail = "$converted became clients, $lost went elsewhere, $open still open.",
+    )
+}
+
+private fun String.pluralised(count: Int): String = if (count == 1) this else this + "s"
 
 /**
  * Where the enquiry got to, said as a studio would say it.

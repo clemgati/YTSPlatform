@@ -13,6 +13,11 @@ internal data class DashboardSummary(
      * at all. A spam message somebody answered, or a duplicate, could then never be removed.
      */
     val allEnquiries: List<DashboardEnquiry> = emptyList(),
+    /**
+     * What became of them. Null until the studio has any, because "0 of 0" on a first run
+     * reads as a measurement rather than an absence.
+     */
+    val outcomes: EnquiryOutcomesSummary? = null,
     val todayLabel: String = "",
     /**
      * How much work synchronisation has discarded and nobody has looked at.
