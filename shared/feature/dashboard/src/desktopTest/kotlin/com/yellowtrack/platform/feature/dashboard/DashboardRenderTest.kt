@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.dashboard.presentation.DashboardScreen
 import com.yellowtrack.platform.feature.dashboard.presentation.DashboardUiState
+import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardAllEnquiriesSection
 import com.yellowtrack.platform.feature.dashboard.presentation.preview.DashboardPreviewData
 import java.io.File
 import kotlin.test.Test
@@ -24,6 +25,46 @@ import kotlin.test.assertTrue
  * png and a human decides whether it does its job.
  */
 class DashboardRenderTest {
+    /**
+     * Every enquiry, with what became of them and the action that converts one.
+     *
+     * The choice of whether to open a booking is a dialog and so is not in this frame — it
+     * opens on a press. Dialog renders are dimmed by an `ImageComposeScene` artifact in any
+     * case, as `contract-signature.png` has always shown, so they prove layout and not colour.
+     */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun `renders every enquiry with what became of them`() {
+        val outputDir = File(System.getProperty("yellowtrack.render.dir") ?: "build/render")
+        outputDir.mkdirs()
+        val target = File(outputDir, "dashboard-enquiries-phone.png")
+
+        val scene =
+            ImageComposeScene(width = 780, height = 1_200, density = Density(2f)) {
+                YellowTrackTheme {
+                    Surface(modifier = Modifier.fillMaxSize(), color = YTTheme.colors.background) {
+                        DashboardAllEnquiriesSection(
+                            enquiries = DashboardPreviewData.summary.allEnquiries,
+                            onRemoveEnquiry = {},
+                            onEditEnquiry = {},
+                            onConvertEnquiry = { _, _ -> },
+                            outcomes = DashboardPreviewData.summary.outcomes,
+                        )
+                    }
+                }
+            }
+
+        try {
+            val bytes = requireNotNull(scene.render().encodeToData()) { "Skia produced no image data" }.bytes
+            target.writeBytes(bytes)
+        } finally {
+            scene.close()
+        }
+
+        assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
+        println("Rendered ${target.absolutePath}")
+    }
+
     @OptIn(ExperimentalComposeUiApi::class)
     @Test
     fun `renders the dashboard with overwritten work to a png`() {
@@ -58,7 +99,7 @@ class DashboardRenderTest {
                             onOpenSession = {},
                             onOpenClient = {},
                             onRemoveEnquiry = {},
-                            onConvertEnquiry = {},
+                            onConvertEnquiry = { _, _ -> },
                         )
                     }
                 }
@@ -110,7 +151,7 @@ class DashboardRenderTest {
                             onOpenSession = {},
                             onOpenClient = {},
                             onRemoveEnquiry = {},
-                            onConvertEnquiry = {},
+                            onConvertEnquiry = { _, _ -> },
                         )
                     }
                 }

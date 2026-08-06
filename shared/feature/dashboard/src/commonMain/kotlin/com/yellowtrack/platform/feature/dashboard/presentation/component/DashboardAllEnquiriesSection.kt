@@ -4,11 +4,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.yellowtrack.platform.core.designsystem.component.YTFormDialog
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.model.lead.LeadId
@@ -35,11 +43,24 @@ internal fun DashboardAllEnquiriesSection(
     enquiries: List<DashboardEnquiry>,
     onRemoveEnquiry: (LeadId) -> Unit,
     onEditEnquiry: (DashboardEnquiry) -> Unit,
-    onConvertEnquiry: (LeadId) -> Unit,
+    onConvertEnquiry: (LeadId, Boolean) -> Unit,
     outcomes: EnquiryOutcomesSummary?,
     modifier: Modifier = Modifier,
 ) {
     if (enquiries.isEmpty()) return
+
+    var converting by remember { mutableStateOf<DashboardEnquiry?>(null) }
+
+    converting?.let { enquiry ->
+        ConvertEnquiryDialog(
+            enquiry = enquiry,
+            onDismiss = { converting = null },
+            onConfirm = { openBooking ->
+                onConvertEnquiry(enquiry.id, openBooking)
+                converting = null
+            },
+        )
+    }
 
     YTSectionCard(
         title = "Every enquiry",
@@ -89,7 +110,7 @@ internal fun DashboardAllEnquiriesSection(
                         // Offered only where it would do something. A row that already
                         // produced a client says so in the line above instead.
                         if (enquiry.canConvert) {
-                            TextButton(onClick = { onConvertEnquiry(enquiry.id) }) {
+                            TextButton(onClick = { converting = enquiry }) {
                                 Text(
                                     text = "Make client",
                                     style = YTTheme.typography.labelMedium,
@@ -117,5 +138,63 @@ internal fun DashboardAllEnquiriesSection(
                 }
             }
         }
+    }
+}
+
+/**
+ * What converting will actually do, before it does it.
+ *
+ * The booking is offered rather than assumed. An enquiry that is won is usually work, but not
+ * always yet — somebody may have agreed in principle with no date and nothing to price — and a
+ * project on the Ledger that nobody meant to open is harder to notice than a second press.
+ *
+ * Ticked by default, because the studio pressed this on an enquiry it has won.
+ */
+@Composable
+private fun ConvertEnquiryDialog(
+    enquiry: DashboardEnquiry,
+    onDismiss: () -> Unit,
+    onConfirm: (openBooking: Boolean) -> Unit,
+) {
+    var openBooking by remember { mutableStateOf(true) }
+
+    YTFormDialog(
+        title = "Make ${enquiry.name} a client",
+        confirmLabel = "Make client",
+        onConfirm = { onConfirm(openBooking) },
+        onDismiss = onDismiss,
+    ) {
+        Text(
+            text =
+                "Their name and contact details come across from the enquiry, and it is marked " +
+                    "won.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
+        ) {
+            Checkbox(checked = openBooking, onCheckedChange = { openBooking = it })
+            Text(
+                text = "Open a booking for it too",
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurface,
+            )
+        }
+
+        Text(
+            text =
+                if (openBooking) {
+                    "The booking opens as an enquiry, not as booked — a date is held once a " +
+                        "contract is signed and its retainer paid."
+                } else {
+                    "You can open one later from the client's own page."
+                },
+            style = YTTheme.typography.labelMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
     }
 }

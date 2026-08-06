@@ -5,9 +5,13 @@ import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.contact.ContactId
+import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.project.ProjectStatus
+import com.yellowtrack.platform.core.model.service.ServiceLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -61,6 +65,77 @@ class LeadConversionTest {
         assertEquals("Priya & Tom" to "Sandhu", split("Priya & Tom Sandhu"))
         assertEquals("Cher" to "", split("Cher"))
         assertEquals("Ada" to "Okafor", split("  Ada Okafor  "))
+    }
+
+    // -- The booking it can open with -------------------------------------------------------
+
+    @Test
+    fun `builds the booking from what the enquiry asked for`() {
+        val project =
+            LeadConversion.projectFrom(
+                lead().copy(serviceLine = ServiceLine.Portrait),
+                ProjectId("project-1"),
+                ClientId("client-1"),
+                now,
+            )
+
+        assertEquals("Ada Okafor — Portrait", project.name, "named for the job, not just the client")
+        assertEquals(ServiceLine.Portrait, project.serviceLine)
+        assertEquals(ClientId("client-1"), project.clientId)
+    }
+
+    /**
+     * Booked means a contract signed and a retainer paid. Neither has happened, and saying so
+     * would put a date in the held column that nothing is holding.
+     */
+    @Test
+    fun `opens the booking as an enquiry rather than booked`() {
+        assertEquals(
+            ProjectStatus.Enquiry,
+            LeadConversion.projectFrom(lead(), ProjectId("p"), ClientId("c"), now).status,
+        )
+    }
+
+    /** `enquiredAt` has existed all along for this and nothing ever set it. */
+    @Test
+    fun `carries when the enquiry actually arrived`() {
+        val project = LeadConversion.projectFrom(lead(), ProjectId("p"), ClientId("c"), now)
+
+        assertEquals(lead().receivedAt, project.enquiredAt, "the booking's age is the enquiry's age")
+    }
+
+    @Test
+    fun `reads a multi-word service line properly`() {
+        val project =
+            LeadConversion.projectFrom(
+                lead().copy(serviceLine = ServiceLine.RealEstate),
+                ProjectId("p"),
+                ClientId("c"),
+                now,
+            )
+
+        assertEquals("Ada Okafor — Real Estate", project.name)
+    }
+
+    @Test
+    fun `falls back when the enquiry never said what it was for`() {
+        val project =
+            LeadConversion.projectFrom(lead().copy(serviceLine = null), ProjectId("p"), ClientId("c"), now)
+
+        assertEquals(ServiceLine.Other, project.serviceLine)
+    }
+
+    @Test
+    fun `links the enquiry to the booking when one was opened`() {
+        assertEquals(
+            ProjectId("p"),
+            LeadConversion.converted(lead(), ClientId("c"), now, ProjectId("p")).convertedProjectId,
+        )
+    }
+
+    @Test
+    fun `leaves the booking link unset when none was opened`() {
+        assertNull(LeadConversion.converted(lead(), ClientId("c"), now).convertedProjectId)
     }
 
     @Test
