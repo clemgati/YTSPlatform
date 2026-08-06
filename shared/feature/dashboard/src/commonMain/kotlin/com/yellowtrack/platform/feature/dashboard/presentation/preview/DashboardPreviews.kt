@@ -15,7 +15,7 @@ private fun DashboardSuccessPreview() {
             onMarkEnquiryReplied = {},
             onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
-            onConvertEnquiry = {},
+            onConvertEnquiry = { _, _ -> },
             onOpenSession = {},
             onOpenClient = {},
         )
@@ -32,7 +32,7 @@ private fun DashboardLoadingPreview() {
             onMarkEnquiryReplied = {},
             onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
-            onConvertEnquiry = {},
+            onConvertEnquiry = { _, _ -> },
             onOpenSession = {},
             onOpenClient = {},
         )
@@ -49,7 +49,7 @@ private fun DashboardEmptyPreview() {
             onMarkEnquiryReplied = {},
             onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
-            onConvertEnquiry = {},
+            onConvertEnquiry = { _, _ -> },
             onOpenSession = {},
             onOpenClient = {},
         )
@@ -66,7 +66,7 @@ private fun DashboardErrorPreview() {
             onMarkEnquiryReplied = {},
             onSaveEnquiry = { _, _ -> },
             onRemoveEnquiry = {},
-            onConvertEnquiry = {},
+            onConvertEnquiry = { _, _ -> },
             onOpenSession = {},
             onOpenClient = {},
         )

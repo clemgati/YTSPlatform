@@ -23,6 +23,7 @@ import com.yellowtrack.platform.core.model.lead.LeadConversion
 import com.yellowtrack.platform.core.model.lead.LeadId
 import com.yellowtrack.platform.core.model.lead.LeadStatus
 import com.yellowtrack.platform.core.model.media.StorageVolume
+import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.dashboard.presentation.mapper.buildStudioStatus
 import com.yellowtrack.platform.feature.dashboard.presentation.mapper.toDashboardSummary
@@ -145,7 +146,10 @@ internal class DashboardViewModel(
      * Refuses one that has already produced a client, because converting twice makes a second
      * client for the same person — and a screen can be pressed twice.
      */
-    fun convertEnquiryToClient(leadId: LeadId) {
+    fun convertEnquiryToClient(
+        leadId: LeadId,
+        openBooking: Boolean,
+    ) {
         viewModelScope.launch {
             val lead = leadRepository.getLead(leadId) ?: return@launch
             if (lead.convertedClientId != null) return@launch
@@ -154,7 +158,15 @@ internal class DashboardViewModel(
             val clientId = ClientId.new()
 
             clientRepository.saveClient(LeadConversion.clientFrom(lead, clientId, ContactId.new(), now))
-            leadRepository.saveLead(LeadConversion.converted(lead, clientId, now))
+
+            // The booking needs the client to exist, and the enquiry is written last so it
+            // never points at either before they are there.
+            val projectId =
+                ProjectId.new().takeIf { openBooking }?.also { id ->
+                    projectRepository.saveProject(LeadConversion.projectFrom(lead, id, clientId, now))
+                }
+
+            leadRepository.saveLead(LeadConversion.converted(lead, clientId, now, projectId))
         }
     }
 

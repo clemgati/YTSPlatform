@@ -98,7 +98,7 @@ class EnquiryActionsTest {
             val clients = FakeClientRepository()
             val viewModel = viewModel(leads, clients = clients)
 
-            viewModel.convertEnquiryToClient(enquiry.id)
+            viewModel.convertEnquiryToClient(enquiry.id, openBooking = false)
 
             val client = assertNotNull(clients.observeClients().first().lastOrNull(), "no client was created")
             assertEquals("Ada Okafor", client.accountName)
@@ -117,6 +117,41 @@ class EnquiryActionsTest {
             assertNotNull(converted.firstResponseAt, "winning one is answering it")
         }
 
+    @Test
+    fun `opening a booking with it links all three`() =
+        runTest {
+            val enquiry =
+                lead(firstResponseAt = null, status = LeadStatus.Contacted)
+                    .copy(name = "Ada Okafor", serviceLine = ServiceLine.Portrait)
+            val leads = FakeLeadRepository(listOf(enquiry))
+            val clients = FakeClientRepository()
+            val projects = FakeProjectRepository()
+            val viewModel = viewModel(leads, clients = clients, projects = projects)
+
+            viewModel.convertEnquiryToClient(enquiry.id, openBooking = true)
+
+            val client = assertNotNull(clients.observeClients().first().lastOrNull())
+            val project = assertNotNull(projects.observeProjects().first().lastOrNull(), "no booking was opened")
+            assertEquals("Ada Okafor — Portrait", project.name)
+            assertEquals(client.id, project.clientId, "the booking has to belong to the new client")
+
+            val converted = assertNotNull(leads.getLead(enquiry.id))
+            assertEquals(project.id, converted.convertedProjectId)
+        }
+
+    /** Not everybody who is won has work to schedule yet. */
+    @Test
+    fun `leaves the ledger alone when no booking was asked for`() =
+        runTest {
+            val enquiry = lead(firstResponseAt = null, status = LeadStatus.Contacted)
+            val projects = FakeProjectRepository()
+            val viewModel = viewModel(FakeLeadRepository(listOf(enquiry)), projects = projects)
+
+            viewModel.convertEnquiryToClient(enquiry.id, openBooking = false)
+
+            assertEquals(emptyList(), projects.observeProjects().first())
+        }
+
     /** A screen can be pressed twice, and two clients for one person is worse than no button. */
     @Test
     fun `converting twice does not make a second client`() =
@@ -126,8 +161,8 @@ class EnquiryActionsTest {
             val clients = FakeClientRepository()
             val viewModel = viewModel(leads, clients = clients)
 
-            viewModel.convertEnquiryToClient(enquiry.id)
-            viewModel.convertEnquiryToClient(enquiry.id)
+            viewModel.convertEnquiryToClient(enquiry.id, openBooking = false)
+            viewModel.convertEnquiryToClient(enquiry.id, openBooking = false)
 
             assertEquals(1, clients.observeClients().first().size)
         }
@@ -140,7 +175,7 @@ class EnquiryActionsTest {
             val leads = FakeLeadRepository(listOf(enquiry, lost))
             val viewModel = viewModel(leads)
 
-            viewModel.convertEnquiryToClient(enquiry.id)
+            viewModel.convertEnquiryToClient(enquiry.id, openBooking = false)
 
             val outcomes = assertNotNull(viewModel.summary().outcomes)
             assertEquals("50% of settled enquiries became clients", outcomes.headline)
@@ -256,9 +291,10 @@ class EnquiryActionsTest {
         leads: FakeLeadRepository,
         conflicts: FakeSyncConflictRepository = FakeSyncConflictRepository(),
         clients: FakeClientRepository = FakeClientRepository(),
+        projects: FakeProjectRepository = FakeProjectRepository(),
     ) = DashboardViewModel(
         clientRepository = clients,
-        projectRepository = FakeProjectRepository(),
+        projectRepository = projects,
         sessionRepository = FakeSessionRepository(),
         leadRepository = leads,
         studioProfileRepository = FakeStudioProfileRepository(),
