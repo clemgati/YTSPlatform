@@ -347,11 +347,12 @@ and used.
   reply lands in, and on one reputation shared by everybody. One address on the verified
   domain, the studio's name in the display name, its own address in `Reply-To`, and rate
   limiting before it ships, because sign-up is open and this would otherwise be a relay.
-  Still half a tick for two things: **nothing records that a document was emailed**, so a
-  studio reloading the screen cannot tell whether it pressed the button — that wants
-  `last_emailed_at` on the document and a migration to carry it — and the client's address is
-  typed each time rather than offered from the contact, because the address on a contact is
-  often the person who booked rather than the person who pays
+  A row now says "Emailed to ada@example.com on 5 August", recorded on the device after the
+  send and synchronised like any other change, so the studio's other devices know without
+  anybody remembering which one did the sending. Still half a tick for one thing: the client's
+  address is typed each time rather than offered from the contact, because the address on a
+  contact is often the person who booked rather than the person who pays, and quietly sending
+  an invoice to the wrong one of those is worse than asking
 - **The share sheet on Android and iOS** is compiled and has never been run. Sign-in has
   now been exercised on both, so the session stores are proved — this is not
 - **Two studio names.** `studio.name` is fixed at sign-up and shown in Settings → Account;

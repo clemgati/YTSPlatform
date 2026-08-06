@@ -86,6 +86,8 @@ internal class SqlDelightQuoteRepository(
                 updated_at = now,
                 deleted_at = quote.audit.deletedAt.toEpochMillisOrNull(),
                 version = quote.audit.version.toLong(),
+                last_emailed_at = quote.lastEmailedAt.toEpochMillisOrNull(),
+                last_emailed_to = quote.lastEmailedTo,
             )
 
             db.quoteQueries.update(
@@ -103,6 +105,8 @@ internal class SqlDelightQuoteRepository(
                 updatedAt = now,
                 deletedAt = quote.audit.deletedAt.toEpochMillisOrNull(),
                 version = quote.audit.version.toLong(),
+                lastEmailedAt = quote.lastEmailedAt.toEpochMillisOrNull(),
+                lastEmailedTo = quote.lastEmailedTo,
                 id = quote.id.value,
             )
 
@@ -117,6 +121,22 @@ internal class SqlDelightQuoteRepository(
         db.transaction {
             db.quoteQueries.softDelete(deletedAt = now, id = quoteId.value)
             db.enqueueForSync(studioId, SyncTables.QUOTE, quoteId.value, OutboxOperation.Delete, now)
+        }
+    }
+
+    override suspend fun recordQuoteEmailed(
+        quoteId: QuoteId,
+        to: String,
+    ) {
+        val db = database()
+        val now = clock.now().toEpochMillis()
+
+        db.transaction {
+            db.quoteQueries.recordEmailed(emailedAt = now, emailedTo = to, id = quoteId.value)
+
+            // Queued like any other change, so the studio's other devices learn it was sent
+            // without anybody having to remember which one did the sending.
+            db.enqueueForSync(studioId, SyncTables.QUOTE, quoteId.value, OutboxOperation.Upsert, now)
         }
     }
 }

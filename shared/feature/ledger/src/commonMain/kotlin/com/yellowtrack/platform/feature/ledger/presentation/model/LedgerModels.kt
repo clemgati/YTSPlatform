@@ -35,6 +35,14 @@ internal data class OutstandingInvoiceItem(
      * money received in error is a refund, recorded, not a document quietly cancelled.
      */
     val canVoid: Boolean,
+    /**
+     * "Emailed to ada@example.com on 5 August", or null if it never has been.
+     *
+     * Formatted here rather than carried as an instant, because the screen shows it and the
+     * ViewModel is where this application does its date formatting. Null is the honest answer
+     * for every document that predates the Email button.
+     */
+    val emailedLabel: String?,
 )
 
 /**
@@ -162,6 +170,14 @@ internal data class QuoteItem(
     val status: QuoteStatus,
     val waitingLabel: String?,
     val validUntilLabel: String?,
+    /**
+     * "Emailed to ada@example.com on 5 August", or null if it never has been.
+     *
+     * Formatted here rather than carried as an instant, because the screen shows it and the
+     * ViewModel is where this application does its date formatting. Null is the honest answer
+     * for every document that predates the Email button.
+     */
+    val emailedLabel: String?,
     /** The quote as the form takes it, so revising one opens on what was proposed. */
     val editable: NewQuote,
 ) {

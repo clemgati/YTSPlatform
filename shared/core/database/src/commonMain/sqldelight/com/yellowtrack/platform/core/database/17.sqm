@@ -1,0 +1,16 @@
+-- Version 17 to 18: records that a document was emailed to a client, and where it went.
+--
+-- Mirrors `V5__document_emailed.sql` on the server. `SchemaDriftTest` holds the two
+-- identical and fails the build if they diverge.
+--
+-- Nullable, because every document that already exists was never emailed from inside the
+-- application — there was no way to. A default would be inventing a send that did not happen.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+ALTER TABLE invoice ADD COLUMN last_emailed_at INTEGER;
+ALTER TABLE invoice ADD COLUMN last_emailed_to TEXT;
+
+ALTER TABLE quote ADD COLUMN last_emailed_at INTEGER;
+ALTER TABLE quote ADD COLUMN last_emailed_to TEXT;

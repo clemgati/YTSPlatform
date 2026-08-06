@@ -61,6 +61,11 @@ internal fun buildProposals(
                 status = quote.effectiveStatus(now),
                 waitingLabel = quote.issuedAt?.let { waitingLabel(it, now) },
                 validUntilLabel = quote.validUntil?.let { DateFormats.shortDate(it, zone) },
+                emailedLabel =
+                    quote.lastEmailedAt?.let { at ->
+                        "Emailed to ${quote.lastEmailedTo.orEmpty()} on " +
+                            DateFormats.shortDate(at, TimeZone.currentSystemDefault())
+                    },
                 editable = quote.toForm(zone),
             )
         }

@@ -90,6 +90,8 @@ internal fun InvoiceRow.toDomain(payments: List<Payment>): Invoice =
         issuedAt = issued_at.toInstantOrNull(),
         dueAt = due_at.toInstantOrNull(),
         notes = notes,
+        lastEmailedAt = last_emailed_at.toInstantOrNull(),
+        lastEmailedTo = last_emailed_to,
         audit = auditOf(created_at, updated_at, deleted_at, version),
     )
 

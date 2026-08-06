@@ -262,6 +262,8 @@ internal suspend fun YellowTrackDatabase.applyInvoice(invoice: Invoice) {
         updated_at = invoice.audit.updatedAt.toEpochMilliseconds(),
         deleted_at = invoice.audit.deletedAt?.toEpochMilliseconds(),
         version = invoice.audit.version.toLong(),
+        last_emailed_at = invoice.lastEmailedAt?.toEpochMilliseconds(),
+        last_emailed_to = invoice.lastEmailedTo,
     )
 
     invoiceQueries.update(
@@ -277,6 +279,8 @@ internal suspend fun YellowTrackDatabase.applyInvoice(invoice: Invoice) {
         updatedAt = invoice.audit.updatedAt.toEpochMilliseconds(),
         deletedAt = invoice.audit.deletedAt?.toEpochMilliseconds(),
         version = invoice.audit.version.toLong(),
+        lastEmailedAt = invoice.lastEmailedAt?.toEpochMilliseconds(),
+        lastEmailedTo = invoice.lastEmailedTo,
         id = invoice.id.value,
     )
 }
@@ -664,6 +668,8 @@ internal suspend fun YellowTrackDatabase.applyQuote(quote: Quote) {
         updated_at = quote.audit.updatedAt.toEpochMilliseconds(),
         deleted_at = quote.audit.deletedAt?.toEpochMilliseconds(),
         version = quote.audit.version.toLong(),
+        last_emailed_at = quote.lastEmailedAt?.toEpochMilliseconds(),
+        last_emailed_to = quote.lastEmailedTo,
     )
 
     quoteQueries.update(
@@ -681,6 +687,8 @@ internal suspend fun YellowTrackDatabase.applyQuote(quote: Quote) {
         updatedAt = quote.audit.updatedAt.toEpochMilliseconds(),
         deletedAt = quote.audit.deletedAt?.toEpochMilliseconds(),
         version = quote.audit.version.toLong(),
+        lastEmailedAt = quote.lastEmailedAt?.toEpochMilliseconds(),
+        lastEmailedTo = quote.lastEmailedTo,
         id = quote.id.value,
     )
 }

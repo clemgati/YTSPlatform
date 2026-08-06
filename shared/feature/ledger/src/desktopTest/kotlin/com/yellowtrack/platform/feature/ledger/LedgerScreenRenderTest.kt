@@ -171,6 +171,7 @@ class LedgerScreenRenderTest {
                                 overdueDays = 12,
                                 dueLabel = "16 Jul 2026",
                                 canVoid = true,
+                                emailedLabel = "Emailed to sarah@johnson.example on 5 Aug 2026",
                             ),
                             OutstandingInvoiceItem(
                                 id = InvoiceId.new(),
@@ -184,6 +185,7 @@ class LedgerScreenRenderTest {
                                 dueLabel = "11 Aug 2026",
                                 // Part paid, so voiding is not offered on this row.
                                 canVoid = false,
+                                emailedLabel = null,
                             ),
                         ),
                     drafts =
@@ -211,6 +213,7 @@ class LedgerScreenRenderTest {
                                 total = "$5,400.00",
                                 status = QuoteStatus.Expired,
                                 waitingLabel = "sent 6 weeks ago",
+                                emailedLabel = null,
                                 validUntilLabel = "30 Jun 2026",
                                 editable = sampleQuoteForm,
                             ),
@@ -222,6 +225,7 @@ class LedgerScreenRenderTest {
                                 total = "$1,850.00",
                                 status = QuoteStatus.Sent,
                                 waitingLabel = "sent 4 days ago",
+                                emailedLabel = null,
                                 validUntilLabel = "24 Aug 2026",
                                 editable = sampleQuoteForm,
                             ),

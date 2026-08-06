@@ -402,6 +402,7 @@ internal class LedgerViewModel(
         to: String,
         sheet: suspend () -> Sheet?,
         onResult: (String) -> Unit,
+        record: suspend (String) -> Unit = {},
     ) {
         viewModelScope.launch {
             documentBlocker()?.let {
@@ -426,11 +427,26 @@ internal class LedgerViewModel(
                     text = document.toPlainText(),
                 )
             }.fold(
-                onSuccess = { onResult("Sent to ${to.trim()}. A copy is in your inbox.") },
+                onSuccess = {
+                    // After the send, not before. A document marked emailed by a send that
+                    // failed is the same lie as no record at all, told more confidently.
+                    runCatching { record(to.trim()) }
+                    onResult("Sent to ${to.trim()}. A copy is in your inbox.")
+                },
                 onFailure = { onResult(it.message ?: "That could not be sent.") },
             )
         }
     }
+
+    suspend fun recordInvoiceEmailed(
+        invoiceId: InvoiceId,
+        to: String,
+    ) = invoiceRepository.recordInvoiceEmailed(invoiceId, to)
+
+    suspend fun recordQuoteEmailed(
+        quoteId: QuoteId,
+        to: String,
+    ) = quoteRepository.recordQuoteEmailed(quoteId, to)
 
     /** The plain-text rendering, for pasting into an email. */
     suspend fun documentText(sheet: suspend () -> Sheet?): String? = sheet()?.toPlainText()

@@ -38,6 +38,8 @@ internal fun QuoteRow.toDomain(): Quote =
         declinedAt = declined_at.toInstantOrNull(),
         notes = notes,
         terms = terms,
+        lastEmailedAt = last_emailed_at.toInstantOrNull(),
+        lastEmailedTo = last_emailed_to,
         audit = auditOf(created_at, updated_at, deleted_at, version),
     )
 

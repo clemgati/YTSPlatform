@@ -90,9 +90,11 @@ class DocumentExportTest {
             val harness = harness()
             var message: String? = null
 
-            harness.viewModel.emailDocument("client@example.com", { harness.viewModel.invoiceSheet(invoiceId) }) {
-                message = it
-            }
+            harness.viewModel.emailDocument(
+                to = "client@example.com",
+                sheet = { harness.viewModel.invoiceSheet(invoiceId) },
+                onResult = { message = it },
+            )
 
             val sent = assertNotNull(harness.sender.last, "nothing was sent")
             assertEquals("client@example.com", sent.to)
@@ -113,9 +115,11 @@ class DocumentExportTest {
             val harness = harness(refusal = "Add your studio's email address in Settings first.")
             var message: String? = null
 
-            harness.viewModel.emailDocument("client@example.com", { harness.viewModel.invoiceSheet(invoiceId) }) {
-                message = it
-            }
+            harness.viewModel.emailDocument(
+                to = "client@example.com",
+                sheet = { harness.viewModel.invoiceSheet(invoiceId) },
+                onResult = { message = it },
+            )
 
             assertEquals("Add your studio's email address in Settings first.", message)
         }

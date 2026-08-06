@@ -301,6 +301,16 @@ private fun InvoiceRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small),
         ) {
+            // Said under the row rather than as a badge on it. It answers "did I press that
+            // button", which is a question asked once and then not thought about again.
+            invoice.emailedLabel?.let { emailed ->
+                Text(
+                    text = emailed,
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
+
             // The document the client actually receives, as a file to keep or attach.
             TextButton(onClick = { onSave(invoice) }) {
                 Text(
