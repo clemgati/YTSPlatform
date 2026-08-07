@@ -26,6 +26,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeReposi
 import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSyncConflictRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.data.sync.SyncOutbox
 import com.yellowtrack.platform.core.data.sync.Synchroniser
@@ -76,6 +77,10 @@ val dataModule =
         // is gone anyway.
         single { SyncOutbox(get(), get(), ioDispatcher) }
 
+        // ADR 0012: the ledger writes through the server and waits. Its own thing rather than a
+        // method on the engine, because writing now and reconciling later are different acts.
+        single { RemoteWriter(get()) }
+
         single {
             val engine = get<SyncEngine>()
             Synchroniser(
@@ -101,7 +106,7 @@ val dataModule =
         }
 
         single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }
-        single<InvoiceRepository> { SqlDelightInvoiceRepository(get(), get(), get(), ioDispatcher) }
+        single<InvoiceRepository> { SqlDelightInvoiceRepository(get(), get(), get(), ioDispatcher, get()) }
         single<QuoteRepository> { SqlDelightQuoteRepository(get(), get(), get(), ioDispatcher) }
         single<ContractRepository> { SqlDelightContractRepository(get(), get(), get(), ioDispatcher) }
         single<ExpenseRepository> { SqlDelightExpenseRepository(get(), get(), get(), ioDispatcher) }

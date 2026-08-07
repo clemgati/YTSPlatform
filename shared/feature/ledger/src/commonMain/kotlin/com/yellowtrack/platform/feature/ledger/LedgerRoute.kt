@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.feature.ledger
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +17,17 @@ fun LedgerRoute(modifier: Modifier = Modifier) {
     val viewModel: LedgerViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var documentMessage by remember { mutableStateOf<String?>(null) }
+
+    // A write that could not reach the server. Shown through the same line documents use,
+    // because to a studio "that did not save" and "that did not send" are the same sentence.
+    val writeFailure by viewModel.writeFailureMessage.collectAsStateWithLifecycle()
+
+    LaunchedEffect(writeFailure) {
+        writeFailure?.let {
+            documentMessage = it
+            viewModel.dismissWriteFailure()
+        }
+    }
 
     LedgerScreen(
         uiState = uiState,

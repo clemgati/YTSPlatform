@@ -21,6 +21,7 @@ import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.currency
 import com.yellowtrack.platform.core.data.document.DocumentSender
 import com.yellowtrack.platform.core.data.observeCurrency
+import com.yellowtrack.platform.core.data.sync.WriteFailed
 import com.yellowtrack.platform.core.export.Document
 import com.yellowtrack.platform.core.export.DocumentFormat
 import com.yellowtrack.platform.core.export.DocumentSink
@@ -87,6 +88,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -155,6 +157,11 @@ internal class LedgerViewModel(
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    /** Why the last write did not happen, or null. Surfaced rather than thrown — see [launchWrite]. */
+    private val writeFailure = MutableStateFlow<String?>(null)
+
+    val writeFailureMessage: StateFlow<String?> = writeFailure.asStateFlow()
+
     val uiState: StateFlow<LedgerUiState> =
         retryTrigger
             .flatMapLatest {
@@ -451,6 +458,31 @@ internal class LedgerViewModel(
     /** The plain-text rendering, for pasting into an email. */
     suspend fun documentText(sheet: suspend () -> Sheet?): String? = sheet()?.toPlainText()
 
+    /**
+     * Runs a write that goes to the server, and reports it if it could not.
+     *
+     * ADR 0012 made these able to fail: a ledger write is sent and awaited, so "you are
+     * offline" is now an outcome rather than something that cannot happen. Without this the
+     * exception would escape into `viewModelScope` and the studio would see a form close on a
+     * save that never happened — which is the failure the whole decision exists to avoid.
+     */
+    private fun launchWrite(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { block() }
+                .onFailure { failure ->
+                    // Anything that is not a refused write is a bug rather than a condition,
+                    // and is left to fail loudly rather than dressed up as a network problem.
+                    if (failure !is WriteFailed) throw failure
+                    writeFailure.value = failure.message
+                }
+        }
+    }
+
+    /** Cleared by the screen once it has been read, so it does not outlive the attempt. */
+    fun dismissWriteFailure() {
+        writeFailure.value = null
+    }
+
     fun retry() {
         retryTrigger.value += 1
     }
@@ -693,7 +725,7 @@ internal class LedgerViewModel(
      * on every device.
      */
     fun removePayment(paymentId: PaymentId) {
-        viewModelScope.launch { invoiceRepository.deletePayment(paymentId) }
+        launchWrite { invoiceRepository.deletePayment(paymentId) }
     }
 
     /**
@@ -760,8 +792,8 @@ internal class LedgerViewModel(
      * accepting never puts an unreviewed figure into money owed.
      */
     fun acceptQuote(quoteId: QuoteId) {
-        viewModelScope.launch {
-            val quote = quoteRepository.getQuote(quoteId) ?: return@launch
+        launchWrite {
+            val quote = quoteRepository.getQuote(quoteId) ?: return@launchWrite
             val now = clock.now()
 
             quoteRepository.saveQuote(quote.accepted(now))
@@ -957,14 +989,14 @@ internal class LedgerViewModel(
         invoice: NewInvoice,
         existingId: InvoiceId? = null,
     ) {
-        viewModelScope.launch {
+        launchWrite {
             val currency = studioProfileRepository.currency()
-            val lines = invoice.lines.toLineItems(currency) ?: return@launch
-            val dueOn = runCatching { LocalDate.parse(invoice.dueOn) }.getOrNull() ?: return@launch
+            val lines = invoice.lines.toLineItems(currency) ?: return@launchWrite
+            val dueOn = runCatching { LocalDate.parse(invoice.dueOn) }.getOrNull() ?: return@launchWrite
             val now = clock.now()
 
             val existing = existingId?.let { invoiceRepository.getInvoice(it) }
-            if (existingId != null && existing?.status != InvoiceStatus.Draft) return@launch
+            if (existingId != null && existing?.status != InvoiceStatus.Draft) return@launchWrite
 
             invoiceRepository.saveInvoice(
                 Invoice(
@@ -998,9 +1030,9 @@ internal class LedgerViewModel(
      * a client is held to runs from the demand they actually received.
      */
     fun sendInvoice(invoiceId: InvoiceId) {
-        viewModelScope.launch {
-            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
-            if (invoice.status != InvoiceStatus.Draft) return@launch
+        launchWrite {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launchWrite
+            if (invoice.status != InvoiceStatus.Draft) return@launchWrite
             val now = clock.now()
 
             invoiceRepository.saveInvoice(
@@ -1023,9 +1055,9 @@ internal class LedgerViewModel(
      * and the remedy for that is a refund, recorded.
      */
     fun voidInvoice(invoiceId: InvoiceId) {
-        viewModelScope.launch {
-            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
-            if (invoice.status == InvoiceStatus.Void || invoice.payments.isNotEmpty()) return@launch
+        launchWrite {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launchWrite
+            if (invoice.status == InvoiceStatus.Void || invoice.payments.isNotEmpty()) return@launchWrite
             val now = clock.now()
 
             invoiceRepository.saveInvoice(
@@ -1045,19 +1077,19 @@ internal class LedgerViewModel(
      * has left the studio is voided instead, which is why this refuses everything else.
      */
     fun deleteInvoice(invoiceId: InvoiceId) {
-        viewModelScope.launch {
-            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launch
-            if (invoice.status != InvoiceStatus.Draft) return@launch
+        launchWrite {
+            val invoice = invoiceRepository.getInvoice(invoiceId) ?: return@launchWrite
+            if (invoice.status != InvoiceStatus.Draft) return@launchWrite
 
             invoiceRepository.deleteInvoice(invoiceId)
         }
     }
 
     fun recordPayment(payment: NewPayment) {
-        viewModelScope.launch {
+        launchWrite {
             val currency = studioProfileRepository.currency()
-            val amount = parseMoney(payment.amount, currency)?.takeIf { it.isPositive } ?: return@launch
-            val paidOn = runCatching { LocalDate.parse(payment.paidOn) }.getOrNull() ?: return@launch
+            val amount = parseMoney(payment.amount, currency)?.takeIf { it.isPositive } ?: return@launchWrite
+            val paidOn = runCatching { LocalDate.parse(payment.paidOn) }.getOrNull() ?: return@launchWrite
             val now = clock.now()
 
             invoiceRepository.recordPayment(

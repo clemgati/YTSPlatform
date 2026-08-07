@@ -8,6 +8,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightContractRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightQuoteRepository
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.common.AuditMetadata
@@ -47,7 +48,14 @@ class ProposalRepositoryTest {
         val projects = SqlDelightProjectRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
         val quotes = SqlDelightQuoteRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
         val contracts = SqlDelightContractRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val invoices = SqlDelightInvoiceRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val invoices =
+            SqlDelightInvoiceRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
 
         suspend fun seedProject(): ProjectId {
             val client = Fixtures.client()

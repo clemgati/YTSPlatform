@@ -14,6 +14,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
 import com.yellowtrack.platform.core.data.internal.SyncTables
 import com.yellowtrack.platform.core.data.internal.enqueueForSync
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.data.sync.SyncEngine
 import com.yellowtrack.platform.core.data.sync.applyClient
 import com.yellowtrack.platform.core.data.sync.applyCodbProfile
@@ -1081,7 +1082,14 @@ class SyncEngineTest {
             engine = SyncEngine(provider, studioContext, transport, clients, projects, sessions, clock),
             transport = transport,
             clients = clients,
-            invoices = SqlDelightInvoiceRepository(provider, studioContext, clock, Dispatchers.Unconfined),
+            invoices =
+                SqlDelightInvoiceRepository(
+                    provider,
+                    studioContext,
+                    clock,
+                    Dispatchers.Unconfined,
+                    RemoteWriter(AcceptingTransport),
+                ),
         )
     }
 
