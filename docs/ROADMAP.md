@@ -647,19 +647,35 @@ it, so no studio could say which enquiries turned into work.
   contract is signed and its retainer paid. `enquiredAt` finally carries when the enquiry
   arrived, which is another field the schema has always had and nothing ever set
 
-## 1.4.0 — Collaboration
+## 1.4.0 — Money is written online ✓
 
-Was 0.8.0, then 1.1.0, then 1.2.0, then 1.3.0 — renumbered each time a release overtook it
-rather than because the work changed. The gallery is the largest thing this application does not do, and
+The first step of `docs/adr/0012-online-first-with-an-offline-shoot-day.md`. Invoices and
+payments are sent to the server and awaited; the local tables are a cache written afterwards.
+
+**A studio can no longer save an invoice with no connection**, and is told so. That is a
+capability removed on purpose: the alternative was saving it locally, arguing about it later,
+and producing conflicts describing edits nobody made.
+
+- ✓ Nothing is queued for the ledger, because nothing is held — a write happened or it did not
+- ✓ A delete travels as the row carrying a tombstone, so it reads before it writes
+- ✓ Seven write actions report a refused write on screen rather than throwing into the void,
+  which was the thing that would have made this dangerous rather than merely different
+- The rest of the ledger — quotes, contracts, expenses, mileage — is still offline-first, as
+  are clients, bookings and the shoot day. The migration is entity by entity on purpose
+
+## 1.5.0 — Collaboration
+
+Was 0.8.0, then 1.1.0, then 1.2.0, then 1.3.0, then 1.4.0 — renumbered each time a release
+overtook it rather than because the work changed. The gallery is the largest thing this application does not do, and
 the one a studio replaces with another product today.
 
 - Client proofing, selections, and approvals — and the object storage they need, moved here
   from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
-## 1.5.0 — Hardening
+## 1.6.0 — Hardening
 
-Was 0.9.0, then 1.2.0, then 1.3.0, then 1.4.0. Named for what it is rather than "release candidate",
+Was 0.9.0, then 1.2.0, then 1.3.0, then 1.4.0, then 1.5.0. Named for what it is rather than "release candidate",
 which it no longer is.
 
 - Accessibility, performance, and migration validation
