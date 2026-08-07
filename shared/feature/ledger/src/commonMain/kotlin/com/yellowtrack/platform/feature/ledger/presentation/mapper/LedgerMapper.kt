@@ -30,6 +30,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.ReceivedPayment
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
+import com.yellowtrack.platform.feature.ledger.presentation.model.SendTo
 import com.yellowtrack.platform.feature.ledger.presentation.model.toForm
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -113,6 +114,7 @@ internal fun buildMoneyOwed(
                 overdueDays = overdue?.inWholeDays,
                 dueLabel = invoice.dueAt?.let { DateFormats.shortDate(it, TimeZone.currentSystemDefault()) },
                 canVoid = invoice.payments.isEmpty(),
+                sendTo = project?.let { clientsById[it.clientId] }?.toSendTo(),
                 emailedLabel =
                     invoice.lastEmailedAt?.let { at ->
                         "Emailed to ${invoice.lastEmailedTo.orEmpty()} on " +
@@ -426,3 +428,18 @@ private fun Double.dayLabel(): String {
 internal fun Money.display(): String = formatted()
 
 private fun Money.displaySigned(): String = if (isNegative) display() else "+${display()}"
+
+/**
+ * Where a document would be emailed, and to whom.
+ *
+ * The billing contact rather than the primary one, which is the model's own distinction: on a
+ * wedding the person who booked and the person who pays are often different people, and an
+ * invoice sent to the wrong one of those is an awkward conversation the studio did not choose.
+ *
+ * Null when there is no address to offer. An empty box is the honest prompt then, rather than
+ * a name with nothing behind it.
+ */
+internal fun Client.toSendTo(): SendTo? =
+    billingContact?.emails?.firstOrNull()?.value?.takeIf { it.isNotBlank() }?.let { address ->
+        SendTo(name = billingContact?.displayName.orEmpty().ifBlank { displayName }, email = address)
+    }

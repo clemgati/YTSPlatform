@@ -52,6 +52,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.OutstandingInv
 import com.yellowtrack.platform.feature.ledger.presentation.model.PackagePricing
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
 import com.yellowtrack.platform.feature.ledger.presentation.model.RecordedCost
+import com.yellowtrack.platform.feature.ledger.presentation.model.SendTo
 
 @Composable
 internal fun LedgerScreen(
@@ -317,7 +318,7 @@ internal fun LedgerScreen(
                 onDeleteDraft = { onDeleteInvoice(it.id) },
                 onEditDraft = { editingDraft = it },
                 onExportInvoice = { onExportInvoice(it.id) },
-                onEmailInvoice = { emailing = Emailing.Invoice(it.id) },
+                onEmailInvoice = { emailing = Emailing.Invoice(it.id, it.sendTo) },
                 onRemovePayment = { onRemovePayment(it.id) },
             )
 
@@ -333,7 +334,7 @@ internal fun LedgerScreen(
                 onSendContract = { onSendContract(it.id) },
                 onSignContract = { signingContract = it },
                 onExportQuote = { onExportQuote(it.id) },
-                onEmailQuote = { emailing = Emailing.Quote(it.id) },
+                onEmailQuote = { emailing = Emailing.Quote(it.id, it.sendTo) },
                 // The option list the three forms are filled from. Empty means no booking
                 // exists to price anything against.
                 hasBookings = content.projects.any { it.id != null },
@@ -433,26 +434,34 @@ private fun LedgerHeader(
 private sealed interface Emailing {
     val kindLabel: String
 
+    /** Where it would go, if the client has an address on file. */
+    val sendTo: SendTo?
+
     data class Invoice(
         val id: InvoiceId,
+        override val sendTo: SendTo?,
     ) : Emailing {
         override val kindLabel = "invoice"
     }
 
     data class Quote(
         val id: QuoteId,
+        override val sendTo: SendTo?,
     ) : Emailing {
         override val kindLabel = "quote"
     }
 }
 
 /**
- * Asks where the document is going.
+ * Asks where the document is going, with the client's own address already in it.
  *
- * Typed rather than prefilled from the client's contact, which is the obvious improvement and
- * is deliberately not here yet: the address on a contact is often the person who booked
- * rather than the person who pays, and quietly sending an invoice to the wrong one of those
- * is worse than asking.
+ * Prefilled from the **billing** contact rather than the primary one, which is the model's own
+ * distinction: on a wedding the person who booked and the person who pays are often different
+ * people.
+ *
+ * The name is shown above the field, not just the address. That is what keeps this from being
+ * the quiet default it was deliberately not built as — a studio reading "Tom Sandhu" sees who
+ * it is going to, where an address alone is something the eye skips on the way to the button.
  */
 @Composable
 private fun EmailDocumentDialog(
@@ -460,7 +469,7 @@ private fun EmailDocumentDialog(
     onDismiss: () -> Unit,
     onSend: (String) -> Unit,
 ) {
-    var address by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf(emailing.sendTo?.email.orEmpty()) }
 
     YTFormDialog(
         title = "Email this ${emailing.kindLabel}",
@@ -469,6 +478,14 @@ private fun EmailDocumentDialog(
         onConfirm = { onSend(address.trim()) },
         onDismiss = onDismiss,
     ) {
+        Text(
+            text =
+                emailing.sendTo?.let { "To ${it.name}, the billing contact for this client." }
+                    ?: "This client has no email address on file, so type where it should go.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurface,
+        )
+
         Text(
             text =
                 "It goes from your studio's name, and a reply comes back to the address in " +

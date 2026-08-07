@@ -19,6 +19,7 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.NewQuote
 import com.yellowtrack.platform.feature.ledger.presentation.model.NewUsageLicense
 import com.yellowtrack.platform.feature.ledger.presentation.model.ProposalsSummary
 import com.yellowtrack.platform.feature.ledger.presentation.model.QuoteItem
+import com.yellowtrack.platform.feature.ledger.presentation.model.SendTo
 import com.yellowtrack.platform.feature.ledger.presentation.model.toForm
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -39,6 +40,8 @@ internal fun buildProposals(
 
     fun clientNameFor(projectId: ProjectId): String =
         projectsById[projectId]?.let { clientsById[it.clientId]?.displayName }.orEmpty()
+
+    fun sendToFor(projectId: ProjectId): SendTo? = projectsById[projectId]?.let { clientsById[it.clientId] }?.toSendTo()
 
     // Expired first: a lapsed quote is the one needing a decision today, either to chase
     // it or to let it go.
@@ -61,6 +64,7 @@ internal fun buildProposals(
                 status = quote.effectiveStatus(now),
                 waitingLabel = quote.issuedAt?.let { waitingLabel(it, now) },
                 validUntilLabel = quote.validUntil?.let { DateFormats.shortDate(it, zone) },
+                sendTo = sendToFor(quote.projectId),
                 emailedLabel =
                     quote.lastEmailedAt?.let { at ->
                         "Emailed to ${quote.lastEmailedTo.orEmpty()} on " +
