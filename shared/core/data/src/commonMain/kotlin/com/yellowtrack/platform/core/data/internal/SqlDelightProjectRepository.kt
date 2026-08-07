@@ -3,14 +3,17 @@ package com.yellowtrack.platform.core.data.internal
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 import com.yellowtrack.platform.core.database.Project as ProjectRow
 
 internal class SqlDelightProjectRepository(
@@ -18,6 +21,7 @@ internal class SqlDelightProjectRepository(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     ProjectRepository {
     private val studioId get() = studioContext.studioId.value
@@ -51,6 +55,8 @@ internal class SqlDelightProjectRepository(
     override suspend fun saveProject(project: Project) {
         val db = database()
         val now = clock.now().toEpochMillis()
+
+        remote.write(SyncPushRequest(projects = listOf(project)))
 
         db.transaction {
             db.projectQueries.insertOrIgnore(
@@ -88,8 +94,6 @@ internal class SqlDelightProjectRepository(
                 version = project.audit.version.toLong(),
                 id = project.id.value,
             )
-
-            db.enqueueForSync(project.studioId.value, SyncTables.PROJECT, project.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -98,11 +102,19 @@ internal class SqlDelightProjectRepository(
         val now = clock.now().toEpochMillis()
 
         // Wrapped, so the tombstone and the note to upload it cannot be written apart.
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getProject(projectId) ?: return
+
+        remote.write(
+            SyncPushRequest(projects = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.projectQueries.softDelete(deletedAt = now, id = projectId.value)
-            db.enqueueForSync(studioId, SyncTables.PROJECT, projectId.value, OutboxOperation.Delete, now)
         }
     }
 
     private fun Flow<List<ProjectRow>>.mapRows(): Flow<List<Project>> = map { rows -> rows.map { it.toDomain() } }
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }

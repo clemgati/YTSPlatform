@@ -3,10 +3,12 @@ package com.yellowtrack.platform.core.data.internal
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -19,6 +21,7 @@ internal class SqlDelightSessionRepository(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     SessionRepository {
     private val studioId get() = studioContext.studioId.value
@@ -81,6 +84,8 @@ internal class SqlDelightSessionRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        remote.write(SyncPushRequest(sessions = listOf(session)))
+
         db.transaction {
             db.sessionQueries.insertOrIgnore(
                 id = session.id.value,
@@ -123,8 +128,6 @@ internal class SqlDelightSessionRepository(
                 version = session.audit.version.toLong(),
                 id = session.id.value,
             )
-
-            db.enqueueForSync(session.studioId.value, SyncTables.SESSION, session.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -133,11 +136,19 @@ internal class SqlDelightSessionRepository(
         val now = clock.now().toEpochMillis()
 
         // Wrapped, so the tombstone and the note to upload it cannot be written apart.
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getSession(sessionId) ?: return
+
+        remote.write(
+            SyncPushRequest(sessions = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.sessionQueries.softDelete(deletedAt = now, id = sessionId.value)
-            db.enqueueForSync(studioId, SyncTables.SESSION, sessionId.value, OutboxOperation.Delete, now)
         }
     }
 
     private fun Flow<List<SessionRow>>.mapRows(): Flow<List<Session>> = map { rows -> rows.map { it.toDomain() } }
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }

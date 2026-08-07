@@ -26,6 +26,9 @@ internal object AcceptingTransport : SyncTransport {
                 changes.quotes.map { "quote" to it.id.value } +
                 changes.contracts.map { "contract" to it.id.value } +
                 changes.expenses.map { "expense" to it.id.value } +
-                changes.mileages.map { "mileage" to it.id.value }
+                changes.mileages.map { "mileage" to it.id.value } +
+                changes.projects.map { "project" to it.id.value } +
+                changes.sessions.map { "session" to it.id.value } +
+                changes.leads.map { "lead" to it.id.value }
         ).map { SyncPushResult(it.first, it.second, SyncPushOutcome.Applied, 1) }
 }

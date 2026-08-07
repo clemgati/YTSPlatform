@@ -7,6 +7,7 @@ import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.WriteFailures
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.session.SessionId
@@ -24,7 +25,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -39,6 +39,13 @@ internal class SessionsViewModel(
     private val retryTrigger = MutableStateFlow(0)
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    /** Why the last write did not happen. ADR 0012 made these able to fail. */
+    private val writes = WriteFailures()
+
+    val writeFailureMessage: StateFlow<String?> = writes.message
+
+    fun dismissWriteFailure() = writes.dismiss()
+
     val uiState: StateFlow<SessionsUiState> =
         retryTrigger
             .flatMapLatest {
@@ -88,9 +95,9 @@ internal class SessionsViewModel(
      * come out wrong when local time is treated as unambiguous.
      */
     fun addSession(session: NewSession) {
-        viewModelScope.launch {
-            if (session.title.isBlank()) return@launch
-            val timing = session.timing(deviceZone) ?: return@launch
+        writes.launchWrite(viewModelScope) {
+            if (session.title.isBlank()) return@launchWrite
+            val timing = session.timing(deviceZone) ?: return@launchWrite
             val now = clock.now()
 
             sessionRepository.saveSession(

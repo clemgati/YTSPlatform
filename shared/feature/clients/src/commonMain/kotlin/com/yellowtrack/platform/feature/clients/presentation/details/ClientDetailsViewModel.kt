@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.currency
 import com.yellowtrack.platform.core.data.observeCurrency
+import com.yellowtrack.platform.core.data.sync.WriteFailures
 import com.yellowtrack.platform.core.model.client.ClientContact
 import com.yellowtrack.platform.core.model.client.ClientContactRole
 import com.yellowtrack.platform.core.model.client.ClientId
@@ -45,6 +46,13 @@ internal class ClientDetailsViewModel(
 ) : ViewModel() {
     private val retryTrigger = MutableStateFlow(0)
     private val removed = MutableStateFlow(false)
+
+    /** Why the last write did not happen. ADR 0012 made these able to fail. */
+    private val writes = WriteFailures()
+
+    val writeFailureMessage: StateFlow<String?> = writes.message
+
+    fun dismissWriteFailure() = writes.dismiss()
 
     val uiState: StateFlow<ClientDetailsUiState> =
         combine(
@@ -93,15 +101,15 @@ internal class ClientDetailsViewModel(
      * every later question about that job is measured from.
      */
     fun addProject(project: NewProject) {
-        viewModelScope.launch {
-            if (project.name.isBlank()) return@launch
+        writes.launchWrite(viewModelScope) {
+            if (project.name.isBlank()) return@launchWrite
 
             val contractValue =
                 when {
                     project.contractValue.isBlank() -> null
                     else ->
                         parseMoney(project.contractValue, studioProfileRepository.currency())?.takeIf { it.isPositive }
-                            ?: return@launch
+                            ?: return@launchWrite
                 }
 
             val now = clock.now()

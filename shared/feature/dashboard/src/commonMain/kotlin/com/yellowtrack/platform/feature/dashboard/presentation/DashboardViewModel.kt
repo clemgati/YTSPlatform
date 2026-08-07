@@ -14,6 +14,7 @@ import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.SyncConflictRepository
 import com.yellowtrack.platform.core.data.currency
+import com.yellowtrack.platform.core.data.sync.WriteFailures
 import com.yellowtrack.platform.core.model.client.ClientId
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contact.ContactId
@@ -36,7 +37,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -81,6 +81,13 @@ internal class DashboardViewModel(
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    /** Why the last write did not happen. ADR 0012 made these able to fail. */
+    private val writes = WriteFailures()
+
+    val writeFailureMessage: StateFlow<String?> = writes.message
+
+    fun dismissWriteFailure() = writes.dismiss()
+
     val uiState: StateFlow<DashboardUiState> =
         retryTrigger
             .flatMapLatest {
@@ -150,9 +157,9 @@ internal class DashboardViewModel(
         leadId: LeadId,
         openBooking: Boolean,
     ) {
-        viewModelScope.launch {
-            val lead = leadRepository.getLead(leadId) ?: return@launch
-            if (lead.convertedClientId != null) return@launch
+        writes.launchWrite(viewModelScope) {
+            val lead = leadRepository.getLead(leadId) ?: return@launchWrite
+            if (lead.convertedClientId != null) return@launchWrite
 
             val now = clock.now()
             val clientId = ClientId.new()
@@ -177,9 +184,9 @@ internal class DashboardViewModel(
      * that predicts bookings is time-to-first-response, not time-to-most-recent.
      */
     fun markEnquiryReplied(leadId: LeadId) {
-        viewModelScope.launch {
-            val lead = leadRepository.getLead(leadId) ?: return@launch
-            if (lead.firstResponseAt != null) return@launch
+        writes.launchWrite(viewModelScope) {
+            val lead = leadRepository.getLead(leadId) ?: return@launchWrite
+            if (lead.firstResponseAt != null) return@launchWrite
 
             val now = clock.now()
 
@@ -205,7 +212,7 @@ internal class DashboardViewModel(
      * the same form as real work, and a studio that logged one had no way to be rid of it.
      */
     fun deleteEnquiry(leadId: LeadId) {
-        viewModelScope.launch { leadRepository.deleteLead(leadId) }
+        writes.launchWrite(viewModelScope) { leadRepository.deleteLead(leadId) }
     }
 
     /**
@@ -221,8 +228,8 @@ internal class DashboardViewModel(
         enquiry: NewEnquiry,
         existingId: LeadId? = null,
     ) {
-        viewModelScope.launch {
-            if (enquiry.name.isBlank()) return@launch
+        writes.launchWrite(viewModelScope) {
+            if (enquiry.name.isBlank()) return@launchWrite
 
             val now = clock.now()
             val studioCurrency = studioProfileRepository.currency()

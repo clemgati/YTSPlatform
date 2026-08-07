@@ -56,8 +56,8 @@ val dataModule =
         single { DatabaseProvider(driverFactory = get()) }
 
         single<ClientRepository> { SqlDelightClientRepository(get(), get(), get(), ioDispatcher) }
-        single<ProjectRepository> { SqlDelightProjectRepository(get(), get(), get(), ioDispatcher) }
-        single<SessionRepository> { SqlDelightSessionRepository(get(), get(), get(), ioDispatcher) }
+        single<ProjectRepository> { SqlDelightProjectRepository(get(), get(), get(), ioDispatcher, get()) }
+        single<SessionRepository> { SqlDelightSessionRepository(get(), get(), get(), ioDispatcher, get()) }
         single<ShotRepository> { SqlDelightShotRepository(get(), get(), ioDispatcher) }
         single<CrewRepository> { SqlDelightCrewRepository(get(), get(), ioDispatcher) }
         single<TalentReleaseRepository> { SqlDelightTalentReleaseRepository(get(), get(), ioDispatcher) }
@@ -105,7 +105,7 @@ val dataModule =
             )
         }
 
-        single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }
+        single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher, get()) }
         single<InvoiceRepository> { SqlDelightInvoiceRepository(get(), get(), get(), ioDispatcher, get()) }
         single<QuoteRepository> { SqlDelightQuoteRepository(get(), get(), get(), ioDispatcher, get()) }
         single<ContractRepository> { SqlDelightContractRepository(get(), get(), get(), ioDispatcher, get()) }

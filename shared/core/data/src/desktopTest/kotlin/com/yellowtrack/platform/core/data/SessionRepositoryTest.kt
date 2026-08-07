@@ -5,6 +5,7 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.session.SessionKind
 import kotlinx.coroutines.Dispatchers
@@ -24,8 +25,22 @@ class SessionRepositoryTest {
         private val clock = AppClock { TEST_NOW }
 
         val clients = SqlDelightClientRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val projects = SqlDelightProjectRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val sessions = SqlDelightSessionRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val projects =
+            SqlDelightProjectRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
+        val sessions =
+            SqlDelightSessionRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
     }
 
     @Test

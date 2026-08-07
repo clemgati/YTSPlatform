@@ -664,8 +664,12 @@ and producing conflicts describing edits nobody made.
   and mileage. Nine outbox calls removed, and `recordQuoteEmailed` regained a send it lost on
   the way — the migration deleted its queue entry without giving it a server write, which
   would have quietly stopped "emailed" reaching a studio's other devices
-- Clients, bookings, sessions, enquiries and the shoot day are still offline-first. The
-  migration is entity by entity on purpose
+- ✓ **Bookings, sessions and enquiries** write online too, which is most of ADR 0012 step 2
+- **Clients are the one left**, and deliberately: `saveClient` reconciles contacts and links in
+  the same transaction, so sending it first means computing which links are added and which
+  are tombstoned *before* the write rather than during it. That is a restructure rather than
+  the mechanical change the others were, and worth its own change
+- The shoot day stays offline-first by design, and keeps its outbox
 
 ## 1.5.0 — Collaboration
 
