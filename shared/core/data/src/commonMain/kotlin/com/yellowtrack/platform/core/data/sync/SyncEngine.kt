@@ -380,35 +380,139 @@ class SyncEngine(
                     page.studioProfiles.size + page.codbProfiles.size +
                     page.serviceTemplates.size + page.conflicts.size
 
+            // What this device is still holding changes for. Read before the page is
+            // written, because a pulled row must not overwrite work that has not reached the
+            // server yet — a push that did not land is enough to make that happen, and the
+            // row a studio deleted comes back.
+            val held =
+                database.outboxQueries
+                    .selectPendingIdentities(studioId)
+                    .awaitAsList()
+                    .mapTo(mutableSetOf()) { it.entity_table to it.entity_id }
+
             database.transaction {
                 // Parents before children. A link references a client and a contact, and a
                 // studio's first sync is when all three are new — server_seq cannot be relied
                 // on for this, because an edit to the parent moves it after its own child.
-                page.clients.forEach { database.applyClient(it) }
-                page.contacts.forEach { database.applyContact(it) }
-                page.clientContactLinks.forEach { database.applyClientContactLink(it) }
-                page.projects.forEach { database.applyProject(it) }
-                page.sessions.forEach { database.applySession(it) }
-                page.invoices.forEach { database.applyInvoice(it) }
-                page.payments.forEach { database.applyPayment(it) }
-                page.crewMembers.forEach { database.applyCrewMember(it) }
-                page.deliverables.forEach { database.applyDeliverable(it) }
-                page.gearItems.forEach { database.applyGearItem(it) }
-                page.storageVolumes.forEach { database.applyStorageVolume(it) }
-                page.packingEntries.forEach { database.applyPackingEntry(it) }
-                page.mediaCopies.forEach { database.applyMediaCopy(it) }
-                page.leads.forEach { database.applyLead(it) }
-                page.expenses.forEach { database.applyExpense(it) }
-                page.mileages.forEach { database.applyMileage(it) }
-                page.quotes.forEach { database.applyQuote(it) }
-                page.contracts.forEach { database.applyContract(it) }
-                page.shots.forEach { database.applyShot(it) }
-                page.postTasks.forEach { database.applyPostTask(it) }
-                page.talentReleases.forEach { database.applyTalentRelease(it) }
-                page.lightingRecipes.forEach { database.applyLightingRecipe(it) }
-                page.studioProfiles.forEach { database.applyStudioProfile(it) }
-                page.codbProfiles.forEach { database.applyCodbProfile(it) }
-                page.serviceTemplates.forEach { database.applyServiceTemplate(it) }
+                page.clients
+                    .notHeldLocally(
+                        held,
+                        SyncTables.CLIENT,
+                    ) { it.id.value }
+                    .forEach { database.applyClient(it) }
+                page.contacts
+                    .notHeldLocally(
+                        held,
+                        SyncTables.CONTACT,
+                    ) { it.id.value }
+                    .forEach { database.applyContact(it) }
+                page.clientContactLinks
+                    .notHeldLocally(held, SyncTables.CLIENT_CONTACT) {
+                        it.id.value
+                    }.forEach { database.applyClientContactLink(it) }
+                page.projects
+                    .notHeldLocally(
+                        held,
+                        SyncTables.PROJECT,
+                    ) { it.id.value }
+                    .forEach { database.applyProject(it) }
+                page.sessions
+                    .notHeldLocally(
+                        held,
+                        SyncTables.SESSION,
+                    ) { it.id.value }
+                    .forEach { database.applySession(it) }
+                page.invoices
+                    .notHeldLocally(
+                        held,
+                        SyncTables.INVOICE,
+                    ) { it.id.value }
+                    .forEach { database.applyInvoice(it) }
+                page.payments
+                    .notHeldLocally(
+                        held,
+                        SyncTables.PAYMENT,
+                    ) { it.id.value }
+                    .forEach { database.applyPayment(it) }
+                page.crewMembers
+                    .notHeldLocally(
+                        held,
+                        SyncTables.CREW_MEMBER,
+                    ) { it.id.value }
+                    .forEach { database.applyCrewMember(it) }
+                page.deliverables
+                    .notHeldLocally(
+                        held,
+                        SyncTables.DELIVERABLE,
+                    ) { it.id.value }
+                    .forEach { database.applyDeliverable(it) }
+                page.gearItems
+                    .notHeldLocally(
+                        held,
+                        SyncTables.GEAR_ITEM,
+                    ) { it.id.value }
+                    .forEach { database.applyGearItem(it) }
+                page.storageVolumes
+                    .notHeldLocally(held, SyncTables.STORAGE_VOLUME) {
+                        it.id.value
+                    }.forEach { database.applyStorageVolume(it) }
+                page.packingEntries
+                    .notHeldLocally(held, SyncTables.PACKING_ENTRY) {
+                        it.id.value
+                    }.forEach { database.applyPackingEntry(it) }
+                page.mediaCopies
+                    .notHeldLocally(
+                        held,
+                        SyncTables.MEDIA_COPY,
+                    ) { it.id.value }
+                    .forEach { database.applyMediaCopy(it) }
+                page.leads.notHeldLocally(held, SyncTables.LEAD) { it.id.value }.forEach { database.applyLead(it) }
+                page.expenses
+                    .notHeldLocally(
+                        held,
+                        SyncTables.EXPENSE,
+                    ) { it.id.value }
+                    .forEach { database.applyExpense(it) }
+                page.mileages
+                    .notHeldLocally(
+                        held,
+                        SyncTables.MILEAGE,
+                    ) { it.id.value }
+                    .forEach { database.applyMileage(it) }
+                page.quotes.notHeldLocally(held, SyncTables.QUOTE) { it.id.value }.forEach { database.applyQuote(it) }
+                page.contracts
+                    .notHeldLocally(
+                        held,
+                        SyncTables.CONTRACT,
+                    ) { it.id.value }
+                    .forEach { database.applyContract(it) }
+                page.shots.notHeldLocally(held, SyncTables.SHOT) { it.id.value }.forEach { database.applyShot(it) }
+                page.postTasks
+                    .notHeldLocally(
+                        held,
+                        SyncTables.POST_TASK,
+                    ) { it.id.value }
+                    .forEach { database.applyPostTask(it) }
+                page.talentReleases
+                    .notHeldLocally(held, SyncTables.TALENT_RELEASE) {
+                        it.id.value
+                    }.forEach { database.applyTalentRelease(it) }
+                page.lightingRecipes
+                    .notHeldLocally(held, SyncTables.LIGHTING_RECIPE) {
+                        it.id.value
+                    }.forEach { database.applyLightingRecipe(it) }
+                page.studioProfiles
+                    .notHeldLocally(held, SyncTables.STUDIO_PROFILE) {
+                        it.id.value
+                    }.forEach { database.applyStudioProfile(it) }
+                page.codbProfiles
+                    .notHeldLocally(held, SyncTables.CODB_PROFILE) {
+                        it.id.value
+                    }.forEach { database.applyCodbProfile(it) }
+                page.serviceTemplates
+                    .notHeldLocally(held, SyncTables.SERVICE_TEMPLATE) {
+                        it.id.value
+                    }.forEach { database.applyServiceTemplate(it) }
                 page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
@@ -476,3 +580,22 @@ class SyncEngine(
         const val MAX_PAGES = 500
     }
 }
+
+/**
+ * Drops rows this device is still holding unsent changes for.
+ *
+ * The rule an offline-first store cannot do without: **a pull may not overwrite a local write
+ * that has not been acknowledged.** Without it the newest edit wins only when the network
+ * happens to cooperate, and a delete that failed to send is quietly undone by the pull that
+ * follows it — then re-uploaded as an upsert on the next attempt, because the outbox entry
+ * survives and the row it points at is alive again.
+ *
+ * Skipped rather than merged. The row is still in the outbox and goes up on the next drain,
+ * where the server reconciles it properly and records a conflict if there is one. Merging here
+ * would be doing reconciliation twice, in the one place that cannot see the other side.
+ */
+private fun <T> List<T>.notHeldLocally(
+    held: Set<Pair<String, String>>,
+    table: String,
+    id: (T) -> String,
+): List<T> = if (held.isEmpty()) this else filter { (table to id(it)) !in held }

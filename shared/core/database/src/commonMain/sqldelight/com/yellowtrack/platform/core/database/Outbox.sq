@@ -35,3 +35,13 @@ recordFailure:
 UPDATE outbox
 SET attempts = attempts + 1, last_error = :error
 WHERE id = :id;
+
+-- Which rows this device is still holding changes for.
+--
+-- Read before a pulled page is written, so an arriving row cannot overwrite work that has not
+-- reached the server yet. Unbounded on purpose: a cap here would silently stop protecting the
+-- oldest pending rows, which are the ones that have already failed to send.
+selectPendingIdentities:
+SELECT entity_table, entity_id
+FROM outbox
+WHERE studio_id = :studioId;
