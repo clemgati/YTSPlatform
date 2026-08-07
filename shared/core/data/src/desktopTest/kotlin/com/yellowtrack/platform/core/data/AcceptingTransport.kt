@@ -38,6 +38,9 @@ internal object AcceptingTransport : SyncTransport {
                 changes.sessions.map { "session" to it.id.value } +
                 changes.leads.map { "lead" to it.id.value } +
                 changes.serviceTemplates.map { "service_template" to it.id.value } +
-                changes.studioProfiles.map { "studio_profile" to it.id.value }
+                changes.studioProfiles.map { "studio_profile" to it.id.value } +
+                changes.clients.map { "client" to it.id.value } +
+                changes.contacts.map { "contact" to it.id.value } +
+                changes.clientContactLinks.map { "client_contact" to it.id.value }
         ).map { SyncPushResult(it.first, it.second, SyncPushOutcome.Applied, 1) }
 }

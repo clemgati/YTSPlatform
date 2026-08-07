@@ -34,6 +34,7 @@ internal fun ClientsScreen(
     onQueryChange: (String) -> Unit,
     onClientSelected: (ClientId) -> Unit,
     onAddClient: (NewClient) -> Unit,
+    writeFailure: String?,
     modifier: Modifier = Modifier,
 ) {
     var showForm by remember { mutableStateOf(false) }
@@ -67,6 +68,7 @@ internal fun ClientsScreen(
             onQueryChange = onQueryChange,
             onClientSelected = onClientSelected,
             onAddClient = { showForm = true },
+            writeFailure = writeFailure,
             modifier = contentModifier,
         )
     }
@@ -90,6 +92,7 @@ private fun ClientsContent(
     onQueryChange: (String) -> Unit,
     onClientSelected: (ClientId) -> Unit,
     onAddClient: () -> Unit,
+    writeFailure: String?,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -101,6 +104,17 @@ private fun ClientsContent(
         verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.large),
     ) {
         ClientsHeader(clientCount = clients.size)
+
+        // A client that could not be saved. Clients require a connection under ADR 0012, so
+        // this is the difference between "we could not reach the server" and a row silently
+        // not appearing — which is what it looked like before this was here.
+        writeFailure?.let { message ->
+            Text(
+                text = message,
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
 
         YTSearchField(
             value = uiState.query,

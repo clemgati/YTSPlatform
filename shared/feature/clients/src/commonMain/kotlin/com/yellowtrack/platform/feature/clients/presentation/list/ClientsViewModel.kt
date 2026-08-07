@@ -7,6 +7,7 @@ import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.ProjectRepository
 import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.WriteFailures
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContact
 import com.yellowtrack.platform.core.model.client.ClientContactRole
@@ -26,7 +27,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 /**
  * Extends [ViewModel] so that [viewModelScope] is cancelled with the screen. The previous
@@ -40,6 +40,12 @@ internal class ClientsViewModel(
     private val studioContext: StudioContext,
     private val clock: AppClock,
 ) : ViewModel() {
+    private val writes = WriteFailures()
+
+    val writeFailureMessage: StateFlow<String?> = writes.message
+
+    fun dismissWriteFailure() = writes.dismiss()
+
     private val query = MutableStateFlow("")
 
     /**
@@ -92,8 +98,8 @@ internal class ClientsViewModel(
      * by the old name.
      */
     fun addClient(client: NewClient) {
-        viewModelScope.launch {
-            if (!client.hasName) return@launch
+        writes.launchWrite(viewModelScope) {
+            if (!client.hasName) return@launchWrite
 
             val now = clock.now()
             val contact =

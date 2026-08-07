@@ -51,6 +51,11 @@ class FakeSyncTransport(
     }
 
     companion object {
+        /**
+         * Only the entities the tests here actually push. An entity missing from this list
+         * is not acknowledged, so its outbox entry is never cleared — which shows up as a
+         * test about *something else* failing on a row that would not go away.
+         */
         fun acceptEverything(changes: SyncPushRequest): List<SyncPushResult> =
             buildList {
                 changes.clients.forEach {
@@ -61,6 +66,9 @@ class FakeSyncTransport(
                 }
                 changes.sessions.forEach {
                     add(SyncPushResult("session", it.id.value, SyncPushOutcome.Applied, it.audit.version))
+                }
+                changes.gearItems.forEach {
+                    add(SyncPushResult("gear_item", it.id.value, SyncPushOutcome.Applied, it.audit.version))
                 }
             }
     }

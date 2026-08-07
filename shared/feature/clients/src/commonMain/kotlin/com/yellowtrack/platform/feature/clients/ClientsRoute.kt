@@ -16,6 +16,7 @@ fun ClientsRoute(
 ) {
     val viewModel: ClientsViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val writeFailure by viewModel.writeFailureMessage.collectAsStateWithLifecycle()
 
     ClientsScreen(
         uiState = uiState,
@@ -23,6 +24,7 @@ fun ClientsRoute(
         onQueryChange = viewModel::onQueryChange,
         onClientSelected = onClientSelected,
         onAddClient = viewModel::addClient,
+        writeFailure = writeFailure,
         modifier = modifier,
     )
 }

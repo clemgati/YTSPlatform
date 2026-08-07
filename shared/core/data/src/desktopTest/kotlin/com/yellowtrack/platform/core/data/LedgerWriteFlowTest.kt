@@ -50,7 +50,14 @@ class LedgerWriteFlowTest {
         provider: DatabaseProvider = testDatabaseProvider(),
         clock: AppClock,
     ) {
-        val clients = SqlDelightClientRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val clients =
+            SqlDelightClientRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
         val projects =
             SqlDelightProjectRepository(
                 provider,
