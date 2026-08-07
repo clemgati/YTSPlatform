@@ -108,6 +108,7 @@ class SignInRenderTest {
                     Surface(modifier = Modifier.fillMaxSize(), color = YTTheme.colors.background) {
                         SignInScreen(
                             uiState = state,
+                            version = "1.7.1",
                             onEmailChanged = {},
                             onRestore = {},
                             onDismissPendingDeletion = {},

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,19 +54,33 @@ fun ExpandedSidebar(
                 ),
         )
 
-        AppDestination.entries.forEach { destination ->
-            SidebarDestination(
-                destination = destination,
-                selected = destination == currentDestination,
-                onClick = {
-                    onDestinationSelected(destination)
-                },
-            )
+        // Scrolls, and takes whatever height is left. A phone held sideways gives this
+        // column about four hundred points, which is not enough for the destinations plus
+        // the heading plus the version — so the last entries were simply cut off, and
+        // Settings is the last entry. Nothing indicated there was more.
+        //
+        // The weight is on the scrolling area rather than a spacer so the version stays
+        // pinned to the bottom instead of scrolling away with the list.
+        Column(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    YTTheme.spacing.small,
+                ),
+        ) {
+            AppDestination.entries.forEach { destination ->
+                SidebarDestination(
+                    destination = destination,
+                    selected = destination == currentDestination,
+                    onClick = {
+                        onDestinationSelected(destination)
+                    },
+                )
+            }
         }
-
-        Spacer(
-            modifier = Modifier.weight(1f),
-        )
 
         Text(
             text = AppInfo.VERSION,

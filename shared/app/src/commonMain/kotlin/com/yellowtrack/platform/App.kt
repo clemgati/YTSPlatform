@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.yellowtrack.platform.app.AppInfo
 import com.yellowtrack.platform.app.AppShell
 import com.yellowtrack.platform.app.rememberAppState
 import com.yellowtrack.platform.core.common.time.AppClock
@@ -87,7 +88,7 @@ fun App() {
                     modifier = Modifier.fillMaxSize(),
                     color = YTTheme.colors.background,
                 ) {
-                    SignInRoute()
+                    SignInRoute(version = AppInfo.VERSION)
                 }
 
             is SessionState.SignedIn ->

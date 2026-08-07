@@ -9,12 +9,16 @@ import com.yellowtrack.platform.feature.auth.presentation.SignInViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun SignInRoute(modifier: Modifier = Modifier) {
+fun SignInRoute(
+    version: String,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: SignInViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     SignInScreen(
         uiState = uiState,
+        version = version,
         onEmailChanged = viewModel::onEmailChanged,
         onRestore = viewModel::restore,
         onDismissPendingDeletion = viewModel::dismissPendingDeletion,
