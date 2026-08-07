@@ -15,6 +15,7 @@ import com.yellowtrack.platform.core.data.ShotRepository
 import com.yellowtrack.platform.core.data.StorageVolumeRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.TalentReleaseRepository
+import com.yellowtrack.platform.core.data.sync.WriteFailures
 import com.yellowtrack.platform.core.export.Document
 import com.yellowtrack.platform.core.export.DocumentFormat
 import com.yellowtrack.platform.core.export.DocumentSink
@@ -124,6 +125,13 @@ internal class SessionDetailsViewModel(
         val gear: List<GearItem>,
         val packing: List<PackingEntry>,
     )
+
+    /** Why the last write did not happen. ADR 0012 made these able to fail. */
+    private val writes = WriteFailures()
+
+    val writeFailureMessage: StateFlow<String?> = writes.message
+
+    fun dismissWriteFailure() = writes.dismiss()
 
     val uiState: StateFlow<SessionDetailsUiState> =
         combine(
@@ -239,10 +247,10 @@ internal class SessionDetailsViewModel(
      * destination wedding edited from home stays at the hour it was booked for.
      */
     fun updateSession(edited: NewSession) {
-        viewModelScope.launch {
-            val existing = sessionRepository.getSession(sessionId) ?: return@launch
-            if (edited.title.isBlank()) return@launch
-            val timing = edited.timing(TimeZone.of(existing.timeZoneId)) ?: return@launch
+        writes.launchWrite(viewModelScope) {
+            val existing = sessionRepository.getSession(sessionId) ?: return@launchWrite
+            if (edited.title.isBlank()) return@launchWrite
+            val timing = edited.timing(TimeZone.of(existing.timeZoneId)) ?: return@launchWrite
             val now = clock.now()
 
             sessionRepository.saveSession(
@@ -272,10 +280,10 @@ internal class SessionDetailsViewModel(
      * and a studio charging a reschedule fee needs the record of what was moved.
      */
     fun moveSession(rescheduled: NewSession) {
-        viewModelScope.launch {
-            val original = sessionRepository.getSession(sessionId) ?: return@launch
-            if (rescheduled.title.isBlank()) return@launch
-            val timing = rescheduled.timing(TimeZone.of(original.timeZoneId)) ?: return@launch
+        writes.launchWrite(viewModelScope) {
+            val original = sessionRepository.getSession(sessionId) ?: return@launchWrite
+            if (rescheduled.title.isBlank()) return@launchWrite
+            val timing = rescheduled.timing(TimeZone.of(original.timeZoneId)) ?: return@launchWrite
             val now = clock.now()
 
             sessionRepository.saveSession(
@@ -704,7 +712,7 @@ internal class SessionDetailsViewModel(
      * only record of where the client's photographs are.
      */
     fun deleteSession() {
-        viewModelScope.launch {
+        writes.launchWrite(viewModelScope) {
             val held =
                 sessionRemoval(
                     backups = mediaCopyRepository.observeCopiesForSession(sessionId).first().size,
@@ -714,7 +722,7 @@ internal class SessionDetailsViewModel(
                     packedItems = packingRepository.observePackingForSession(sessionId).first().size,
                 )
 
-            if (held !is Removal.Available) return@launch
+            if (held !is Removal.Available) return@launchWrite
 
             sessionRepository.deleteSession(sessionId)
             removed.value = true

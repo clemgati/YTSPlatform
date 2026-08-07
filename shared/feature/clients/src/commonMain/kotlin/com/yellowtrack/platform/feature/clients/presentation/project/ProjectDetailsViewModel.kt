@@ -17,6 +17,7 @@ import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
 import com.yellowtrack.platform.core.data.currency
 import com.yellowtrack.platform.core.data.observeCurrency
+import com.yellowtrack.platform.core.data.sync.WriteFailures
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contract.Contract
@@ -102,6 +103,13 @@ internal class ProjectDetailsViewModel(
         val expenses: List<Expense>,
         val mileage: List<Mileage>,
     )
+
+    /** Why the last write did not happen. ADR 0012 made these able to fail. */
+    private val writes = WriteFailures()
+
+    val writeFailureMessage: StateFlow<String?> = writes.message
+
+    fun dismissWriteFailure() = writes.dismiss()
 
     val uiState: StateFlow<ProjectDetailsUiState> =
         combine(
@@ -215,7 +223,7 @@ internal class ProjectDetailsViewModel(
      * the application at once.
      */
     fun deleteProject() {
-        viewModelScope.launch {
+        writes.launchWrite(viewModelScope) {
             val held =
                 projectRemoval(
                     invoices = invoiceRepository.observeInvoicesForProject(projectId).first().size,
@@ -228,7 +236,7 @@ internal class ProjectDetailsViewModel(
                     postProductionTasks = postProductionRepository.observeTasksForProject(projectId).first().size,
                 )
 
-            if (held !is Removal.Available) return@launch
+            if (held !is Removal.Available) return@launchWrite
 
             projectRepository.deleteProject(projectId)
             removed.value = true

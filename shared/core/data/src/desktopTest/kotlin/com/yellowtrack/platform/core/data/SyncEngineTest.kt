@@ -1074,8 +1074,22 @@ class SyncEngineTest {
         val transport = if (onPush == null) FakeSyncTransport() else FakeSyncTransport(onPush)
 
         val clients = SqlDelightClientRepository(provider, studioContext, clock, Dispatchers.Unconfined)
-        val projects = SqlDelightProjectRepository(provider, studioContext, clock, Dispatchers.Unconfined)
-        val sessions = SqlDelightSessionRepository(provider, studioContext, clock, Dispatchers.Unconfined)
+        val projects =
+            SqlDelightProjectRepository(
+                provider,
+                studioContext,
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
+        val sessions =
+            SqlDelightSessionRepository(
+                provider,
+                studioContext,
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
 
         return World(
             database = provider.database(),

@@ -3,13 +3,16 @@ package com.yellowtrack.platform.core.data.internal
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.LeadRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.lead.Lead
 import com.yellowtrack.platform.core.model.lead.LeadId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 import com.yellowtrack.platform.core.database.Lead as LeadRow
 
 internal class SqlDelightLeadRepository(
@@ -17,6 +20,7 @@ internal class SqlDelightLeadRepository(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     LeadRepository {
     private val studioId get() = studioContext.studioId.value
@@ -62,6 +66,8 @@ internal class SqlDelightLeadRepository(
         // Both budget bounds share one currency column: a range spanning two currencies is
         // not a range anyone can act on.
         val budgetCurrency = (lead.budgetLow ?: lead.budgetHigh)?.currency?.code
+
+        remote.write(SyncPushRequest(leads = listOf(lead)))
 
         db.transaction {
             db.leadQueries.insertOrIgnore(
@@ -113,8 +119,6 @@ internal class SqlDelightLeadRepository(
                 version = lead.audit.version.toLong(),
                 id = lead.id.value,
             )
-
-            db.enqueueForSync(studioId, SyncTables.LEAD, lead.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -122,11 +126,19 @@ internal class SqlDelightLeadRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getLead(leadId) ?: return
+
+        remote.write(
+            SyncPushRequest(leads = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.leadQueries.softDelete(deletedAt = now, id = leadId.value)
-            db.enqueueForSync(studioId, SyncTables.LEAD, leadId.value, OutboxOperation.Delete, now)
         }
     }
 
     private fun Flow<List<LeadRow>>.mapRows(): Flow<List<Lead>> = map { rows -> rows.map { it.toDomain() } }
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }

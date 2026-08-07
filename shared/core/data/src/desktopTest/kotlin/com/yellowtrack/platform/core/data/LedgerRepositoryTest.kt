@@ -53,8 +53,22 @@ class LedgerRepositoryTest {
         clock: AppClock,
     ) {
         val clients = SqlDelightClientRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val projects = SqlDelightProjectRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val leads = SqlDelightLeadRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val projects =
+            SqlDelightProjectRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
+        val leads =
+            SqlDelightLeadRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
         val invoices =
             SqlDelightInvoiceRepository(
                 provider,
