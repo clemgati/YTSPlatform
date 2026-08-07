@@ -146,6 +146,45 @@ class RowLevelSecurityTest {
         assertEquals(listOf("Ada Okafor"), visible, "a studio must see exactly its own clients")
     }
 
+    /**
+     * The half of fail-closed that reads as success.
+     *
+     * A statement outside a studio's scope sees nothing, so a `DELETE` matches nothing and
+     * reports that it worked. Migration `V6` said `DELETE FROM sync_conflict`, Flyway logged
+     * "Successfully applied 1 migration", and 167 rows stayed exactly where they were. The
+     * purge in `AccountDeletion` carries a comment about the same trap, met from the other
+     * direction.
+     *
+     * Written down because the lesson is not "remember to scope your deletes" — it is that an
+     * unscoped write is *quiet*, and quiet is what makes it expensive.
+     */
+    @Test
+    fun `a delete that never names a studio removes nothing and says nothing`() {
+        val fixture = fixture()
+
+        val deleted =
+            TestDatabase.database.unscoped { db ->
+                db.createStatement().use { statement -> statement.executeUpdate("DELETE FROM client") }
+            }
+
+        val surviving =
+            TestDatabase.database.inStudio(fixture.studioA) { db ->
+                db.createStatement().use { statement ->
+                    statement.executeQuery("SELECT count(*) FROM client").use { rows ->
+                        rows.next()
+                        rows.getLong(1)
+                    }
+                }
+            }
+
+        assertEquals(0, deleted, "nothing was visible, so nothing was deleted")
+        assertTrue(
+            surviving > 0,
+            "the studio's rows are untouched — and the statement that missed them raised nothing, " +
+                "which is why a cleanup is checked by counting rather than by its exit code",
+        )
+    }
+
     @Test
     fun `a transaction that never names a studio sees nothing at all`() {
         fixture()
