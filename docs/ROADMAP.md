@@ -609,8 +609,11 @@ it, so no studio could say which enquiries turned into work.
   would be measuring the wrong thing
 - ✓ Converted is measured by the link rather than the `Won` status: ticking won by hand is
   telling yourself something, converting leaves a client to show for it
-- Converting does not open a booking. `convertedProjectId` is still unset and the enquiry
-  carries the service line, date and budget a booking wants, so this is a small follow-up
+- ✓ **It can open the booking too**, offered rather than automatic — an enquiry that is won
+  is usually work but not always yet, and a project nobody meant to open is harder to notice
+  than a second press. It opens at `Enquiry` rather than `Booked`, since a date is held once a
+  contract is signed and its retainer paid. `enquiredAt` finally carries when the enquiry
+  arrived, which is another field the schema has always had and nothing ever set
 
 ## 1.4.0 — Collaboration
 
