@@ -1,0 +1,16 @@
+-- Version 18 to 19: removes every recorded conflict, because they describe edits that did not
+-- happen.
+--
+-- Mirrors `V6__drop_manufactured_conflicts.sql`. Done on the device as well as the server
+-- because a conflict is pulled into the local cache and stays there: clearing only the server
+-- would leave the studio looking at exactly the same list.
+--
+-- A migration rather than a button. The studio did not create these and should not have to
+-- dismiss them one at a time — 154 presses to acknowledge something that never occurred.
+--
+-- No schema change. Rows are removed.
+--
+-- These statements must produce exactly the schema the .sq files describe; the
+-- verifyMigrations task compares the two and fails the build if they diverge.
+
+DELETE FROM sync_conflict;

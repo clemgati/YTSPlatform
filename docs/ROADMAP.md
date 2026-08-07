@@ -497,6 +497,12 @@ and used.
 
 - **One studio has ever existed.** Tenant isolation is enforced by Postgres and proved by
   tests that break it deliberately, but two real studios have never shared this server
+- ✓ **The conflicts a studio never caused are gone.** 154 of them, on one device, describing
+  edits that never happened — manufactured by a pull overwriting a locally-deleted row while
+  its outbox entry retried at the version it had just received. Cleared by a migration on both
+  sides rather than a button: the studio did not create them and should not press 154 times to
+  acknowledge something that did not occur. The table stays until the version negotiation goes
+  with it, at the end of ADR 0012; this only empties it
 - **Synchronisation is being changed to online-first** —
   `docs/adr/0012-online-first-with-an-offline-shoot-day.md`, which supersedes ADR 0008 after
   its own first migration signal fired: one device, 154 conflicts, most describing edits that
