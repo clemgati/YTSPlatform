@@ -497,10 +497,28 @@ and used.
 
 - **One studio has ever existed.** Tenant isolation is enforced by Postgres and proved by
   tests that break it deliberately, but two real studios have never shared this server
-- **Synchronisation runs every five minutes** and at no other time — not when the
-  application comes to the foreground, not after a write, and not at all while it is
-  closed. The interval is a guess its own comment asks to revisit once somebody has used
-  this on a shoot day
+- ◐ **Synchronisation is triggered by work as well as by a clock.** A write now brings the
+  next run forward — the outbox going from empty to holding something schedules one ten
+  seconds later, debounced so filling in a form uploads once. That was the trigger a timer
+  could not be: work that has not left the device is work only that device has, and a lost
+  phone is lost bookings until it goes up. Repeated failures back off from five minutes to an
+  hour and reset on any success, so a venue with no signal is not asked every five minutes all
+  day for something it already answered
+  - **It still does not sync when the application comes to the foreground**, which is the
+    remaining gap and the one a studio would notice: opening the app on a phone shows what the
+    last run left until the next one. It needs a lifecycle signal per platform, which is why
+    it is not here — the two changes above needed none
+  - **And not at all while closed.** Background sync is per-platform work (WorkManager, BGTask)
+    and a decision about battery, not a gap to close casually
+- **A pull skips a row rather than merging it**, when the device is still holding an unsent
+  change for it — see the fix that stopped deletes coming back. If a push is *rejected* rather
+  than unacknowledged, the server's copy keeps its old `server_seq`, which is behind the
+  cursor, so the device is never offered it again and the two can stay apart until something
+  else touches that row. Not silent loss, since the outbox keeps retrying, but it is the next
+  thing to look at
+- **A pull that hits `MAX_PAGES` stops without saying so.** 500 pages of 200 is 100,000 rows,
+  so no studio will meet it soon, and the cursor is saved either way so the next run continues
+  — but a cap that reports nothing is the shape of failure this project keeps finding
 
 ## 1.0.0 — Launch ✓
 

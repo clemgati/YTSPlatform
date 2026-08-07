@@ -27,6 +27,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileReposi
 import com.yellowtrack.platform.core.data.internal.SqlDelightSyncConflictRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
 import com.yellowtrack.platform.core.data.sync.SyncEngine
+import com.yellowtrack.platform.core.data.sync.SyncOutbox
 import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import kotlinx.coroutines.CoroutineScope
@@ -73,12 +74,15 @@ val dataModule =
         // Application-lived, so the periodic loop survives navigation. Cancelled only when
         // the process ends, which on every one of these platforms is when the application
         // is gone anyway.
+        single { SyncOutbox(get(), get(), ioDispatcher) }
+
         single {
             val engine = get<SyncEngine>()
             Synchroniser(
                 reconcile = engine::sync,
                 auth = get(),
                 scope = CoroutineScope(SupervisorJob() + ioDispatcher),
+                pendingWork = get<SyncOutbox>().pending(),
             )
         }
 

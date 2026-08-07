@@ -45,3 +45,13 @@ selectPendingIdentities:
 SELECT entity_table, entity_id
 FROM outbox
 WHERE studio_id = :studioId;
+
+-- How much this device is still holding.
+--
+-- Observed rather than polled, so a write can bring the next reconciliation forward instead
+-- of waiting out an interval chosen for idleness. Work sitting on one device is work only
+-- that device has.
+countPending:
+SELECT count(*)
+FROM outbox
+WHERE studio_id = :studioId;

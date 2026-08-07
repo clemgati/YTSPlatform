@@ -11,11 +11,16 @@ import com.yellowtrack.platform.core.data.sync.SyncUnauthorised
 import com.yellowtrack.platform.core.data.sync.Synchroniser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * When to reconcile, and what to do when the answer is "you are not who you were".
@@ -96,13 +101,66 @@ class SynchroniserTest {
         val auth: AuthRepository,
     )
 
-    private fun world(reconcile: suspend () -> SyncReport): World {
+    // -- Reconciling when there is something to reconcile ------------------------------------
+
+    /**
+     * The trigger a timer cannot be. Work that has not left the device is work only that
+     * device has, and waiting out an interval chosen for idleness is the wrong answer to
+     * somebody having just typed something.
+     */
+    @Test
+    fun `a write brings the next run forward`() =
+        runTest {
+            var runs = 0
+            val pending = MutableStateFlow(0L)
+            val world =
+                world(pendingWork = pending, scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.auth.restore(now = 0)
+            world.synchroniser.startSyncOnWrite()
+
+            pending.value = 1
+            advanceTimeBy(Synchroniser.AFTER_WRITE_DELAY + 1.seconds)
+
+            assertEquals(1, runs, "a row queued for upload should not wait out the interval")
+        }
+
+    /** Saving a form writes several rows, and one reconciliation covers all of them. */
+    @Test
+    fun `several writes in a row produce one reconciliation`() =
+        runTest {
+            var runs = 0
+            val pending = MutableStateFlow(0L)
+            val world =
+                world(pendingWork = pending, scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.auth.restore(now = 0)
+            world.synchroniser.startSyncOnWrite()
+
+            pending.value = 1
+            pending.value = 2
+            pending.value = 3
+            advanceTimeBy(Synchroniser.AFTER_WRITE_DELAY + 1.seconds)
+
+            assertEquals(1, runs, "a studio correcting a typo three times should upload once")
+        }
+
+    private fun world(
+        pendingWork: Flow<Long> = emptyFlow(),
+        scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),
+        reconcile: suspend () -> SyncReport,
+    ): World {
         val auth = AuthRepository(store = StoredSessionStore(), api = UnusedApi)
         return World(
             Synchroniser(
                 reconcile = reconcile,
                 auth = auth,
-                scope = CoroutineScope(UnconfinedTestDispatcher()),
+                scope = scope,
+                pendingWork = pendingWork,
             ),
             auth,
         )
