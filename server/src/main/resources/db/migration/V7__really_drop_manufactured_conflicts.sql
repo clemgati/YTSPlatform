@@ -1,0 +1,21 @@
+-- Removes every recorded conflict. Again, and this time it happens.
+--
+-- V6 said `DELETE FROM sync_conflict`, reported "Successfully applied 1 migration", and
+-- removed nothing. `sync_conflict` carries FORCE ROW LEVEL SECURITY with a policy of
+-- `studio_id = current_setting('app.studio_id', true)`, and a migration runs with that setting
+-- unset — so the comparison is against NULL, no row is visible, and the DELETE matches nothing.
+-- Success there means "the statement ran", not "the rows went".
+--
+-- This is the same failure the purge in `AccountDeletion` carries a comment about, arrived at
+-- from the other direction. Row level security applies to what a statement can *see*, and
+-- every statement that runs outside a studio's scope sees an empty table — including the ones
+-- written to clean up.
+--
+-- TRUNCATE rather than DELETE, because row level security does not apply to it. It needs the
+-- table's owner, which is what Flyway connects as (MIGRATION_USER), and it is refused rather
+-- than silently empty if that ever stops being true. The alternative — disabling the policy
+-- around a DELETE — leaves a window where a policy that guards tenant isolation is off.
+--
+-- Nothing references this table, so no CASCADE is needed.
+
+TRUNCATE TABLE sync_conflict;
