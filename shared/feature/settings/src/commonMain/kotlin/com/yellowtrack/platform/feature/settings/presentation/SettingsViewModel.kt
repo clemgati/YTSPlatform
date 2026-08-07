@@ -222,7 +222,19 @@ internal class SettingsViewModel(
                         if (report.isQuiet) {
                             "Up to date."
                         } else {
-                            "Sent ${report.uploaded}, received ${report.downloaded}."
+                            // Two devices legitimately report different numbers: this counts
+                            // what arrived in *this* run, from wherever this device's cursor
+                            // had got to. A browser starts from nothing every load and so
+                            // always reports the lot.
+                            //
+                            // Sent is omitted when it is zero, which it now usually is —
+                            // only the shoot-day surfaces still queue. "Sent 0" read as a
+                            // failure to send rather than as nothing needing to be sent.
+                            buildString {
+                                if (report.uploaded > 0) append("Sent ${report.uploaded}. ")
+                                append("Received ${report.downloaded} ")
+                                append(if (report.downloaded == 1) "change." else "changes.")
+                            }
                         },
                     notReconciled = report.notReconciledByServer,
                 )

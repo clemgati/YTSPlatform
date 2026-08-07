@@ -69,9 +69,15 @@ internal fun SettingsScreen(
 
             YTSectionCard(title = "Synchronisation") {
                 Text(
+                    // ADR 0008's promise, which ADR 0012 withdrew. Saving now needs a
+                    // connection for everything except the shoot-day surfaces, and a studio
+                    // told otherwise would sit at a desk with no signal expecting this to
+                    // catch up later. It says "you are offline" instead.
                     text =
-                        "Your work is kept on this device and copied to your other ones. It " +
-                            "keeps working with no connection and catches up afterwards.",
+                        "Your work is saved to your studio's account, and this device keeps a " +
+                            "copy so screens open straight away. Saving needs a connection — " +
+                            "shot lists, kit and releases are the exception and still work " +
+                            "without one.",
                     style = YTTheme.typography.bodyMedium,
                     color = YTTheme.colors.onSurfaceVariant,
                 )
