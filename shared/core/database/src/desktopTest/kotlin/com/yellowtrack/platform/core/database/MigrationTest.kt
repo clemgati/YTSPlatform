@@ -1461,12 +1461,50 @@ class MigrationTest {
             driver.close()
         }
 
+    /**
+     * The 154 a studio was holding, and every one like them.
+     *
+     * They described edits that never happened — manufactured by a pull overwriting a
+     * locally-deleted row while its outbox entry retried at the version it had just received.
+     * ADR 0012 decision 4 drops them, and it has to happen on the device too: a conflict is
+     * pulled into the local cache and stays there, so clearing only the server would leave the
+     * studio looking at exactly the same list.
+     */
+    @Test
+    fun `the conflicts a studio never caused are cleared on upgrade`() =
+        runTest {
+            val driver = v14Database()
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 14, newVersion = 18)
+
+            driver.exec(
+                """
+                INSERT INTO sync_conflict(id, studio_id, entity_table, entity_id,
+                                          losing_payload, winning_payload, detected_at,
+                                          created_at, updated_at, version)
+                VALUES ('conflict-1', 'studio-1', 'session', 'session-1',
+                        '{"title":"Ceremony — 2pm"}', '{"title":"Ceremony — 3pm"}',
+                        2000, 2000, 2000, 1);
+                """.trimIndent(),
+            )
+            assertEquals("1", driver.scalar("SELECT count(*) FROM sync_conflict"))
+
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 18, newVersion = 19)
+
+            assertEquals(
+                "0",
+                driver.scalar("SELECT count(*) FROM sync_conflict"),
+                "a studio should not have to dismiss 154 records of something that did not occur",
+            )
+
+            driver.close()
+        }
+
     @Test
     fun `a fresh database reports the current schema version`() =
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(18L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(19L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }
