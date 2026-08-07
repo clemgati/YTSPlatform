@@ -63,6 +63,9 @@ fun App() {
             // Brings a run forward after a write, so work leaves the device in seconds
             // rather than at the next interval. The timer still runs underneath it.
             synchroniser.startSyncOnWrite()
+            // And when a connection comes back, which is the one moment the timer is worst
+            // at: by then it has usually backed off to something long.
+            synchroniser.startSyncOnReconnect()
         }
     }
 

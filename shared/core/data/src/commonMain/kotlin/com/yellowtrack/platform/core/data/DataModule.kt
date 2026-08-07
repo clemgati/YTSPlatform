@@ -94,6 +94,7 @@ val dataModule =
                 auth = get(),
                 scope = CoroutineScope(SupervisorJob() + ioDispatcher),
                 pendingWork = get<SyncOutbox>().pending(),
+                connectivity = get(),
             )
         }
 
