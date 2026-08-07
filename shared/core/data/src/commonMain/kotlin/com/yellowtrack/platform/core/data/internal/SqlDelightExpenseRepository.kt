@@ -4,16 +4,19 @@ import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ExpenseRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.expense.Expense
 import com.yellowtrack.platform.core.model.expense.ExpenseId
 import com.yellowtrack.platform.core.model.expense.Mileage
 import com.yellowtrack.platform.core.model.expense.MileageId
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
+import kotlin.time.Instant
 import com.yellowtrack.platform.core.database.Expense as ExpenseRow
 import com.yellowtrack.platform.core.database.Mileage as MileageRow
 
@@ -22,6 +25,7 @@ internal class SqlDelightExpenseRepository(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     ExpenseRepository {
     private val studioId get() = studioContext.studioId.value
@@ -69,6 +73,8 @@ internal class SqlDelightExpenseRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        remote.write(SyncPushRequest(expenses = listOf(expense)))
+
         db.transaction {
             db.expenseQueries.insertOrIgnore(
                 id = expense.id.value,
@@ -105,8 +111,6 @@ internal class SqlDelightExpenseRepository(
                 version = expense.audit.version.toLong(),
                 id = expense.id.value,
             )
-
-            db.enqueueForSync(studioId, SyncTables.EXPENSE, expense.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -114,9 +118,15 @@ internal class SqlDelightExpenseRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getExpense(expenseId) ?: return
+
+        remote.write(
+            SyncPushRequest(expenses = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.expenseQueries.softDelete(deletedAt = now, id = expenseId.value)
-            db.enqueueForSync(studioId, SyncTables.EXPENSE, expenseId.value, OutboxOperation.Delete, now)
         }
     }
 
@@ -146,6 +156,8 @@ internal class SqlDelightExpenseRepository(
     override suspend fun saveMileage(mileage: Mileage) {
         val db = database()
         val now = clock.now().toEpochMillis()
+
+        remote.write(SyncPushRequest(mileages = listOf(mileage)))
 
         db.transaction {
             db.expenseQueries.insertOrIgnoreMileage(
@@ -181,8 +193,6 @@ internal class SqlDelightExpenseRepository(
                 version = mileage.audit.version.toLong(),
                 id = mileage.id.value,
             )
-
-            db.enqueueForSync(studioId, SyncTables.MILEAGE, mileage.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -190,9 +200,15 @@ internal class SqlDelightExpenseRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getMileage(mileageId) ?: return
+
+        remote.write(
+            SyncPushRequest(mileages = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.expenseQueries.softDeleteMileage(deletedAt = now, id = mileageId.value)
-            db.enqueueForSync(studioId, SyncTables.MILEAGE, mileageId.value, OutboxOperation.Delete, now)
         }
     }
 
@@ -200,4 +216,6 @@ internal class SqlDelightExpenseRepository(
 
     private fun Flow<List<MileageRow>>.mapMileageRows(): Flow<List<Mileage>> =
         map { rows -> rows.map { it.toDomain() } }
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }

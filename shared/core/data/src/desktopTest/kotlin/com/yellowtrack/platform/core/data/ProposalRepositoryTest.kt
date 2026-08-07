@@ -46,8 +46,22 @@ class ProposalRepositoryTest {
     ) {
         val clients = SqlDelightClientRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
         val projects = SqlDelightProjectRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val quotes = SqlDelightQuoteRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val contracts = SqlDelightContractRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val quotes =
+            SqlDelightQuoteRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
+        val contracts =
+            SqlDelightContractRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
         val invoices =
             SqlDelightInvoiceRepository(
                 provider,

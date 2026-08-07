@@ -660,8 +660,12 @@ and producing conflicts describing edits nobody made.
 - ✓ A delete travels as the row carrying a tombstone, so it reads before it writes
 - ✓ Seven write actions report a refused write on screen rather than throwing into the void,
   which was the thing that would have made this dangerous rather than merely different
-- The rest of the ledger — quotes, contracts, expenses, mileage — is still offline-first, as
-  are clients, bookings and the shoot day. The migration is entity by entity on purpose
+- ✓ **The whole ledger** now writes online: invoices, payments, quotes, contracts, expenses
+  and mileage. Nine outbox calls removed, and `recordQuoteEmailed` regained a send it lost on
+  the way — the migration deleted its queue entry without giving it a server write, which
+  would have quietly stopped "emailed" reaching a studio's other devices
+- Clients, bookings, sessions, enquiries and the shoot day are still offline-first. The
+  migration is entity by entity on purpose
 
 ## 1.5.0 — Collaboration
 

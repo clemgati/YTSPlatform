@@ -3,21 +3,25 @@ package com.yellowtrack.platform.core.data.internal
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ContractRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.contract.Contract
 import com.yellowtrack.platform.core.model.contract.ContractId
 import com.yellowtrack.platform.core.model.contract.ContractStatus
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 
 internal class SqlDelightContractRepository(
     provider: DatabaseProvider,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     ContractRepository {
     private val studioId get() = studioContext.studioId.value
@@ -58,6 +62,8 @@ internal class SqlDelightContractRepository(
     override suspend fun saveContract(contract: Contract) {
         val db = database()
         val now = clock.now().toEpochMillis()
+
+        remote.write(SyncPushRequest(contracts = listOf(contract)))
 
         db.transaction {
             db.contractQueries.insertOrIgnore(
@@ -111,8 +117,6 @@ internal class SqlDelightContractRepository(
                 version = contract.audit.version.toLong(),
                 id = contract.id.value,
             )
-
-            db.enqueueForSync(studioId, SyncTables.CONTRACT, contract.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -120,9 +124,17 @@ internal class SqlDelightContractRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getContract(contractId) ?: return
+
+        remote.write(
+            SyncPushRequest(contracts = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.contractQueries.softDelete(deletedAt = now, id = contractId.value)
-            db.enqueueForSync(studioId, SyncTables.CONTRACT, contractId.value, OutboxOperation.Delete, now)
         }
     }
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }

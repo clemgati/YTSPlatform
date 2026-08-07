@@ -107,8 +107,8 @@ val dataModule =
 
         single<LeadRepository> { SqlDelightLeadRepository(get(), get(), get(), ioDispatcher) }
         single<InvoiceRepository> { SqlDelightInvoiceRepository(get(), get(), get(), ioDispatcher, get()) }
-        single<QuoteRepository> { SqlDelightQuoteRepository(get(), get(), get(), ioDispatcher) }
-        single<ContractRepository> { SqlDelightContractRepository(get(), get(), get(), ioDispatcher) }
-        single<ExpenseRepository> { SqlDelightExpenseRepository(get(), get(), get(), ioDispatcher) }
+        single<QuoteRepository> { SqlDelightQuoteRepository(get(), get(), get(), ioDispatcher, get()) }
+        single<ContractRepository> { SqlDelightContractRepository(get(), get(), get(), ioDispatcher, get()) }
+        single<ExpenseRepository> { SqlDelightExpenseRepository(get(), get(), get(), ioDispatcher, get()) }
         single<CodbRepository> { SqlDelightCodbRepository(get(), get(), get(), ioDispatcher, get()) }
     }

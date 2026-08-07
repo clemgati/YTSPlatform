@@ -616,7 +616,7 @@ internal class LedgerViewModel(
      * tax time and have to work out afresh.
      */
     fun removeCost(cost: RecordedCost) {
-        viewModelScope.launch {
+        launchWrite {
             // Which table the row came from is already settled by the form it reopens, so
             // it is read from there rather than decided again. Costs and journeys share a
             // repository and an identifier shape, and sending one to the other's delete is
@@ -640,10 +640,10 @@ internal class LedgerViewModel(
         expense: NewExpense,
         existingId: String? = null,
     ) {
-        viewModelScope.launch {
+        launchWrite {
             val currency = studioProfileRepository.currency()
-            val amount = parseMoney(expense.amount, currency)?.takeIf { it.isPositive } ?: return@launch
-            val incurredOn = runCatching { LocalDate.parse(expense.incurredOn) }.getOrNull() ?: return@launch
+            val amount = parseMoney(expense.amount, currency)?.takeIf { it.isPositive } ?: return@launchWrite
+            val incurredOn = runCatching { LocalDate.parse(expense.incurredOn) }.getOrNull() ?: return@launchWrite
             val now = clock.now()
 
             val existing = existingId?.let { id -> expenseRepository.getExpense(ExpenseId(id)) }
@@ -682,15 +682,15 @@ internal class LedgerViewModel(
         journey: NewMileage,
         existingId: String? = null,
     ) {
-        viewModelScope.launch {
+        launchWrite {
             val currency = studioProfileRepository.currency()
             val distance =
                 journey.distance
                     .trim()
                     .toDoubleOrNull()
-                    ?.takeIf { it > 0 } ?: return@launch
-            val rate = parseMoney(journey.ratePerUnit, currency)?.takeIf { it.isPositive } ?: return@launch
-            val travelledOn = runCatching { LocalDate.parse(journey.travelledOn) }.getOrNull() ?: return@launch
+                    ?.takeIf { it > 0 } ?: return@launchWrite
+            val rate = parseMoney(journey.ratePerUnit, currency)?.takeIf { it.isPositive } ?: return@launchWrite
+            val travelledOn = runCatching { LocalDate.parse(journey.travelledOn) }.getOrNull() ?: return@launchWrite
             val now = clock.now()
 
             val existing = existingId?.let { id -> expenseRepository.getMileage(MileageId(id)) }
@@ -748,20 +748,20 @@ internal class LedgerViewModel(
         quote: NewQuote,
         existingId: QuoteId? = null,
     ) {
-        viewModelScope.launch {
+        launchWrite {
             val currency = studioProfileRepository.currency()
-            val lines = quote.lines.toLineItems(currency) ?: return@launch
+            val lines = quote.lines.toLineItems(currency) ?: return@launchWrite
             val now = clock.now()
             val validUntil =
                 if (quote.validUntil.isBlank()) {
                     null
                 } else {
                     runCatching { LocalDate.parse(quote.validUntil) }.getOrNull()?.atStartOfDayIn(timeZone)
-                        ?: return@launch
+                        ?: return@launchWrite
                 }
 
             val existing = existingId?.let { quoteRepository.getQuote(it) }
-            if (existingId != null && existing?.status?.isAwaitingDecision != true) return@launch
+            if (existingId != null && existing?.status?.isAwaitingDecision != true) return@launchWrite
 
             quoteRepository.saveQuote(
                 Quote(
@@ -811,8 +811,8 @@ internal class LedgerViewModel(
     }
 
     fun declineQuote(quoteId: QuoteId) {
-        viewModelScope.launch {
-            val quote = quoteRepository.getQuote(quoteId) ?: return@launch
+        launchWrite {
+            val quote = quoteRepository.getQuote(quoteId) ?: return@launchWrite
             quoteRepository.saveQuote(quote.declined(clock.now()))
         }
     }
@@ -832,21 +832,23 @@ internal class LedgerViewModel(
         contract: NewContract,
         existingId: ContractId? = null,
     ) {
-        viewModelScope.launch {
+        launchWrite {
             val currency = studioProfileRepository.currency()
             val retainer =
                 when {
                     contract.retainerAmount.isBlank() -> null
-                    else -> parseMoney(contract.retainerAmount, currency)?.takeIf { it.isPositive } ?: return@launch
+                    else ->
+                        parseMoney(contract.retainerAmount, currency)?.takeIf { it.isPositive }
+                            ?: return@launchWrite
                 }
 
-            val turnaroundDays = optionalCount(contract.turnaroundDays) ?: return@launch
-            val revisionRounds = optionalCount(contract.revisionRounds) ?: return@launch
-            val license = contract.license?.let { form -> usageLicenseOf(form) ?: return@launch }
+            val turnaroundDays = optionalCount(contract.turnaroundDays) ?: return@launchWrite
+            val revisionRounds = optionalCount(contract.revisionRounds) ?: return@launchWrite
+            val license = contract.license?.let { form -> usageLicenseOf(form) ?: return@launchWrite }
             val now = clock.now()
 
             val existing = existingId?.let { contractRepository.getContract(it) }
-            if (existingId != null && (existing == null || existing.isSigned)) return@launch
+            if (existingId != null && (existing == null || existing.isSigned)) return@launchWrite
 
             contractRepository.saveContract(
                 Contract(
@@ -929,9 +931,9 @@ internal class LedgerViewModel(
 
     /** Puts a drawn-up contract in front of the client, starting the clock on a reply. */
     fun sendContract(contractId: ContractId) {
-        viewModelScope.launch {
-            val contract = contractRepository.getContract(contractId) ?: return@launch
-            if (contract.status != ContractStatus.Draft) return@launch
+        launchWrite {
+            val contract = contractRepository.getContract(contractId) ?: return@launchWrite
+            if (contract.status != ContractStatus.Draft) return@launchWrite
             val now = clock.now()
 
             contractRepository.saveContract(
@@ -952,12 +954,12 @@ internal class LedgerViewModel(
      * whether a cancellation falls inside the notice period.
      */
     fun signContract(signature: ContractSignature) {
-        viewModelScope.launch {
-            val contract = contractRepository.getContract(signature.contractId) ?: return@launch
-            if (contract.isSigned) return@launch
+        launchWrite {
+            val contract = contractRepository.getContract(signature.contractId) ?: return@launchWrite
+            if (contract.isSigned) return@launchWrite
 
-            val signerName = signature.signerName.trim().ifBlank { return@launch }
-            val signedOn = runCatching { LocalDate.parse(signature.signedOn) }.getOrNull() ?: return@launch
+            val signerName = signature.signerName.trim().ifBlank { return@launchWrite }
+            val signedOn = runCatching { LocalDate.parse(signature.signedOn) }.getOrNull() ?: return@launchWrite
             val now = clock.now()
 
             contractRepository.saveContract(

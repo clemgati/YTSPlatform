@@ -3,21 +3,25 @@ package com.yellowtrack.platform.core.data.internal
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.QuoteRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.quote.Quote
 import com.yellowtrack.platform.core.model.quote.QuoteId
 import com.yellowtrack.platform.core.model.quote.QuoteStatus
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 
 internal class SqlDelightQuoteRepository(
     provider: DatabaseProvider,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     QuoteRepository {
     private val studioId get() = studioContext.studioId.value
@@ -67,6 +71,8 @@ internal class SqlDelightQuoteRepository(
         // would be frozen as expired the moment its date is extended.
         val storedStatus = if (quote.status == QuoteStatus.Expired) QuoteStatus.Sent else quote.status
 
+        remote.write(SyncPushRequest(quotes = listOf(quote)))
+
         db.transaction {
             db.quoteQueries.insertOrIgnore(
                 id = quote.id.value,
@@ -109,8 +115,6 @@ internal class SqlDelightQuoteRepository(
                 lastEmailedTo = quote.lastEmailedTo,
                 id = quote.id.value,
             )
-
-            db.enqueueForSync(studioId, SyncTables.QUOTE, quote.id.value, OutboxOperation.Upsert, now)
         }
     }
 
@@ -118,9 +122,15 @@ internal class SqlDelightQuoteRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getQuote(quoteId) ?: return
+
+        remote.write(
+            SyncPushRequest(quotes = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.quoteQueries.softDelete(deletedAt = now, id = quoteId.value)
-            db.enqueueForSync(studioId, SyncTables.QUOTE, quoteId.value, OutboxOperation.Delete, now)
         }
     }
 
@@ -131,12 +141,27 @@ internal class SqlDelightQuoteRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        val existing = getQuote(quoteId) ?: return
+
+        // Sent so the studio's other devices know, without anybody remembering which one did
+        // the sending. It is a fact about the document, not about the device.
+        remote.write(
+            SyncPushRequest(
+                quotes =
+                    listOf(
+                        existing.copy(
+                            lastEmailedAt = instant(now),
+                            lastEmailedTo = to,
+                            audit = existing.audit.touched(instant(now)),
+                        ),
+                    ),
+            ),
+        )
+
         db.transaction {
             db.quoteQueries.recordEmailed(emailedAt = now, emailedTo = to, id = quoteId.value)
-
-            // Queued like any other change, so the studio's other devices learn it was sent
-            // without anybody having to remember which one did the sending.
-            db.enqueueForSync(studioId, SyncTables.QUOTE, quoteId.value, OutboxOperation.Upsert, now)
         }
     }
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }
