@@ -2,6 +2,7 @@ package com.yellowtrack.platform.core.data
 
 import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.sync.SyncStatus
+import com.yellowtrack.platform.core.data.sync.WriteFailed
 import com.yellowtrack.platform.core.model.common.StudioId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
@@ -38,12 +39,11 @@ suspend fun fillStudioDefaults(
     now: Instant,
 ) {
     when (session) {
-        // Signed out there is nobody to ask and nothing to collide with, so the defaults are
-        // this device's own and go in immediately. A studio trying the application before it
-        // has an account still gets packages to look at.
-        SessionState.SignedOut -> serviceTemplates.seedDefaultsIfEmpty()
-
-        SessionState.Unknown -> Unit
+        // Nothing, on both counts. There is no studio to seed for — a signed-out device has
+        // only the placeholder id — and no screen behind the sign-in form to show templates
+        // on anyway. Seeding here used to leave four packages under the placeholder studio,
+        // which are visible in the database and belong to nobody.
+        SessionState.SignedOut, SessionState.Unknown -> Unit
 
         is SessionState.SignedIn -> {
             // Suspends until the studio has answered. Staying empty is the right behaviour
@@ -56,12 +56,19 @@ suspend fun fillStudioDefaults(
             // with it — for the one case this function exists to treat as "say nothing".
             if (status.firstOrNull { it is SyncStatus.Succeeded } == null) return
 
-            serviceTemplates.seedDefaultsIfEmpty()
-            profiles.adoptStudioName(
-                studioName = session.session.studioName,
-                studioId = studioId,
-                now = now,
-            )
+            // Both of these now write through the server, so both can fail on a connection
+            // that dropped between the sync and here. Swallowed on purpose: defaults are not
+            // work a studio typed, nobody is waiting on the result, and the next launch tries
+            // again. An unhandled WriteFailed here would instead take down the effect that
+            // draws the application.
+            runCatching {
+                serviceTemplates.seedDefaultsIfEmpty()
+                profiles.adoptStudioName(
+                    studioName = session.session.studioName,
+                    studioId = studioId,
+                    now = now,
+                )
+            }.onFailure { if (it !is WriteFailed) throw it }
         }
     }
 }

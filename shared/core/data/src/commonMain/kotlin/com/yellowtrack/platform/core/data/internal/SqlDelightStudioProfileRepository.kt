@@ -4,10 +4,12 @@ import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.studio.StudioProfileId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -19,6 +21,7 @@ internal class SqlDelightStudioProfileRepository(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     StudioProfileRepository {
     override fun observeProfile(): Flow<StudioProfile?> =
@@ -34,6 +37,8 @@ internal class SqlDelightStudioProfileRepository(
     override suspend fun saveProfile(profile: StudioProfile) {
         val db = database()
         val now = clock.now().toEpochMillis()
+
+        remote.write(SyncPushRequest(studioProfiles = listOf(profile)))
 
         db.transaction {
             db.studioProfileQueries.insertOrIgnore(
@@ -68,14 +73,6 @@ internal class SqlDelightStudioProfileRepository(
                 deletedAt = profile.audit.deletedAt.toEpochMillisOrNull(),
                 version = profile.audit.version.toLong(),
                 id = profile.id.value,
-            )
-
-            db.enqueueForSync(
-                profile.studioId.value,
-                SyncTables.STUDIO_PROFILE,
-                profile.id.value,
-                OutboxOperation.Upsert,
-                now,
             )
         }
     }

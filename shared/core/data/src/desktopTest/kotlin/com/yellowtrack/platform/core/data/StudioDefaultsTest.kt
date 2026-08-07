@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.auth.StoredSession
 import com.yellowtrack.platform.core.data.sync.SyncReport
 import com.yellowtrack.platform.core.data.sync.SyncStatus
+import com.yellowtrack.platform.core.data.sync.WriteFailed
 import com.yellowtrack.platform.core.model.common.StudioId
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
@@ -90,18 +91,35 @@ class StudioDefaultsTest {
         }
 
     /**
-     * Nobody to ask and nothing to collide with, so the wait would be for an event that never
-     * comes — and a studio trying the application before it has an account would see an empty
-     * packages screen forever.
+     * There is no studio to seed for, and no screen behind the sign-in form to show packages
+     * on. Seeding here used to leave four templates under the placeholder studio id, which
+     * are sitting in the database belonging to nobody.
      */
     @Test
-    fun `a signed-out device seeds immediately`() =
+    fun `a signed-out device seeds nothing for a studio that does not exist yet`() =
         runTest {
             val templates = RecordingTemplates()
 
             fillStudioDefaults(SessionState.SignedOut, emptyFlow(), templates, RecordingProfiles(), STUDIO, NOW)
 
-            assertTrue(templates.seeded)
+            assertFalse(templates.seeded, "the placeholder studio is not a studio")
+        }
+
+    /**
+     * Seeding writes through the server now, so it can fail on a connection that dropped
+     * between the sync and here. Nobody is waiting on the result and the next launch tries
+     * again — but an unhandled WriteFailed would take down the effect that draws the
+     * application, which is a blank window instead of a missing default.
+     */
+    @Test
+    fun `a connection lost after the sync does not bring the screen down`() =
+        runTest {
+            val templates = RecordingTemplates(failing = true)
+            val status = MutableStateFlow<SyncStatus>(SyncStatus.Succeeded(at = 0L, report = report()))
+
+            fillStudioDefaults(signedIn, status, templates, RecordingProfiles(), STUDIO, NOW)
+
+            assertTrue(templates.seeded, "it tried")
         }
 
     @Test
@@ -133,7 +151,9 @@ class StudioDefaultsTest {
             ),
         )
 
-    private class RecordingTemplates : ServiceTemplateRepository {
+    private class RecordingTemplates(
+        private val failing: Boolean = false,
+    ) : ServiceTemplateRepository {
         var seeded = false
 
         override fun observeTemplates(): Flow<List<ServiceTemplate>> = emptyFlow()
@@ -146,6 +166,7 @@ class StudioDefaultsTest {
 
         override suspend fun seedDefaultsIfEmpty() {
             seeded = true
+            if (failing) throw WriteFailed.Offline
         }
     }
 

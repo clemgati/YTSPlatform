@@ -12,6 +12,7 @@ import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.sync.SyncStatus
 import com.yellowtrack.platform.core.data.sync.Synchroniser
+import com.yellowtrack.platform.core.data.sync.WriteFailed
 import com.yellowtrack.platform.core.data.sync.differences
 import com.yellowtrack.platform.core.export.Document
 import com.yellowtrack.platform.core.export.DocumentFormat
@@ -115,7 +116,23 @@ internal class SettingsViewModel(
                     audit = existing?.audit?.touched(now) ?: AuditMetadata.createdAt(now),
                 )
 
-            profileRepository.saveProfile(profile)
+            // The profile writes through the server now, so this can fail for a reason that
+            // is not the studio's fault and is worth saying out loud. It goes on the same
+            // line the confirmation uses, because "that did not save" and "that did not
+            // send" are one sentence to whoever pressed the button.
+            //
+            // Ordered so the confirmation is only ever written after the write returned.
+            // Setting it first and correcting it on failure is the shape that produced a
+            // "Saved." on a document that never left.
+            val failure =
+                runCatching { profileRepository.saveProfile(profile) }
+                    .exceptionOrNull()
+
+            if (failure != null) {
+                if (failure !is WriteFailed) throw failure
+                savedNote.value = failure.message
+                return@launch
+            }
 
             savedNote.value =
                 if (profile.canIssueDocuments) {

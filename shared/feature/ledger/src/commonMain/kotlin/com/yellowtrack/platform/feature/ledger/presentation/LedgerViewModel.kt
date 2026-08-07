@@ -525,18 +525,18 @@ internal class LedgerViewModel(
         form: NewServiceTemplate,
         existingId: String? = null,
     ) {
-        viewModelScope.launch {
-            val name = form.name.trim().ifBlank { return@launch }
+        writes.launchWrite(viewModelScope) {
+            val name = form.name.trim().ifBlank { return@launchWrite }
             val duration =
                 form.sessionDurationMinutes
                     .trim()
                     .toIntOrNull()
-                    ?.takeIf { it > 0 } ?: return@launch
+                    ?.takeIf { it > 0 } ?: return@launchWrite
             val sessions =
                 form.sessionCount
                     .trim()
                     .toIntOrNull()
-                    ?.takeIf { it > 0 } ?: return@launch
+                    ?.takeIf { it > 0 } ?: return@launchWrite
 
             val currency = studioProfileRepository.currency()
 
@@ -546,7 +546,7 @@ internal class LedgerViewModel(
             val price =
                 when {
                     form.basePrice.isBlank() -> null
-                    else -> parseMoney(form.basePrice, currency)?.takeIf { it.isPositive } ?: return@launch
+                    else -> parseMoney(form.basePrice, currency)?.takeIf { it.isPositive } ?: return@launchWrite
                 }
 
             val existing = existingId?.let { serviceTemplateRepository.getTemplate(ServiceTemplateId(it)) }
@@ -579,7 +579,7 @@ internal class LedgerViewModel(
      * figures rather than pointing at it — so there is nothing here to hold it in place.
      */
     fun removeServiceTemplate(id: String) {
-        viewModelScope.launch { serviceTemplateRepository.deleteTemplate(ServiceTemplateId(id)) }
+        writes.launchWrite(viewModelScope) { serviceTemplateRepository.deleteTemplate(ServiceTemplateId(id)) }
     }
 
     /**
