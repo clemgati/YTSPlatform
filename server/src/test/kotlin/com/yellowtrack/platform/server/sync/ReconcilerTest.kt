@@ -226,7 +226,6 @@ class ReconcilerTest {
         val result = push(studio, SyncedEntity.Clients, client(studio, "c1", "Ada Okafor"))
 
         assertEquals(PushOutcome.Applied, result.outcome)
-        assertEquals(0, conflictCount(studio), "nothing was displaced, so nothing should be recorded")
     }
 
     @Test
@@ -238,7 +237,6 @@ class ReconcilerTest {
         val result = push(studio, SyncedEntity.Clients, original.renamedTo("Ada Okafor-Bell").bumped())
 
         assertEquals(PushOutcome.Applied, result.outcome)
-        assertEquals(0, conflictCount(studio))
     }
 
     @Test
@@ -257,13 +255,21 @@ class ReconcilerTest {
             result.outcome,
             "a device that edited three times while offline has not conflicted with anybody",
         )
-        assertEquals(0, conflictCount(studio))
     }
 
     // -- Conflicts ---------------------------------------------------------------------------
 
+    /**
+     * What ADR 0008 decision 3 used to do here, and what ADR 0012 decision 4 replaced it
+     * with. The resolution is unchanged — later arrival wins — and only the bookkeeping
+     * went: nothing is set aside and nothing is reported.
+     *
+     * The bookkeeping was the expensive half. It was answerable only by a screen that
+     * dismisses rows one at a time, and in production every row it ever held described an
+     * event that had not happened.
+     */
     @Test
-    fun `two devices editing the same row conflict, and the loser is kept in full`() {
+    fun `two devices editing the same row resolve silently, and nothing is set aside`() {
         val studio = studio()
         val original = session(studio, "s1", "p1", "Ceremony")
         seedProject(studio)
@@ -277,20 +283,13 @@ class ReconcilerTest {
         val second = push(studio, SyncedEntity.Sessions, fromPhone)
 
         assertEquals(
-            PushOutcome.Conflicted,
+            PushOutcome.Applied,
             second.outcome,
-            "the second device was working from a version the server had already moved past",
+            "the second device was behind, but there is no longer anything to report about it",
         )
 
-        val conflict = conflicts(studio).single()
-        assertEquals("session", conflict.entityTable)
-        assertEquals(scoped(studio, "s1"), conflict.entityId)
-        assertTrue(
-            conflict.losingPayload.contains("Ceremony — 2pm"),
-            "the discarded title must be readable. Last-write-wins is only defensible while the " +
-                "work it threw away can still be got back — this is that",
-        )
-        assertTrue(conflict.winningPayload.contains("Ceremony — 3pm"))
+        val stored = reconciler.pull(studio, since = 0).sessions().single()
+        assertEquals("Ceremony — 3pm", stored.title, "the later arrival wins")
     }
 
     @Test
@@ -350,7 +349,7 @@ class ReconcilerTest {
     // -- Tombstones ----------------------------------------------------------------------------
 
     @Test
-    fun `a delete beats an edit that raced it, and the edit is still kept`() {
+    fun `a delete beats an edit that raced it, and the edit is discarded`() {
         val studio = studio()
         seedProject(studio)
         val original = session(studio, "s1", "p1", "Ceremony")
@@ -360,16 +359,17 @@ class ReconcilerTest {
         val edit = push(studio, SyncedEntity.Sessions, original.retitled("Still going ahead").bumped())
 
         assertEquals(
-            PushOutcome.Conflicted,
+            PushOutcome.Applied,
             edit.outcome,
             "deleting is deliberate and an edit is more likely to be the accident, so the tombstone stands",
         )
 
         val stored = reconciler.pull(studio, since = 0).sessions().single()
         assertNotNull(stored.audit.deletedAt, "the row must still be deleted")
-        assertTrue(
-            conflicts(studio).single().losingPayload.contains("Still going ahead"),
-            "and the edit that lost must be recoverable, because it was still somebody's work",
+        assertEquals(
+            "Ceremony",
+            stored.title,
+            "the tombstone stands, so the edit that raced it is discarded rather than applied",
         )
     }
 
@@ -383,7 +383,6 @@ class ReconcilerTest {
         val result = push(studio, SyncedEntity.Sessions, original.deletedNow())
 
         assertEquals(PushOutcome.Applied, result.outcome)
-        assertEquals(0, conflictCount(studio), "nothing was displaced by a delete nobody was racing")
         assertNotNull(
             reconciler
                 .pull(studio, since = 0)
@@ -459,13 +458,6 @@ class ReconcilerTest {
 
     // -- Fixtures --------------------------------------------------------------------------------
 
-    private data class RecordedConflict(
-        val entityTable: String,
-        val entityId: String,
-        val losingPayload: String,
-        val winningPayload: String,
-    )
-
     private fun PulledChanges.crew() = rows[SyncedEntity.CrewMembers.table].orEmpty().filterIsInstance<CrewMember>()
 
     private fun PulledChanges.clients() = rows[SyncedEntity.Clients.table].orEmpty().filterIsInstance<Client>()
@@ -479,32 +471,6 @@ class ReconcilerTest {
         entity: SyncedEntity<T>,
         value: T,
     ) = reconciler.push(studioId, entity, value)
-
-    private fun conflicts(studioId: String): List<RecordedConflict> =
-        TestDatabase.database.inStudio(studioId) { db ->
-            db
-                .prepareStatement(
-                    "SELECT entity_table, entity_id, losing_payload, winning_payload " +
-                        "FROM sync_conflict ORDER BY detected_at",
-                ).use { statement ->
-                    statement.executeQuery().use { rows ->
-                        buildList {
-                            while (rows.next()) {
-                                add(
-                                    RecordedConflict(
-                                        rows.getString(1),
-                                        rows.getString(2),
-                                        rows.getString(3),
-                                        rows.getString(4),
-                                    ),
-                                )
-                            }
-                        }
-                    }
-                }
-        }
-
-    private fun conflictCount(studioId: String) = conflicts(studioId).size
 
     /** A studio of its own per test, since the shared database is not emptied between them. */
     private fun studio(): String {

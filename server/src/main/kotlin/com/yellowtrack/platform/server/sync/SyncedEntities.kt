@@ -85,8 +85,6 @@ import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.studio.StudioProfileId
-import com.yellowtrack.platform.core.model.sync.SyncConflict
-import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import java.sql.Connection
@@ -2238,55 +2236,10 @@ sealed interface SyncedEntity<T> {
         }
     }
 
-    /**
-     * Conflicts travel to the device, and only in that direction.
-     *
-     * The server is the only party that ever sees both versions, so it is the only one that
-     * can raise one. A device pushing a conflict would be asserting something it cannot
-     * know, and [SyncRoutes] accepts no such list — which is why [upsert] here exists to
-     * satisfy the interface and is reached by nothing.
-     *
-     * They are pulled at all because a conflict nobody is shown is the thing ADR 0008 called
-     * worse than useless: it costs storage and implies a safety property it is not
-     * delivering. The row has to reach the device before any screen can show it.
-     */
-    object Conflicts : SyncedEntity<SyncConflict> {
-        override val table = "sync_conflict"
-
-        override fun identify(entity: SyncConflict) = entity.id.value
-
-        override fun studioOf(entity: SyncConflict) = entity.studioId.value
-
-        override fun versionOf(entity: SyncConflict) = entity.audit.version
-
-        override fun deletedAtOf(entity: SyncConflict) = entity.audit.deletedAt?.toEpochMilliseconds()
-
-        override fun read(rows: ResultSet): SyncConflict =
-            SyncConflict(
-                id = SyncConflictId(rows.getString("id")),
-                studioId = StudioId(rows.getString("studio_id")),
-                entityTable = rows.getString("entity_table"),
-                entityId = rows.getString("entity_id"),
-                losingPayload = rows.getString("losing_payload"),
-                winningPayload = rows.getString("winning_payload"),
-                detectedAt = Instant.fromEpochMilliseconds(rows.getLong("detected_at")),
-                resolvedAt = rows.getNullableLong("resolved_at")?.let(Instant::fromEpochMilliseconds),
-                audit = rows.audit(),
-            )
-
-        override fun encode(entity: SyncConflict) = payloadJson.encodeToString(entity)
-
-        override fun upsert(
-            connection: Connection,
-            entity: SyncConflict,
-            version: Int,
-        ): Unit = error("conflicts are raised by the server and never pushed to it")
-    }
-
     companion object {
         /**
          * Every synchronised entity, in the order a device must apply them: parents before
-         * children, conflicts last because they refer to rows that should exist first.
+         * children.
          *
          * `client_contact` references `client` and `contact`, so applying the link first
          * fails a foreign key on a studio's very first sync. Ordered here rather than by
@@ -2326,7 +2279,6 @@ sealed interface SyncedEntity<T> {
                 Deliverables,
                 Invoices,
                 Payments,
-                Conflicts,
             )
         }
     }

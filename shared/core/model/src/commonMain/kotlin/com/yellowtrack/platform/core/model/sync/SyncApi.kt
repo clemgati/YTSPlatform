@@ -122,7 +122,6 @@ data class SyncPullResponse(
      * ever sees both versions, so a device asserting a conflict would be claiming something
      * it cannot know.
      */
-    val conflicts: List<SyncConflict> = emptyList(),
 )
 
 @Serializable
@@ -189,8 +188,12 @@ enum class SyncPushOutcome {
     Applied,
 
     /**
-     * Stored, and something was discarded to store it — or refused because a tombstone beat
-     * it. Either way a conflict now holds both versions.
+     * Stored, having displaced something — which the server no longer writes down.
+     *
+     * ADR 0012 decision 4 made the later write win silently, so nothing sends this any more.
+     * It stays on the wire because a device running an older build still expects to be able
+     * to read it, and a client updated before the server it talks to would otherwise fail to
+     * parse the answer entirely. Treated exactly like [Applied] everywhere it is handled.
      */
     Conflicted,
 

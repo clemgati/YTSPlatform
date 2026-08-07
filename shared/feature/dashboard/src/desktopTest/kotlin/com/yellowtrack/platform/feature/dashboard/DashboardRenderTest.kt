@@ -85,7 +85,6 @@ class DashboardRenderTest {
                                     summary =
                                         UiState.Success(
                                             DashboardPreviewData.summary.copy(
-                                                unresolvedConflicts = 2,
                                                 // The fixture leaves this blank, which
                                                 // renders the date badge as an empty pill
                                                 // and makes the image lie about the header.
@@ -137,7 +136,6 @@ class DashboardRenderTest {
                                     summary =
                                         UiState.Success(
                                             DashboardPreviewData.summary.copy(
-                                                unresolvedConflicts = 2,
                                                 // The fixture leaves this blank, which
                                                 // renders the date badge as an empty pill
                                                 // and makes the image lie about the header.

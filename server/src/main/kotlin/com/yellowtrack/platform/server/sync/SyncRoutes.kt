@@ -26,7 +26,6 @@ import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.studio.StudioProfile
-import com.yellowtrack.platform.core.model.sync.SyncConflict
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
 import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
 import com.yellowtrack.platform.core.model.sync.SyncPushRequest
@@ -77,7 +76,7 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                         hasMore = changes.hasMore,
                         // What this server knows how to reconcile, so a newer device can say
                         // so rather than pushing into a version that will drop it.
-                        reconciles = SyncedEntity.all.map { it.table } - SyncedEntity.Conflicts.table,
+                        reconciles = SyncedEntity.all.map { it.table },
                         clients = changes.rows[SyncedEntity.Clients.table].orEmpty().filterIsInstance<Client>(),
                         contacts = changes.rows[SyncedEntity.Contacts.table].orEmpty().filterIsInstance<Contact>(),
                         clientContactLinks =
@@ -129,8 +128,6 @@ fun Route.syncRoutes(reconciler: Reconciler) {
                             changes.rows[SyncedEntity.ServiceTemplates.table]
                                 .orEmpty()
                                 .filterIsInstance<ServiceTemplate>(),
-                        conflicts =
-                            changes.rows[SyncedEntity.Conflicts.table].orEmpty().filterIsInstance<SyncConflict>(),
                     ),
                 )
             }

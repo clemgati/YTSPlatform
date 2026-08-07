@@ -16,7 +16,6 @@ import com.yellowtrack.platform.core.testing.FakeProjectRepository
 import com.yellowtrack.platform.core.testing.FakeSessionRepository
 import com.yellowtrack.platform.core.testing.FakeStorageVolumeRepository
 import com.yellowtrack.platform.core.testing.FakeStudioProfileRepository
-import com.yellowtrack.platform.core.testing.FakeSyncConflictRepository
 import com.yellowtrack.platform.core.testing.TestAppClock
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.dashboard.presentation.DashboardViewModel
@@ -289,7 +288,6 @@ class EnquiryActionsTest {
 
     private fun viewModel(
         leads: FakeLeadRepository,
-        conflicts: FakeSyncConflictRepository = FakeSyncConflictRepository(),
         clients: FakeClientRepository = FakeClientRepository(),
         projects: FakeProjectRepository = FakeProjectRepository(),
     ) = DashboardViewModel(
@@ -298,7 +296,6 @@ class EnquiryActionsTest {
         sessionRepository = FakeSessionRepository(),
         leadRepository = leads,
         studioProfileRepository = FakeStudioProfileRepository(),
-        conflictRepository = conflicts,
         studioContext = LocalStudioContext(),
         gearRepository = FakeGearRepository(),
         volumeRepository = FakeStorageVolumeRepository(),

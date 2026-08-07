@@ -12,7 +12,6 @@ import com.yellowtrack.platform.core.data.SessionRepository
 import com.yellowtrack.platform.core.data.StorageVolumeRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
-import com.yellowtrack.platform.core.data.SyncConflictRepository
 import com.yellowtrack.platform.core.data.currency
 import com.yellowtrack.platform.core.data.sync.WriteFailures
 import com.yellowtrack.platform.core.model.client.ClientId
@@ -56,7 +55,6 @@ internal class DashboardViewModel(
     private val leadRepository: LeadRepository,
     private val studioContext: StudioContext,
     private val studioProfileRepository: StudioProfileRepository,
-    private val conflictRepository: SyncConflictRepository,
     private val gearRepository: GearRepository,
     private val volumeRepository: StorageVolumeRepository,
     private val clock: AppClock,
@@ -109,9 +107,9 @@ internal class DashboardViewModel(
                     combine(
                         gearRepository.observeGear(),
                         volumeRepository.observeVolumes(),
-                        conflictRepository.observeUnresolvedCount(),
-                    ) { gear, volumes, conflicts -> Kit(gear, volumes) to conflicts },
-                ) { sessions, projects, clients, enquiries, (kit, unresolvedConflicts) ->
+                        ::Kit,
+                    ),
+                ) { sessions, projects, clients, enquiries, kit ->
                     DashboardUiState(
                         summary =
                             UiState.Success(
@@ -123,7 +121,7 @@ internal class DashboardViewModel(
                                     allEnquiries = enquiries.all,
                                     now = clock.now(),
                                     studioStatus = buildStudioStatus(kit.gear, kit.volumes),
-                                ).copy(unresolvedConflicts = unresolvedConflicts),
+                                ),
                             ),
                     )
                 }.catch { throwable ->

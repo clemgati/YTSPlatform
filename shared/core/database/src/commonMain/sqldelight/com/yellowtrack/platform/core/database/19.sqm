@@ -1,0 +1,10 @@
+-- The conflict table goes, with ADR 0012 decision 4.
+--
+-- 18.sqm emptied it. This removes it, now that nothing writes one: the server stopped
+-- raising them, the pull stopped carrying them, and the screen that showed them is gone.
+--
+-- Dropped rather than kept empty. A table nobody writes is a table somebody will wonder
+-- about, and every row this one ever held in production described an event that had not
+-- happened.
+DROP INDEX IF EXISTS sync_conflict_studio_idx;
+DROP TABLE IF EXISTS sync_conflict;

@@ -313,8 +313,9 @@ class SyncEngine(
                     ack == null ->
                         database.outboxQueries.recordFailure("the server did not answer about this row", entry.id)
 
-                    // Conflicted still means stored: the server took this version and kept
-                    // the one it displaced. The entry has done its job.
+                    // Conflicted is never sent any more — ADR 0012 decision 4 — but an
+                    // older server still says it, and it has always meant stored. The entry
+                    // has done its job either way.
                     ack.outcome == SyncPushOutcome.Applied || ack.outcome == SyncPushOutcome.Conflicted ->
                         database.outboxQueries.delete(entry.id)
 
@@ -378,7 +379,7 @@ class SyncEngine(
                     page.shots.size + page.postTasks.size +
                     page.talentReleases.size + page.lightingRecipes.size +
                     page.studioProfiles.size + page.codbProfiles.size +
-                    page.serviceTemplates.size + page.conflicts.size
+                    page.serviceTemplates.size
 
             // What this device is still holding changes for. Read before the page is
             // written, because a pulled row must not overwrite work that has not reached the
@@ -513,7 +514,6 @@ class SyncEngine(
                     .notHeldLocally(held, SyncTables.SERVICE_TEMPLATE) {
                         it.id.value
                     }.forEach { database.applyServiceTemplate(it) }
-                page.conflicts.forEach { database.applyConflict(it) }
 
                 database.syncQueries.rememberCursor(studioId, page.cursor, clock.now().toEpochMilliseconds())
             }
