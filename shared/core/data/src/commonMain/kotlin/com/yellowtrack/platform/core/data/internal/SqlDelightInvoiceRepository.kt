@@ -1,8 +1,10 @@
 package com.yellowtrack.platform.core.data.internal
 
+import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.InvoiceRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.invoice.Invoice
@@ -10,18 +12,31 @@ import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.Payment
 import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.project.ProjectId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 import com.yellowtrack.platform.core.database.Invoice as InvoiceRow
 
+/**
+ * Money, written through the server.
+ *
+ * The first repository moved to ADR 0012: the server is asked first, and the local tables are
+ * a cache written afterwards. Nothing is queued, because nothing is held — a write that did
+ * not reach the server did not happen, and says so.
+ *
+ * The ledger went first deliberately. It is the desk-bound half, where a connection is the
+ * normal case rather than the lucky one, and it is where the conflicts came from.
+ */
 internal class SqlDelightInvoiceRepository(
     provider: DatabaseProvider,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     InvoiceRepository {
     private val studioId get() = studioContext.studioId.value
@@ -56,6 +71,10 @@ internal class SqlDelightInvoiceRepository(
     override suspend fun saveInvoice(invoice: Invoice) {
         val db = database()
         val now = clock.now().toEpochMillis()
+
+        // The server first. If this throws the cache is untouched, so the screen still shows
+        // what is actually stored rather than a save that never happened.
+        remote.write(SyncPushRequest(invoices = listOf(invoice)))
 
         db.transaction {
             db.invoiceQueries.insertOrIgnore(
@@ -95,29 +114,22 @@ internal class SqlDelightInvoiceRepository(
                 lastEmailedTo = invoice.lastEmailedTo,
                 id = invoice.id.value,
             )
-
-            db.enqueueForSync(
-                invoice.studioId.value,
-                SyncTables.INVOICE,
-                invoice.id.value,
-                OutboxOperation.Upsert,
-                now,
-            )
         }
-
-        // Payments carried on the object are persisted too, so that saving an invoice
-        // built in memory does not silently drop the money recorded against it. Each is
-        // queued separately by recordPayment: they are their own rows on the wire.
-        invoice.payments.forEach { recordPayment(it) }
     }
 
     override suspend fun deleteInvoice(invoiceId: InvoiceId) {
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // Read first, because a delete travels as the row with a tombstone on it rather than
+        // as an instruction. Gone already is not a failure worth reporting to a studio that
+        // asked for exactly that.
+        val existing = getInvoice(invoiceId) ?: return
+
+        remote.write(SyncPushRequest(invoices = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))))
+
         db.transaction {
             db.invoiceQueries.softDelete(deletedAt = now, id = invoiceId.value)
-            db.enqueueForSync(studioId, SyncTables.INVOICE, invoiceId.value, OutboxOperation.Delete, now)
         }
     }
 
@@ -128,18 +140,33 @@ internal class SqlDelightInvoiceRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        val existing = getInvoice(invoiceId) ?: return
+
+        // Sent so the studio's other devices know, without anybody remembering which one did
+        // the sending. It is a fact about the document, not about the device.
+        remote.write(
+            SyncPushRequest(
+                invoices =
+                    listOf(
+                        existing.copy(
+                            lastEmailedAt = instant(now),
+                            lastEmailedTo = to,
+                            audit = existing.audit.touched(instant(now)),
+                        ),
+                    ),
+            ),
+        )
+
         db.transaction {
             db.invoiceQueries.recordEmailed(emailedAt = now, emailedTo = to, id = invoiceId.value)
-
-            // Queued like any other change, so the studio's other devices learn it was sent
-            // without anybody having to remember which one did the sending.
-            db.enqueueForSync(studioId, SyncTables.INVOICE, invoiceId.value, OutboxOperation.Upsert, now)
         }
     }
 
     override suspend fun recordPayment(payment: Payment) {
         val db = database()
         val now = clock.now().toEpochMillis()
+
+        remote.write(SyncPushRequest(payments = listOf(payment)))
 
         db.transaction {
             db.invoiceQueries.insertOrIgnorePayment(
@@ -170,14 +197,6 @@ internal class SqlDelightInvoiceRepository(
                 version = payment.audit.version.toLong(),
                 id = payment.id.value,
             )
-
-            db.enqueueForSync(
-                payment.studioId.value,
-                SyncTables.PAYMENT,
-                payment.id.value,
-                OutboxOperation.Upsert,
-                now,
-            )
         }
     }
 
@@ -185,9 +204,14 @@ internal class SqlDelightInvoiceRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        val existing = paymentOf(db, paymentId) ?: return
+
+        remote.write(
+            SyncPushRequest(payments = listOf(existing.copy(audit = existing.audit.deleted(instant(now))))),
+        )
+
         db.transaction {
             db.invoiceQueries.softDeletePayment(deletedAt = now, id = paymentId.value)
-            db.enqueueForSync(studioId, SyncTables.PAYMENT, paymentId.value, OutboxOperation.Delete, now)
         }
     }
 
@@ -205,4 +229,22 @@ internal class SqlDelightInvoiceRepository(
                 row.toDomain(payments = paymentsByInvoice[row.id].orEmpty().map { it.toDomain() })
             }
         }
+
+    /**
+     * One payment, by id.
+     *
+     * Read before a delete because a delete travels as the row with a tombstone on it. There
+     * is no observing query for a single payment — they are always read through their invoice
+     * — so this asks the table directly.
+     */
+    private suspend fun paymentOf(
+        db: YellowTrackDatabase,
+        paymentId: PaymentId,
+    ): Payment? =
+        db.invoiceQueries
+            .selectPaymentByIdForSync(paymentId.value)
+            .awaitAsOneOrNull()
+            ?.toDomain()
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }

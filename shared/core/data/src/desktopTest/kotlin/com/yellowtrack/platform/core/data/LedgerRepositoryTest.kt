@@ -10,6 +10,7 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightExpenseRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightLeadRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.codb.CodbProfile
@@ -54,7 +55,14 @@ class LedgerRepositoryTest {
         val clients = SqlDelightClientRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
         val projects = SqlDelightProjectRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
         val leads = SqlDelightLeadRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
-        val invoices = SqlDelightInvoiceRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val invoices =
+            SqlDelightInvoiceRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
         val expenses = SqlDelightExpenseRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
         val codb =
             SqlDelightCodbRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined, expenses)

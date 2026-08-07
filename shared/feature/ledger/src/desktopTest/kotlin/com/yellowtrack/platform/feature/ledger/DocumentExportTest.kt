@@ -2,7 +2,9 @@ package com.yellowtrack.platform.feature.ledger
 
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
+import com.yellowtrack.platform.core.data.InvoiceRepository
 import com.yellowtrack.platform.core.data.LocalStudioContext
+import com.yellowtrack.platform.core.data.sync.WriteFailed
 import com.yellowtrack.platform.core.model.billing.LineItem
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientAccountType
@@ -12,6 +14,7 @@ import com.yellowtrack.platform.core.model.invoice.Invoice
 import com.yellowtrack.platform.core.model.invoice.InvoiceId
 import com.yellowtrack.platform.core.model.invoice.InvoiceKind
 import com.yellowtrack.platform.core.model.invoice.InvoiceStatus
+import com.yellowtrack.platform.core.model.invoice.PaymentId
 import com.yellowtrack.platform.core.model.project.Project
 import com.yellowtrack.platform.core.model.project.ProjectId
 import com.yellowtrack.platform.core.model.project.ProjectStatus
@@ -82,6 +85,25 @@ class DocumentExportTest {
         val sender: RecordingDocumentSender,
     )
 
+    /**
+     * ADR 0012 made a ledger write able to fail. Without this the exception escapes into
+     * `viewModelScope` and the studio sees a form close on a save that never happened — the
+     * failure the whole decision exists to avoid.
+     */
+    @Test
+    fun `a write that could not reach the server is reported rather than thrown away`() =
+        runTest {
+            val harness = harness(invoiceWrites = FailingInvoiceWrites)
+
+            harness.viewModel.removePayment(PaymentId.new())
+
+            assertEquals(
+                WriteFailed.Offline.message,
+                harness.viewModel.writeFailureMessage.value,
+                "a studio told nothing has an invoice that exists on its screen and nowhere else",
+            )
+        }
+
     // -- Emailing it, rather than saving it ---------------------------------------------
 
     @Test
@@ -128,6 +150,7 @@ class DocumentExportTest {
         profile: StudioProfile? = studioProfile(),
         invoices: List<Invoice> = listOf(invoice()),
         refusal: String? = null,
+        invoiceWrites: InvoiceRepository? = null,
     ): Harness {
         val sink = RecordingDocumentSink()
         val sender = RecordingDocumentSender(refusal = refusal)
@@ -136,7 +159,7 @@ class DocumentExportTest {
         return Harness(
             viewModel =
                 LedgerViewModel(
-                    invoiceRepository = FakeInvoiceRepository(invoices),
+                    invoiceRepository = invoiceWrites ?: FakeInvoiceRepository(invoices),
                     quoteRepository = FakeQuoteRepository(),
                     contractRepository = FakeContractRepository(),
                     expenseRepository = expenses,
@@ -329,4 +352,9 @@ class DocumentExportTest {
             assertTrue(harness.sink.documents.isEmpty())
             assertEquals("That document could not be read.", message)
         }
+}
+
+/** A ledger that cannot reach the server, standing in for a venue with no signal. */
+private object FailingInvoiceWrites : InvoiceRepository by FakeInvoiceRepository(emptyList()) {
+    override suspend fun deletePayment(paymentId: PaymentId): Unit = throw WriteFailed.Offline
 }
