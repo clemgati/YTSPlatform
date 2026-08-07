@@ -497,6 +497,19 @@ and used.
 
 - **One studio has ever existed.** Tenant isolation is enforced by Postgres and proved by
   tests that break it deliberately, but two real studios have never shared this server
+- **Synchronisation is being changed to online-first** —
+  `docs/adr/0012-online-first-with-an-offline-shoot-day.md`, which supersedes ADR 0008 after
+  its own first migration signal fired: one device, 154 conflicts, most describing edits that
+  never happened. Writes will go to the server and be awaited; the local database becomes a
+  read cache; and only the shoot day — shot ticks, kit packed and returned, releases, media
+  verifications — keeps an outbox. Conflicts largely stop existing, because they come from
+  writing blind. Migrated entity by entity rather than cut over, since a single cut-over would
+  be the most dangerous change this application has had and the one whose failures are least
+  visible
+  - **The browser has no local database at all.** sql.js in a worker, in memory, so a reload
+    starts empty and re-pulls everything — offline-first is not unproved there, it is absent.
+    Under ADR 0012 that stops being data loss and becomes a cold start, which is one of the
+    reasons for it
 - ◐ **Synchronisation is triggered by work as well as by a clock.** A write now brings the
   next run forward — the outbox going from empty to holding something schedules one ten
   seconds later, debounced so filling in a form uploads once. That was the trigger a timer
