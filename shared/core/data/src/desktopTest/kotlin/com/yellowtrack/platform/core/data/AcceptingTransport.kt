@@ -22,6 +22,10 @@ internal object AcceptingTransport : SyncTransport {
     override suspend fun push(changes: SyncPushRequest): List<SyncPushResult> =
         (
             changes.invoices.map { "invoice" to it.id.value } +
-                changes.payments.map { "payment" to it.id.value }
+                changes.payments.map { "payment" to it.id.value } +
+                changes.quotes.map { "quote" to it.id.value } +
+                changes.contracts.map { "contract" to it.id.value } +
+                changes.expenses.map { "expense" to it.id.value } +
+                changes.mileages.map { "mileage" to it.id.value }
         ).map { SyncPushResult(it.first, it.second, SyncPushOutcome.Applied, 1) }
 }

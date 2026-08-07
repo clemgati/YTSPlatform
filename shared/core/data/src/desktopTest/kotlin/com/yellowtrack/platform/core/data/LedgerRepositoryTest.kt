@@ -63,7 +63,14 @@ class LedgerRepositoryTest {
                 Dispatchers.Unconfined,
                 RemoteWriter(AcceptingTransport),
             )
-        val expenses = SqlDelightExpenseRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val expenses =
+            SqlDelightExpenseRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
         val codb =
             SqlDelightCodbRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined, expenses)
 
