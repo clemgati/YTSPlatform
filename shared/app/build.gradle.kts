@@ -167,6 +167,15 @@ kotlin {
             implementation(libs.kotlin.test)
         }
 
+        // Skiko's native binary, so a JVM test can rasterise a screen to a PNG without
+        // opening a window. The feature modules get this from the shared compose convention
+        // plugin; this module does not use it, which is why the sidebar — the one screen
+        // that lives here — had never been rendered and its landscape clipping went unseen.
+        // Test-only; it ships with no target.
+        jvmTest.dependencies {
+            implementation(compose.desktop.currentOs)
+        }
+
         /*wasmJsMain.dependencies {
             // Wasm-specific dependencies
 

@@ -43,6 +43,7 @@ import kotlin.time.Instant
 @Composable
 internal fun SignInScreen(
     uiState: SignInUiState,
+    version: String,
     onEmailChanged: (String) -> Unit,
     onRestore: () -> Unit,
     onDismissPendingDeletion: () -> Unit,
@@ -270,6 +271,16 @@ internal fun SignInScreen(
                         color = YTTheme.colors.onSurfaceVariant,
                     )
                 }
+
+                // The only place a phone can be asked what it is running. The sidebar carries
+                // this too, but that is behind signing in — and "which version are you on" is
+                // a question worth being able to answer before a studio can get in, not only
+                // after.
+                Text(
+                    text = version,
+                    style = YTTheme.typography.labelMedium,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
             }
         }
     }
