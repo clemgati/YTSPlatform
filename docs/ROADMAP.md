@@ -338,7 +338,7 @@ and used.
   recorded, a contract signed is an agreement struck. A sent invoice is deliberately *not*
   editable; `voidInvoice` is the remedy, and this entry previously named that as the case to
   fix, which was wrong
-- ◐ **Emailing a document.** A studio can now email a quote or an invoice to its client from
+- ✓ **Emailing a document.** A studio can now email a quote or an invoice to its client from
   the Ledger, and the decision it needed first is
   `docs/adr/0011-sending-a-document-to-a-client.md`. Half a tick for the decision, which was
   the part that was actually missing: this was called wiring twice in this file, and it is
@@ -349,10 +349,11 @@ and used.
   limiting before it ships, because sign-up is open and this would otherwise be a relay.
   A row now says "Emailed to ada@example.com on 5 August", recorded on the device after the
   send and synchronised like any other change, so the studio's other devices know without
-  anybody remembering which one did the sending. Still half a tick for one thing: the client's
-  address is typed each time rather than offered from the contact, because the address on a
-  contact is often the person who booked rather than the person who pays, and quietly sending
-  an invoice to the wrong one of those is worse than asking
+  anybody remembering which one did the sending. The client's address is offered from its
+  billing contact — `Client.billingContact` already existed for exactly this, "where an
+  invoice should be sent, which is not always the primary contact" — with the person named
+  above the box, because a studio reading a name sees who it is going to where an address
+  alone is something the eye skips on the way to the button
 - **The share sheet on Android and iOS** is compiled and has never been run. Sign-in has
   now been exercised on both, so the session stores are proved — this is not
 - **Two studio names.** `studio.name` is fixed at sign-up and shown in Settings → Account;
