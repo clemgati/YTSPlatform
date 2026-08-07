@@ -9,6 +9,7 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.InvoiceRepository
 import com.yellowtrack.platform.core.data.internal.OutboxOperation
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
+import com.yellowtrack.platform.core.data.internal.SqlDelightGearRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightInvoiceRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightProjectRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
@@ -137,30 +138,30 @@ class SyncEngineTest {
     // -- The outbox fills ---------------------------------------------------------------
 
     @Test
-    fun `saving a client notes that it needs uploading`() =
+    fun `saving a queued entity notes that it needs uploading`() =
         runTest {
             val world = world()
 
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
 
             val pending = world.outbox()
             assertEquals(1, pending.size)
-            assertEquals("client" to "c1", pending.single())
+            assertEquals(SyncTables.GEAR_ITEM to "g1", pending.single())
         }
 
     @Test
-    fun `deleting a client queues the tombstone, rather than nothing`() =
+    fun `deleting one queues the tombstone, rather than nothing`() =
         runTest {
             val world = world()
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
             world.drainQuietly()
 
-            world.clients.deleteClient(ClientId("c1"))
+            world.gear.deleteGearItem(GearItemId("g1"))
 
             assertEquals(
-                listOf("client" to "c1"),
+                listOf(SyncTables.GEAR_ITEM to "g1"),
                 world.outbox(),
-                "a delete that never uploads is a booking that comes back from the dead on the " +
+                "a delete that never uploads is a row that comes back from the dead on the " +
                     "other device",
             )
         }
@@ -169,7 +170,7 @@ class SyncEngineTest {
     fun `the queued payload stays empty, because the row is re-read at upload time`() =
         runTest {
             val world = world()
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
 
             val payloads =
                 world.database.outboxQueries
@@ -187,20 +188,20 @@ class SyncEngineTest {
     // -- Draining ------------------------------------------------------------------------
 
     @Test
-    fun `a saved client is uploaded and the entry is cleared`() =
+    fun `a saved row is uploaded and the entry is cleared`() =
         runTest {
             val world = world()
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
 
             val report = world.engine.sync()
 
             assertEquals(1, report.uploaded)
             assertEquals(
-                listOf("Ada Okafor"),
+                listOf("35mm"),
                 world.transport.pushed
                     .single()
-                    .clients
-                    .map { it.accountName },
+                    .gearItems
+                    .map { it.name },
             )
             assertTrue(world.outbox().isEmpty(), "an entry that survives its upload is uploaded again forever")
         }
@@ -209,21 +210,21 @@ class SyncEngineTest {
     fun `three edits to one booking upload once, not three times`() =
         runTest {
             val world = world()
-            val original = client("c1", "Ada Okafor")
-            world.clients.saveClient(original)
-            world.clients.saveClient(original.copy(accountName = "Ada Okafor-B"))
-            world.clients.saveClient(original.copy(accountName = "Ada Okafor-Bell"))
+            val original = gearItem("g1")
+            world.gear.saveGearItem(original)
+            world.gear.saveGearItem(original.copy(name = "35mm f1.4"))
+            world.gear.saveGearItem(original.copy(name = "35mm f1.4 Mk II"))
 
             assertEquals(3, world.outbox().size, "each edit queues an entry")
 
             world.engine.sync()
 
             assertEquals(
-                listOf("Ada Okafor-Bell"),
+                listOf("35mm f1.4 Mk II"),
                 world.transport.pushed
                     .single()
-                    .clients
-                    .map { it.accountName },
+                    .gearItems
+                    .map { it.name },
                 "but there is one row to send, and it is the current one. Sending it three times " +
                     "would be three chances to conflict over work already superseded",
             )
@@ -246,10 +247,12 @@ class SyncEngineTest {
             val world =
                 world(
                     onPush = { changes ->
-                        changes.clients.map { SyncPushResult("client", it.id.value, SyncPushOutcome.Conflicted, 7) }
+                        changes.gearItems.map {
+                            SyncPushResult(SyncTables.GEAR_ITEM, it.id.value, SyncPushOutcome.Conflicted, 7)
+                        }
                     },
                 )
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
 
             val report = world.engine.sync()
 
@@ -267,9 +270,9 @@ class SyncEngineTest {
             val world =
                 world(
                     onPush = { changes ->
-                        changes.clients.map {
+                        changes.gearItems.map {
                             SyncPushResult(
-                                "client",
+                                SyncTables.GEAR_ITEM,
                                 it.id.value,
                                 SyncPushOutcome.Rejected,
                                 1,
@@ -278,7 +281,7 @@ class SyncEngineTest {
                         }
                     },
                 )
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
 
             val report = world.engine.sync()
 
@@ -298,7 +301,7 @@ class SyncEngineTest {
     fun `a push that never answers leaves the work queued`() =
         runTest {
             val world = world()
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
             world.transport.failNextPush = RuntimeException("connection dropped")
 
             runCatching { world.engine.sync() }
@@ -494,23 +497,27 @@ class SyncEngineTest {
     fun `uploading happens before downloading, so the losing version still exists to be kept`() =
         runTest {
             val world = world()
-            world.clients.saveClient(client("c1", "Mine"))
+            world.gear.saveGearItem(gearItem("g1"))
             world.transport.pages +=
-                SyncPullResponse(cursor = 3, hasMore = false, clients = listOf(client("c1", "Theirs")))
+                SyncPullResponse(
+                    cursor = 3,
+                    hasMore = false,
+                    gearItems = listOf(gearItem("g1").copy(name = "Theirs")),
+                )
 
             world.engine.sync()
 
             assertEquals(
-                listOf("Mine"),
+                listOf("35mm"),
                 world.transport.pushed
                     .single()
-                    .clients
-                    .map { it.accountName },
+                    .gearItems
+                    .map { it.name },
                 "pulling first would overwrite this device's version and then upload the server's " +
                     "own row back to it — the studio's work gone before anything noticed it was " +
                     "in danger",
             )
-            assertEquals("Theirs", world.clients.getClient(ClientId("c1"))?.accountName)
+            assertEquals("Theirs", world.gear.getGearItem(GearItemId("g1"))?.name)
         }
 
     // -- Plumbing --------------------------------------------------------------------------
@@ -520,6 +527,7 @@ class SyncEngineTest {
         val engine: SyncEngine,
         val transport: FakeSyncTransport,
         val clients: ClientRepository,
+        val gear: GearRepository,
         val invoices: InvoiceRepository,
     ) {
         suspend fun outbox(): List<Pair<String, String>> =
@@ -555,14 +563,14 @@ class SyncEngineTest {
     fun `a deleted client is uploaded as a tombstone`() =
         runTest {
             val world = world()
-            world.clients.saveClient(client("probe-1", "Probe"))
+            world.gear.saveGearItem(gearItem("probe-1"))
             world.engine.sync()
             world.transport.pushed.clear()
 
-            world.clients.deleteClient(ClientId("probe-1"))
+            world.gear.deleteGearItem(GearItemId("probe-1"))
             world.engine.sync()
 
-            val sent = world.transport.pushed.flatMap { it.clients }
+            val sent = world.transport.pushed.flatMap { it.gearItems }
             assertTrue(
                 sent.any { it.id.value == "probe-1" && it.audit.deletedAt != null },
                 "a delete queued to the outbox never reached the server",
@@ -1007,10 +1015,10 @@ class SyncEngineTest {
     fun `a delete survives a push the server never acknowledged`() =
         runTest {
             val world = world(onPush = { emptyList() })
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
             world.engine.sync()
 
-            world.clients.deleteClient(ClientId("c1"))
+            world.gear.deleteGearItem(GearItemId("g1"))
 
             // The server answers, and says nothing about this row — so it still believes it
             // is alive when the pull in the same run asks.
@@ -1019,14 +1027,14 @@ class SyncEngineTest {
                     SyncPullResponse(
                         cursor = 20,
                         hasMore = false,
-                        clients = listOf(client("c1", "Ada Okafor")),
+                        gearItems = listOf(gearItem("g1")),
                     ),
                 )
 
             world.engine.sync()
 
             assertNull(
-                world.clients.getClient(ClientId("c1")),
+                world.gear.getGearItem(GearItemId("g1")),
                 "the studio deleted this and the server had not been told yet, so a pull must " +
                     "not put it back",
             )
@@ -1042,25 +1050,25 @@ class SyncEngineTest {
     fun `an unsent edit is not overwritten by what the server still has`() =
         runTest {
             val world = world(onPush = { emptyList() })
-            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.gear.saveGearItem(gearItem("g1"))
             world.engine.sync()
 
-            world.clients.saveClient(client("c1", "Ada Okafor-Bell"))
+            world.gear.saveGearItem(gearItem("g1").copy(name = "35mm f1.4"))
 
             world.transport.pages =
                 mutableListOf(
                     SyncPullResponse(
                         cursor = 20,
                         hasMore = false,
-                        clients = listOf(client("c1", "Ada Okafor")),
+                        gearItems = listOf(gearItem("g1")),
                     ),
                 )
 
             world.engine.sync()
 
             assertEquals(
-                "Ada Okafor-Bell",
-                world.clients.getClient(ClientId("c1"))?.accountName,
+                "35mm f1.4",
+                world.gear.getGearItem(GearItemId("g1"))?.name,
                 "the rename had not reached the server, so the server's older copy must not win",
             )
         }
@@ -1074,6 +1082,13 @@ class SyncEngineTest {
         val transport = if (onPush == null) FakeSyncTransport() else FakeSyncTransport(onPush)
 
         val clients = SqlDelightClientRepository(provider, studioContext, clock, Dispatchers.Unconfined)
+
+        // The vehicle for every test about the outbox itself. Gear is a shoot-day surface,
+        // so it keeps the outbox under ADR 0012 decision 3 and will still be queuing long
+        // after clients have stopped — which is the point: those tests are about the queue,
+        // not about clients, and were only ever written on clients because clients came
+        // first.
+        val gear = SqlDelightGearRepository(provider, studioContext, clock, Dispatchers.Unconfined)
         val projects =
             SqlDelightProjectRepository(
                 provider,
@@ -1096,6 +1111,7 @@ class SyncEngineTest {
             engine = SyncEngine(provider, studioContext, transport, clients, projects, sessions, clock),
             transport = transport,
             clients = clients,
+            gear = gear,
             invoices =
                 SqlDelightInvoiceRepository(
                     provider,
