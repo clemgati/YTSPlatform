@@ -152,7 +152,14 @@ class LedgerWritesOnlineTest {
         provider: DatabaseProvider = testDatabaseProvider(),
     ): SqlDelightInvoiceRepository {
         val clock = AppClock { NOW }
-        val clients = SqlDelightClientRepository(provider, LocalStudioContext(), clock, Dispatchers.Unconfined)
+        val clients =
+            SqlDelightClientRepository(
+                provider,
+                LocalStudioContext(),
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(AcceptingTransport),
+            )
         val projects =
             SqlDelightProjectRepository(
                 provider,

@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 internal class ClientDetailsViewModel(
     private val clientId: ClientId,
@@ -144,10 +143,10 @@ internal class ClientDetailsViewModel(
      * what is on screen would silently delete the other three.
      */
     fun updateClient(edited: NewClient) {
-        viewModelScope.launch {
-            if (!edited.hasName) return@launch
+        writes.launchWrite(viewModelScope) {
+            if (!edited.hasName) return@launchWrite
 
-            val existing = clientRepository.getClient(clientId) ?: return@launch
+            val existing = clientRepository.getClient(clientId) ?: return@launchWrite
             val now = clock.now()
 
             // Mirrors Client.primaryContact, so the row the form was filled from is the
@@ -214,8 +213,8 @@ internal class ClientDetailsViewModel(
      * once.
      */
     fun deleteClient() {
-        viewModelScope.launch {
-            if (projectRepository.observeProjectsForClient(clientId).first().isNotEmpty()) return@launch
+        writes.launchWrite(viewModelScope) {
+            if (projectRepository.observeProjectsForClient(clientId).first().isNotEmpty()) return@launchWrite
 
             clientRepository.deleteClient(clientId)
             removed.value = true

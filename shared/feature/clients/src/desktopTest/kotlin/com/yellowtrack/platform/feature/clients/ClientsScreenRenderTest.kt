@@ -95,6 +95,7 @@ class ClientsScreenRenderTest {
                 onQueryChange = {},
                 onClientSelected = {},
                 onAddClient = {},
+                writeFailure = null,
             )
         }
     }
@@ -111,6 +112,7 @@ class ClientsScreenRenderTest {
                 onOpenBooking = {},
                 onUpdateClient = {},
                 onRemoveClient = {},
+                writeFailure = null,
             )
         }
     }
@@ -134,6 +136,7 @@ class ClientsScreenRenderTest {
                 onOpenBooking = {},
                 onUpdateClient = {},
                 onRemoveClient = {},
+                writeFailure = null,
             )
         }
     }

@@ -3,6 +3,7 @@ package com.yellowtrack.platform.core.data
 import app.cash.turbine.test
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.model.client.ClientAccountType
 import com.yellowtrack.platform.core.model.client.ClientContact
 import com.yellowtrack.platform.core.model.client.ClientContactRole
@@ -22,6 +23,7 @@ class ClientRepositoryTest {
             studioContext = LocalStudioContext(),
             clock = AppClock { TEST_NOW },
             dispatcher = Dispatchers.Unconfined,
+            remote = RemoteWriter(AcceptingTransport),
         )
 
     @Test

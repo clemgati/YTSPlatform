@@ -55,7 +55,7 @@ val dataModule =
 
         single { DatabaseProvider(driverFactory = get()) }
 
-        single<ClientRepository> { SqlDelightClientRepository(get(), get(), get(), ioDispatcher) }
+        single<ClientRepository> { SqlDelightClientRepository(get(), get(), get(), ioDispatcher, get()) }
         single<ProjectRepository> { SqlDelightProjectRepository(get(), get(), get(), ioDispatcher, get()) }
         single<SessionRepository> { SqlDelightSessionRepository(get(), get(), get(), ioDispatcher, get()) }
         single<ShotRepository> { SqlDelightShotRepository(get(), get(), ioDispatcher) }

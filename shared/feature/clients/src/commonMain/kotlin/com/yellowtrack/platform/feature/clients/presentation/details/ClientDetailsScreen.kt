@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +47,7 @@ internal fun ClientDetailsScreen(
     onOpenBooking: (ProjectId) -> Unit,
     onUpdateClient: (NewClient) -> Unit,
     onRemoveClient: () -> Unit,
+    writeFailure: String?,
     modifier: Modifier = Modifier,
 ) {
     var showProjectForm by remember { mutableStateOf(false) }
@@ -113,6 +115,7 @@ internal fun ClientDetailsScreen(
             onScheduleSession = onScheduleSession,
             onEditClient = { showEditForm = true },
             onRemoveClient = { confirmRemoval = true },
+            writeFailure = writeFailure,
             modifier = contentModifier,
         )
     }
@@ -127,6 +130,7 @@ private fun ClientDetailsContent(
     onScheduleSession: () -> Unit,
     onEditClient: () -> Unit,
     onRemoveClient: () -> Unit,
+    writeFailure: String?,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -148,6 +152,16 @@ private fun ClientDetailsContent(
         ClientDetailsHeader(
             client = client,
         )
+
+        // An edit or a removal that could not reach the server. This existed on the view
+        // model and was shown nowhere, so a failed save looked like a save that did nothing.
+        writeFailure?.let { message ->
+            Text(
+                text = message,
+                style = YTTheme.typography.bodyMedium,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
 
         BoxWithConstraints(
             modifier = Modifier.fillMaxWidth(),

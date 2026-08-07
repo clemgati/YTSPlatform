@@ -15,6 +15,7 @@ private fun ClientsScreenPreview() {
             onQueryChange = {},
             onClientSelected = {},
             onAddClient = {},
+            writeFailure = null,
         )
     }
 }
@@ -29,6 +30,7 @@ private fun ClientsScreenLoadingPreview() {
             onQueryChange = {},
             onClientSelected = {},
             onAddClient = {},
+            writeFailure = null,
         )
     }
 }
@@ -43,6 +45,7 @@ private fun ClientsScreenEmptyPreview() {
             onQueryChange = {},
             onClientSelected = {},
             onAddClient = {},
+            writeFailure = null,
         )
     }
 }
@@ -57,6 +60,7 @@ private fun ClientsScreenErrorPreview() {
             onQueryChange = {},
             onClientSelected = {},
             onAddClient = {},
+            writeFailure = null,
         )
     }
 }

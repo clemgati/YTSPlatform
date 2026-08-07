@@ -527,6 +527,14 @@ class SyncEngineTest {
         val engine: SyncEngine,
         val transport: FakeSyncTransport,
         val clients: ClientRepository,
+        /**
+         * What the client repository sent, which is no longer what the engine sent.
+         *
+         * Clients write through the server directly under ADR 0012, so "did this leave the
+         * device" is answered here rather than by [transport]. The question is the same one;
+         * only the road changed.
+         */
+        val clientWrites: FakeSyncTransport,
         val gear: GearRepository,
         val invoices: InvoiceRepository,
     ) {
@@ -605,9 +613,8 @@ class SyncEngineTest {
                     contacts = listOf(ClientContact(contact = ada, role = ClientContactRole.Primary)),
                 ),
             )
-            deviceA.engine.sync()
-
-            val uploaded = deviceA.transport.pushed.single()
+            // No engine.sync() on this side any more: the save itself is the send.
+            val uploaded = deviceA.clientWrites.pushed.single()
             assertTrue(uploaded.contacts.isNotEmpty(), "the contact itself never left the device")
             assertTrue(uploaded.clientContactLinks.isNotEmpty(), "the attachment never left the device")
 
@@ -1081,7 +1088,15 @@ class SyncEngineTest {
         val clock = AppClock { NOW }
         val transport = if (onPush == null) FakeSyncTransport() else FakeSyncTransport(onPush)
 
-        val clients = SqlDelightClientRepository(provider, studioContext, clock, Dispatchers.Unconfined)
+        val clientWrites = FakeSyncTransport()
+        val clients =
+            SqlDelightClientRepository(
+                provider,
+                studioContext,
+                clock,
+                Dispatchers.Unconfined,
+                RemoteWriter(clientWrites),
+            )
 
         // The vehicle for every test about the outbox itself. Gear is a shoot-day surface,
         // so it keeps the outbox under ADR 0012 decision 3 and will still be queuing long
@@ -1111,6 +1126,7 @@ class SyncEngineTest {
             engine = SyncEngine(provider, studioContext, transport, clients, projects, sessions, clock),
             transport = transport,
             clients = clients,
+            clientWrites = clientWrites,
             gear = gear,
             invoices =
                 SqlDelightInvoiceRepository(

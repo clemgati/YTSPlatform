@@ -26,6 +26,7 @@ fun ClientDetailsRoute(
         koinViewModel(key = clientId.value) { parametersOf(clientId) }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val writeFailure by viewModel.writeFailureMessage.collectAsStateWithLifecycle()
 
     // The account this screen is about no longer exists, so there is nothing here to stay
     // for. Leaving is part of the removal rather than a courtesy: a details screen bound to
@@ -43,6 +44,7 @@ fun ClientDetailsRoute(
         onOpenBooking = onBookingSelected,
         onUpdateClient = viewModel::updateClient,
         onRemoveClient = viewModel::deleteClient,
+        writeFailure = writeFailure,
         modifier = modifier,
     )
 }

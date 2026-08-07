@@ -6,18 +6,23 @@ import com.yellowtrack.platform.core.common.id.uuidV7
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.database.YellowTrackDatabase
 import com.yellowtrack.platform.core.model.client.Client
 import com.yellowtrack.platform.core.model.client.ClientContact
+import com.yellowtrack.platform.core.model.client.ClientContactLink
 import com.yellowtrack.platform.core.model.client.ClientContactLinkId
 import com.yellowtrack.platform.core.model.client.ClientId
+import com.yellowtrack.platform.core.model.common.AuditMetadata
 import com.yellowtrack.platform.core.model.contact.Contact
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import com.yellowtrack.platform.core.database.Client as ClientRow
 
@@ -26,9 +31,12 @@ internal class SqlDelightClientRepository(
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     ClientRepository {
     private val studioId get() = studioContext.studioId.value
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 
     override fun observeClients(): Flow<List<Client>> =
         observing { db ->
@@ -65,6 +73,22 @@ internal class SqlDelightClientRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // Decided before anything is written, because the server has to be told the whole
+        // change at once and a link's id is minted here rather than by the database. Doing
+        // it the other way round — write locally, then send what happened — is the shape
+        // ADR 0012 removes.
+        val plan = db.planContacts(client, now)
+
+        // One request. A client whose contacts arrived and whose links did not is a client
+        // that displays with nobody attached, so they travel together or not at all.
+        remote.write(
+            SyncPushRequest(
+                clients = listOf(client),
+                contacts = plan.contacts,
+                clientContactLinks = plan.attach + plan.retire,
+            ),
+        )
+
         db.transaction {
             db.clientQueries.insertOrIgnore(
                 id = client.id.value,
@@ -90,9 +114,7 @@ internal class SqlDelightClientRepository(
                 id = client.id.value,
             )
 
-            db.reconcileContacts(client, now)
-
-            db.enqueueForSync(client.studioId.value, SyncTables.CLIENT, client.id.value, OutboxOperation.Upsert, now)
+            db.applyContactPlan(plan, now)
         }
     }
 
@@ -100,69 +122,117 @@ internal class SqlDelightClientRepository(
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getClient(clientId) ?: return
+
+        // Each link is retired individually, because a peer learns a link is gone from the
+        // link's own tombstone. Retiring them in bulk and sending only the client would
+        // delete them here and leave them attached everywhere else.
+        val links =
+            db.clientQueries
+                .selectLiveClientContactLinks(clientId.value)
+                .awaitAsList()
+                .map { it.toDomain().let { link -> link.copy(audit = link.audit.deleted(instant(now))) } }
+
+        remote.write(
+            SyncPushRequest(
+                clients = listOf(existing.copy(audit = existing.audit.deleted(instant(now)))),
+                clientContactLinks = links,
+            ),
+        )
+
         db.transaction {
-            // Each link is retired individually and queued, because a peer learns a link is
-            // gone from the link's own tombstone. Retiring them in bulk without queueing
-            // would delete them here and leave them attached everywhere else.
-            db.clientQueries.selectLiveClientContactLinks(clientId.value).awaitAsList().forEach { row ->
-                db.clientQueries.softDeleteClientContactById(deletedAt = now, id = row.id)
-                db.enqueueForSync(studioId, SyncTables.CLIENT_CONTACT, row.id, OutboxOperation.Delete, now)
-            }
-
+            links.forEach { db.clientQueries.softDeleteClientContactById(deletedAt = now, id = it.id.value) }
             db.clientQueries.softDelete(deletedAt = now, id = clientId.value)
-
-            db.enqueueForSync(studioId, SyncTables.CLIENT, clientId.value, OutboxOperation.Delete, now)
         }
     }
 
     /**
-     * Brings the stored contacts and links into line with what was passed, touching only
-     * what actually changed.
+     * What a save is going to change, worked out before anything is written.
      *
-     * This used to retire every link and revive the survivors, which was simpler and was
-     * fine while links stayed on the device. It is not fine now they synchronise: each save
-     * bumped every link's version twice, so saving a client would re-upload contacts nobody
-     * had edited, and two devices changing unrelated fields would conflict over links
-     * neither had touched. ADR 0008 assumed conflicts would be rare; that assumption has to
-     * be earned here.
+     * Split out of `reconcileContacts` when clients moved to writing through the server.
+     * The two halves used to be one pass that decided and wrote in the same step, which is
+     * fine when the outbox carries the news afterwards and impossible when the server has
+     * to be told first: the request has to name every row, and a new link's id is minted
+     * here rather than by the database.
+     */
+    private data class ContactPlan(
+        val contacts: List<Contact>,
+        val attach: List<ClientContactLink>,
+        val retire: List<ClientContactLink>,
+    )
+
+    /**
+     * Reads only. Works out which contacts differ, which links are new, and which are gone.
      *
-     * A link is identified for this purpose by the contact and role it joins, because that
-     * is what the caller can express — it passes `ClientContact`, which has no link id. The
-     * row's own id, once assigned, is never regenerated: it is what a second device knows
-     * the row by.
+     * Touching only what changed is the property being preserved here. Retiring every link
+     * and reviving the survivors was simpler and was fine while links stayed on the device;
+     * once they synchronise, it bumps every link's version twice per save, re-uploads
+     * contacts nobody edited, and makes two devices collide over links neither touched.
+     *
+     * A link is identified by the contact and role it joins, because that is what the caller
+     * can express — it passes `ClientContact`, which has no link id. An existing row's id is
+     * never regenerated: it is what a second device knows the row by.
      */
     @OptIn(ExperimentalUuidApi::class)
-    private suspend fun YellowTrackDatabase.reconcileContacts(
+    private suspend fun YellowTrackDatabase.planContacts(
         client: Client,
         now: Long,
-    ) {
-        val studio = client.studioId.value
+    ): ContactPlan {
         val existing = clientQueries.selectLiveClientContactLinks(client.id.value).awaitAsList()
         val wantedKeys = client.contacts.map { it.contact.id.value to it.role.name }.toSet()
-
-        existing
-            .filter { (it.contact_id to it.role) !in wantedKeys }
-            .forEach { row ->
-                clientQueries.softDeleteClientContactById(deletedAt = now, id = row.id)
-                enqueueForSync(studio, SyncTables.CLIENT_CONTACT, row.id, OutboxOperation.Delete, now)
-            }
-
         val byKey = existing.associateBy { it.contact_id to it.role }
 
+        val retire =
+            existing
+                .filter { (it.contact_id to it.role) !in wantedKeys }
+                .map { row -> row.toDomain().let { it.copy(audit = it.audit.deleted(instant(now))) } }
+
+        val contacts = mutableListOf<Contact>()
+        val attach = mutableListOf<ClientContactLink>()
+
         client.contacts.forEach { link ->
-            saveContactIfChanged(link.contact, now)
+            if (differsFromStored(link.contact)) contacts += link.contact
 
             if ((link.contact.id.value to link.role.name) in byKey) return@forEach
 
-            // New attachment. The unique index on (client_id, contact_id, role) means an
-            // insert racing a revived tombstone is ignored rather than duplicated.
-            val id = ClientContactLinkId.new().value
+            attach +=
+                ClientContactLink(
+                    id = ClientContactLinkId.new(),
+                    studioId = client.studioId,
+                    clientId = client.id,
+                    contactId = link.contact.id,
+                    role = link.role,
+                    audit = AuditMetadata.createdAt(instant(now)),
+                )
+        }
 
+        return ContactPlan(contacts = contacts, attach = attach, retire = retire)
+    }
+
+    /**
+     * Writes exactly what [planContacts] decided, and nothing it did not.
+     *
+     * Deliberately does no reading of its own. Anything it re-derived could differ from what
+     * was sent a moment ago, and then the server and this device would hold different rows
+     * while both believed the write succeeded.
+     */
+    private suspend fun YellowTrackDatabase.applyContactPlan(
+        plan: ContactPlan,
+        now: Long,
+    ) {
+        plan.contacts.forEach { writeContact(it, now) }
+
+        plan.retire.forEach { clientQueries.softDeleteClientContactById(deletedAt = now, id = it.id.value) }
+
+        plan.attach.forEach { link ->
+            // The unique index on (client_id, contact_id, role) means an insert racing a
+            // revived tombstone is ignored rather than duplicated.
             clientQueries.insertOrIgnoreClientContact(
-                id = id,
-                studio_id = studio,
-                client_id = client.id.value,
-                contact_id = link.contact.id.value,
+                id = link.id.value,
+                studio_id = link.studioId.value,
+                client_id = link.clientId.value,
+                contact_id = link.contactId.value,
                 role = link.role.name,
                 created_at = now,
                 updated_at = now,
@@ -171,33 +241,30 @@ internal class SqlDelightClientRepository(
             )
             clientQueries.reviveClientContact(
                 updatedAt = now,
-                clientId = client.id.value,
-                contactId = link.contact.id.value,
+                clientId = link.clientId.value,
+                contactId = link.contactId.value,
                 role = link.role.name,
             )
-
-            val stored =
-                clientQueries
-                    .selectLiveClientContactLinks(client.id.value)
-                    .awaitAsList()
-                    .firstOrNull { it.contact_id == link.contact.id.value && it.role == link.role.name }
-
-            stored?.let { enqueueForSync(studio, SyncTables.CLIENT_CONTACT, it.id, OutboxOperation.Upsert, now) }
         }
     }
 
+    /** Whether this person's details differ from what is stored, or are not stored at all. */
+    private suspend fun YellowTrackDatabase.differsFromStored(contact: Contact): Boolean {
+        val stored = contactQueries.selectById(contact.id.value).awaitAsOneOrNull()
+        return stored == null || stored.version != contact.audit.version.toLong() || stored.deleted_at != null
+    }
+
     /**
-     * Writes a contact only when it differs, so that attaching an unedited person to a
-     * second account does not queue their details for upload again.
+     * Writes a contact, unconditionally.
+     *
+     * The "only when it differs" test moved to [differsFromStored] so that the decision is
+     * made while planning, before the server is told. Keeping a second copy of it here would
+     * let this quietly decline to write something the server has already been sent.
      */
-    private suspend fun YellowTrackDatabase.saveContactIfChanged(
+    private suspend fun YellowTrackDatabase.writeContact(
         contact: Contact,
         now: Long,
     ) {
-        val stored = contactQueries.selectById(contact.id.value).awaitAsOneOrNull()
-
-        if (stored != null && stored.version == contact.audit.version.toLong() && stored.deleted_at == null) return
-
         contactQueries.insertOrIgnore(
             id = contact.id.value,
             studio_id = contact.studioId.value,
@@ -227,8 +294,6 @@ internal class SqlDelightClientRepository(
             version = contact.audit.version.toLong(),
             id = contact.id.value,
         )
-
-        enqueueForSync(contact.studioId.value, SyncTables.CONTACT, contact.id.value, OutboxOperation.Upsert, now)
     }
 
     @OptIn(ExperimentalUuidApi::class)
