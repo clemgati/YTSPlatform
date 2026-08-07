@@ -43,6 +43,17 @@ internal data class OutstandingInvoiceItem(
      * for every document that predates the Email button.
      */
     val emailedLabel: String?,
+    /**
+     * Where this document would be emailed, offered rather than assumed.
+     *
+     * From the client's billing contact, which is the model's own answer to "where should an
+     * invoice go" and is not always the person who booked. Null when the client has no email
+     * on file, where an empty box is the honest prompt.
+     *
+     * Offered and still editable, with the name shown beside it. A prefilled address nobody
+     * reads is how an invoice goes to the wrong half of a couple.
+     */
+    val sendTo: SendTo? = null,
 )
 
 /**
@@ -178,6 +189,17 @@ internal data class QuoteItem(
      * for every document that predates the Email button.
      */
     val emailedLabel: String?,
+    /**
+     * Where this document would be emailed, offered rather than assumed.
+     *
+     * From the client's billing contact, which is the model's own answer to "where should an
+     * invoice go" and is not always the person who booked. Null when the client has no email
+     * on file, where an empty box is the honest prompt.
+     *
+     * Offered and still editable, with the name shown beside it. A prefilled address nobody
+     * reads is how an invoice goes to the wrong half of a couple.
+     */
+    val sendTo: SendTo? = null,
     /** The quote as the form takes it, so revising one opens on what was proposed. */
     val editable: NewQuote,
 ) {
@@ -313,4 +335,10 @@ internal data class WaitingEnquiry(
     val source: String,
     val waitingLabel: String,
     val isUrgent: Boolean,
+)
+
+/** Who a document would go to, so the studio sees the person and not only the address. */
+internal data class SendTo(
+    val name: String,
+    val email: String,
 )
