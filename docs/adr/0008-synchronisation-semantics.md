@@ -1,6 +1,11 @@
 # ADR 0008: Synchronise with a server-assigned sequence and visible conflicts
 
-- Status: Accepted
+- Status: Superseded by `ADR 0012`, on 2026-08-06, when its own first migration signal fired:
+  a studio with one device was holding 154 conflicts, most of which described edits that never
+  happened. What survives is decision 1 — `server_seq` and the cursor — because refreshing a
+  cache incrementally is the same problem as synchronising one. What goes is the
+  reconciliation half: version negotiation, `sync_conflict`, and the inbox.
+- Status when written: Accepted
 - Date: 2026-07-30
 - Accepted: 2026-07-30, when the Postgres schema was built on decision 1. `server_seq`, its
   shared sequence and its insert-and-update trigger now exist and are enforced by
