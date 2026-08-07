@@ -13,9 +13,9 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.StudioContext
 import com.yellowtrack.platform.core.data.StudioProfileRepository
-import com.yellowtrack.platform.core.data.adoptStudioName
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
+import com.yellowtrack.platform.core.data.fillStudioDefaults
 import com.yellowtrack.platform.core.data.sync.Synchroniser
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
@@ -31,10 +31,6 @@ fun App() {
     val auth: AuthRepository = koinInject()
     val clock: AppClock = koinInject()
 
-    LaunchedEffect(serviceTemplates) {
-        serviceTemplates.seedDefaultsIfEmpty()
-    }
-
     LaunchedEffect(auth) {
         auth.restore(clock.now().toEpochMilliseconds())
     }
@@ -43,19 +39,19 @@ fun App() {
     val session by auth.session.collectAsStateWithLifecycle()
 
     // The studio named itself when it signed up; nothing carried that across to the profile
-    // every document is built from. Keyed on the session so a second device fills itself in
-    // too — the profile does not synchronise yet.
+    // every document is built from.
     val profiles: StudioProfileRepository = koinInject()
     val studioContext: StudioContext = koinInject()
 
     LaunchedEffect(session) {
-        (session as? SessionState.SignedIn)?.let { signedIn ->
-            profiles.adoptStudioName(
-                studioName = signedIn.session.studioName,
-                studioId = studioContext.studioId,
-                now = clock.now(),
-            )
-        }
+        fillStudioDefaults(
+            session = session,
+            status = synchroniser.status,
+            serviceTemplates = serviceTemplates,
+            profiles = profiles,
+            studioId = studioContext.studioId,
+            now = clock.now(),
+        )
     }
 
     // Started once, on the first session. Reconciling is the whole point of having signed
