@@ -65,11 +65,19 @@ val dataModule =
         single<DeliverableRepository> { SqlDelightDeliverableRepository(get(), get(), ioDispatcher) }
         single<MediaCopyRepository> { SqlDelightMediaCopyRepository(get(), get(), ioDispatcher) }
         single<GearRepository> { SqlDelightGearRepository(get(), get(), get(), ioDispatcher) }
-        single<StudioProfileRepository> { SqlDelightStudioProfileRepository(get(), get(), get(), ioDispatcher) }
+        single<StudioProfileRepository> { SqlDelightStudioProfileRepository(get(), get(), get(), ioDispatcher, get()) }
         single<StorageVolumeRepository> { SqlDelightStorageVolumeRepository(get(), get(), get(), ioDispatcher) }
         single<PackingRepository> { SqlDelightPackingRepository(get(), get(), ioDispatcher) }
         single<LightingRecipeRepository> { SqlDelightLightingRecipeRepository(get(), get(), get(), ioDispatcher) }
-        single<ServiceTemplateRepository> { SqlDelightServiceTemplateRepository(get(), get(), get(), ioDispatcher) }
+        single<ServiceTemplateRepository> {
+            SqlDelightServiceTemplateRepository(
+                get(),
+                get(),
+                get(),
+                ioDispatcher,
+                get(),
+            )
+        }
         single<SyncConflictRepository> { SqlDelightSyncConflictRepository(get(), get(), get(), ioDispatcher) }
 
         // Application-lived, so the periodic loop survives navigation. Cancelled only when

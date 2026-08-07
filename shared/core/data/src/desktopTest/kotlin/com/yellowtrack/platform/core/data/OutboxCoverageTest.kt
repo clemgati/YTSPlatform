@@ -7,12 +7,12 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightLightingRecipeRepos
 import com.yellowtrack.platform.core.data.internal.SqlDelightMediaCopyRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightPackingRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightPostProductionRepository
-import com.yellowtrack.platform.core.data.internal.SqlDelightServiceTemplateRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightShotRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
 import com.yellowtrack.platform.core.data.internal.SyncTables
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.data.sync.applyClient
 import com.yellowtrack.platform.core.data.sync.applyProject
 import com.yellowtrack.platform.core.data.sync.applySession
@@ -76,6 +76,7 @@ class OutboxCoverageTest {
             val database = provider.database()
             val studio = LocalStudioContext()
             val clock = AppClock { NOW }
+            val accepting = RemoteWriter(AcceptingTransport)
 
             // The rows these hang off, written straight to the tables so the outbox holds
             // only what the repositories put there.
@@ -99,7 +100,7 @@ class OutboxCoverageTest {
                 .saveRelease(release())
             SqlDelightPostProductionRepository(provider, studio, clock, Dispatchers.Unconfined)
                 .saveTask(task())
-            SqlDelightStudioProfileRepository(provider, studio, clock, Dispatchers.Unconfined)
+            SqlDelightStudioProfileRepository(provider, studio, clock, Dispatchers.Unconfined, accepting)
                 .saveProfile(studioProfile())
 
             val queued =
@@ -119,7 +120,6 @@ class OutboxCoverageTest {
                     SyncTables.SHOT,
                     SyncTables.TALENT_RELEASE,
                     SyncTables.POST_TASK,
-                    SyncTables.STUDIO_PROFILE,
                 )
 
             assertEquals(
@@ -127,6 +127,16 @@ class OutboxCoverageTest {
                 expected - queued,
                 "these repositories saved a row and queued nothing. The work stays on the device " +
                     "it was entered on, and every other test still passes",
+            )
+
+            // The other half of the same guard, for the entities that have moved. Dropping
+            // them from the list above would have been enough to make this file pass and
+            // would have asserted nothing about where their writes went.
+            assertEquals(
+                emptySet(),
+                queued intersect setOf(SyncTables.STUDIO_PROFILE, SyncTables.SERVICE_TEMPLATE),
+                "these write through the server now, so a queued row means a second write path " +
+                    "came back — see StudioSettingsWritesOnlineTest for where they should go",
             )
         }
 
@@ -149,10 +159,6 @@ class OutboxCoverageTest {
             val studio = LocalStudioContext()
             val clock = AppClock { NOW }
 
-            val templates = SqlDelightServiceTemplateRepository(provider, studio, clock, Dispatchers.Unconfined)
-            templates.saveTemplate(serviceTemplate())
-            templates.deleteTemplate(ServiceTemplateId(TEMPLATE))
-
             val gear = SqlDelightGearRepository(provider, studio, clock, Dispatchers.Unconfined)
             gear.saveGearItem(gearItem())
             gear.deleteGearItem(GearItemId(GEAR))
@@ -167,7 +173,7 @@ class OutboxCoverageTest {
 
             assertEquals(
                 emptySet(),
-                setOf(SyncTables.SERVICE_TEMPLATE, SyncTables.GEAR_ITEM) - queued,
+                setOf(SyncTables.GEAR_ITEM) - queued,
                 "these repositories retired a row and told nobody. The row disappears here " +
                     "and stays on every other device, which is the fault 0.7.0 fixed and this " +
                     "one repository kept",

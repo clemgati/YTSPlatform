@@ -4,19 +4,23 @@ import app.cash.sqldelight.async.coroutines.awaitAsOne
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ServiceTemplateRepository
 import com.yellowtrack.platform.core.data.StudioContext
+import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.database.DatabaseProvider
 import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.service.ServiceTemplateId
+import com.yellowtrack.platform.core.model.sync.SyncPushRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 
 internal class SqlDelightServiceTemplateRepository(
     provider: DatabaseProvider,
     private val studioContext: StudioContext,
     private val clock: AppClock,
     private val dispatcher: CoroutineDispatcher,
+    private val remote: RemoteWriter,
 ) : DatabaseBackedRepository(provider),
     ServiceTemplateRepository {
     private val studioId get() = studioContext.studioId.value
@@ -40,6 +44,8 @@ internal class SqlDelightServiceTemplateRepository(
     override suspend fun saveTemplate(template: ServiceTemplate) {
         val db = database()
         val now = clock.now().toEpochMillis()
+
+        remote.write(SyncPushRequest(serviceTemplates = listOf(template)))
 
         db.transaction {
             db.serviceTemplateQueries.insertOrIgnore(
@@ -77,33 +83,32 @@ internal class SqlDelightServiceTemplateRepository(
                 version = template.audit.version.toLong(),
                 id = template.id.value,
             )
-
-            db.enqueueForSync(
-                template.studioId.value,
-                SyncTables.SERVICE_TEMPLATE,
-                template.id.value,
-                OutboxOperation.Upsert,
-                now,
-            )
         }
     }
 
     /**
-     * Retires a template, and tells the other devices.
+     * Retires a template, and tells the server before this device forgets it.
      *
-     * The enqueue was missing until now. It survived because nothing ever called this: no
-     * screen could remove a template, so the one path that would have shown the tombstone
-     * never being sent was never walked. Every other repository in this package queues its
-     * deletes — this was the single exception, and it is the exact fault 0.7.0 fixed
-     * everywhere else, where a row deleted on one device stayed on all the others for good.
+     * The queued version of this had no enqueue at all until recently, and survived because
+     * nothing ever called it: no screen could remove a template, so the path was never
+     * walked. Going through the server removes the class of fault rather than that instance
+     * — there is no second step here that can be left out, because the write *is* the send.
      */
     override suspend fun deleteTemplate(id: ServiceTemplateId) {
         val db = database()
         val now = clock.now().toEpochMillis()
 
+        // A delete travels as the row carrying a tombstone, so it is read first.
+        val existing = getTemplate(id) ?: return
+
+        remote.write(
+            SyncPushRequest(
+                serviceTemplates = listOf(existing.copy(audit = existing.audit.deleted(instant(now)))),
+            ),
+        )
+
         db.transaction {
             db.serviceTemplateQueries.softDelete(deletedAt = now, id = id.value)
-            db.enqueueForSync(studioId, SyncTables.SERVICE_TEMPLATE, id.value, OutboxOperation.Delete, now)
         }
     }
 
@@ -118,4 +123,6 @@ internal class SqlDelightServiceTemplateRepository(
             now = clock.now(),
         ).forEach { saveTemplate(it) }
     }
+
+    private fun instant(millis: Long) = Instant.fromEpochMilliseconds(millis)
 }
