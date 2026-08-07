@@ -73,6 +73,11 @@ class Synchroniser(
      * without a database keeps the old behaviour.
      */
     private val pendingWork: Flow<Long> = emptyFlow(),
+    /**
+     * Advisory, and absent by default. A platform that cannot answer leaves the periodic
+     * loop exactly as it was rather than being told the device is always online.
+     */
+    private val connectivity: Connectivity = Connectivity.Unknown,
 ) {
     private val state = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
 
@@ -114,6 +119,36 @@ class Synchroniser(
 
                 delay(backoffFrom(failures))
             }
+        }
+    }
+
+    /**
+     * Reconciles when a connection comes back, rather than at the next interval.
+     *
+     * The backoff in [backoffFrom] is right for a device at a venue with no signal — asking
+     * every five minutes all day costs battery to learn something it already knew. It is
+     * wrong for the moment the signal returns, which is exactly when the answer has changed.
+     *
+     * Runs directly rather than nudging the periodic loop, which is the same shape
+     * [startSyncOnWrite] uses. The loop's own backoff is left alone: it is a separate
+     * coroutine with its own counter, and reaching into it needed an interruptible delay and
+     * a wake channel that between them were more machinery than this is worth. A device kept
+     * current by reconnect events does not care what the loop's timer thinks, and the loop's
+     * next success resets it anyway.
+     *
+     * Only ever *adds* a run, and never suppresses one: [Connectivity] is advisory and a
+     * device can believe it is online while holding a Wi-Fi association that goes nowhere.
+     * A run that turns out to be pointless costs one request.
+     *
+     * Acts on the transition into online rather than on every emission, so a flaky connection
+     * announcing itself repeatedly does not become a second timer.
+     */
+    fun startSyncOnReconnect() {
+        scope.launch {
+            connectivity.online
+                .distinctUntilChanged()
+                .filter { it }
+                .collect { runOnce() }
         }
     }
 

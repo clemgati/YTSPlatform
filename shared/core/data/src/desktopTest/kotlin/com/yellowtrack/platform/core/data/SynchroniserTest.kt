@@ -5,6 +5,7 @@ import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.auth.SessionStore
 import com.yellowtrack.platform.core.data.auth.StoredSession
+import com.yellowtrack.platform.core.data.sync.Connectivity
 import com.yellowtrack.platform.core.data.sync.SyncReport
 import com.yellowtrack.platform.core.data.sync.SyncStatus
 import com.yellowtrack.platform.core.data.sync.SyncUnauthorised
@@ -149,9 +150,93 @@ class SynchroniserTest {
             assertEquals(1, runs, "a studio correcting a typo three times should upload once")
         }
 
+    // -- Coming back -----------------------------------------------------------------------
+
+    /**
+     * The moment this exists for.
+     *
+     * The backoff in `backoffFrom` is right for a device at a venue with no signal: asking
+     * every five minutes all day costs battery to learn something already known. It is wrong
+     * the instant the signal returns, because that is when the answer changed — and a device
+     * that had failed enough to reach the hour-long ceiling would otherwise sit there with a
+     * working connection.
+     */
+    @Test
+    fun `a connection coming back reconciles without waiting for the timer`() =
+        runTest {
+            var runs = 0
+            val online = MutableStateFlow(false)
+            val world =
+                world(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    connectivity = ReportedConnectivity(online),
+                ) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.auth.restore(now = 0)
+            world.synchroniser.startSyncOnReconnect()
+
+            online.value = true
+
+            assertEquals(1, runs, "the connection came back and nothing noticed, which is the fault")
+        }
+
+    /** A connection that stays up is not news. Only the transition is. */
+    @Test
+    fun `staying online does not keep triggering runs`() =
+        runTest {
+            var runs = 0
+            val online = MutableStateFlow(false)
+            val world =
+                world(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    connectivity = ReportedConnectivity(online),
+                ) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.auth.restore(now = 0)
+            world.synchroniser.startSyncOnReconnect()
+
+            online.value = true
+            online.value = true
+            online.value = true
+
+            assertEquals(1, runs, "a flaky connection announcing itself must not become a second timer")
+        }
+
+    /** Losing a connection is not a reason to do anything. Regaining it is. */
+    @Test
+    fun `going offline reconciles nothing`() =
+        runTest {
+            var runs = 0
+            val online = MutableStateFlow(true)
+            val world =
+                world(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    connectivity = ReportedConnectivity(online),
+                ) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.auth.restore(now = 0)
+            world.synchroniser.startSyncOnReconnect()
+            val afterSubscribing = runs
+
+            online.value = false
+
+            assertEquals(afterSubscribing, runs, "there is nowhere to sync to, so asking wastes a request")
+        }
+
+    private class ReportedConnectivity(
+        override val online: MutableStateFlow<Boolean>,
+    ) : Connectivity
+
     private fun world(
         pendingWork: Flow<Long> = emptyFlow(),
         scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),
+        connectivity: Connectivity = Connectivity.Unknown,
         reconcile: suspend () -> SyncReport,
     ): World {
         val auth = AuthRepository(store = StoredSessionStore(), api = UnusedApi)
@@ -161,6 +246,7 @@ class SynchroniserTest {
                 auth = auth,
                 scope = scope,
                 pendingWork = pendingWork,
+                connectivity = connectivity,
             ),
             auth,
         )
