@@ -987,6 +987,83 @@ class SyncEngineTest {
             assertEquals(SyncTables.all, report.notReconciledByServer)
         }
 
+    // -- A delete that will not stay deleted -------------------------------------------------
+
+    /**
+     * The fault a studio actually reported: an enquiry deleted, the row gone, and back again
+     * after a reload.
+     *
+     * A pulled row was written straight over the local one, with nothing consulting the
+     * outbox. So a push the server did not acknowledge left it still holding the row alive,
+     * and the pull that follows in the same run put it back — and the outbox entry, which
+     * survives an unacknowledged push, then re-uploaded the resurrection as an upsert.
+     *
+     * The server answering with silence rather than throwing is the case that reaches this:
+     * a throw abandons the run before the pull, which is why this is not the more obvious
+     * dropped-connection test.
+     */
+    @Test
+    fun `a delete survives a push the server never acknowledged`() =
+        runTest {
+            val world = world(onPush = { emptyList() })
+            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.engine.sync()
+
+            world.clients.deleteClient(ClientId("c1"))
+
+            // The server answers, and says nothing about this row — so it still believes it
+            // is alive when the pull in the same run asks.
+            world.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 20,
+                        hasMore = false,
+                        clients = listOf(client("c1", "Ada Okafor")),
+                    ),
+                )
+
+            world.engine.sync()
+
+            assertNull(
+                world.clients.getClient(ClientId("c1")),
+                "the studio deleted this and the server had not been told yet, so a pull must " +
+                    "not put it back",
+            )
+        }
+
+    /**
+     * The same rule, for an edit rather than a delete.
+     *
+     * A delete is the visible case — the row comes back — but nothing about the fault was
+     * specific to deletion. An unsent rename was overwritten by whatever the server still had.
+     */
+    @Test
+    fun `an unsent edit is not overwritten by what the server still has`() =
+        runTest {
+            val world = world(onPush = { emptyList() })
+            world.clients.saveClient(client("c1", "Ada Okafor"))
+            world.engine.sync()
+
+            world.clients.saveClient(client("c1", "Ada Okafor-Bell"))
+
+            world.transport.pages =
+                mutableListOf(
+                    SyncPullResponse(
+                        cursor = 20,
+                        hasMore = false,
+                        clients = listOf(client("c1", "Ada Okafor")),
+                    ),
+                )
+
+            world.engine.sync()
+
+            assertEquals(
+                "Ada Okafor-Bell",
+                world.clients.getClient(ClientId("c1"))?.accountName,
+                "the rename had not reached the server, so the server's older copy must not win",
+            )
+        }
+
     private suspend fun world(onPush: ((SyncPushRequest) -> List<SyncPushResult>)? = null): World {
         // One provider shared by everything, so the engine and the repositories are looking
         // at the same database rather than at three of them.
