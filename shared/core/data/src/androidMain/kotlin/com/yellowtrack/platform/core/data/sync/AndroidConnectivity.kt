@@ -49,8 +49,20 @@ class AndroidConnectivity(
                     .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
                     .build()
 
-            manager.registerNetworkCallback(request, callback)
+            // A hint about the network must never be able to take the application down, and
+            // this one did: registerNetworkCallback throws SecurityException without
+            // ACCESS_NETWORK_STATE, the flow is collected from a background coroutine, and
+            // the process died on the first sync after sign-in.
+            //
+            // The permission is now declared, so this should not fire. It stays because the
+            // KDoc above calls this advisory, and advisory has to mean the application works
+            // without it — a manifest merge, a restricted profile or a future API level are
+            // all ways to be back here.
+            val registered =
+                runCatching { manager.registerNetworkCallback(request, callback) }.isSuccess
 
-            awaitClose { manager.unregisterNetworkCallback(callback) }
+            awaitClose {
+                if (registered) runCatching { manager.unregisterNetworkCallback(callback) }
+            }
         }
 }

@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        Required by ConnectivityManager.registerNetworkCallback, which AndroidConnectivity
+        uses to reconcile the moment a signal returns. Without it the call does not degrade
+        or return false — ConnectivityService.enforceAccessPermission throws, and the app
+        dies on the first sync after sign-in.
+
+        INTERNET arrives merged from a library, which is why nothing was declared here before
+        and why its absence was easy to miss.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:name=".YellowTrackApplication"
         android:allowBackup="true"
