@@ -62,7 +62,12 @@ fun App() {
     // in, and leaving it to a button would mean a device only ever held what its own user
     // typed into it.
     LaunchedEffect(session is SessionState.SignedIn) {
-        if (session is SessionState.SignedIn) synchroniser.startPeriodicSync()
+        if (session is SessionState.SignedIn) {
+            synchroniser.startPeriodicSync()
+            // Brings a run forward after a write, so work leaves the device in seconds
+            // rather than at the next interval. The timer still runs underneath it.
+            synchroniser.startSyncOnWrite()
+        }
     }
 
     YellowTrackTheme {
