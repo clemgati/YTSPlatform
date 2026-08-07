@@ -1,7 +1,6 @@
 package com.yellowtrack.platform.core.data
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
-import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.money.CurrencyCode
 import com.yellowtrack.platform.core.common.money.Money
@@ -109,8 +108,6 @@ import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.shot.ShotId
 import com.yellowtrack.platform.core.model.studio.StudioProfile
 import com.yellowtrack.platform.core.model.studio.StudioProfileId
-import com.yellowtrack.platform.core.model.sync.SyncConflict
-import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.model.sync.SyncPullResponse
 import com.yellowtrack.platform.core.model.sync.SyncPushOutcome
 import com.yellowtrack.platform.core.model.sync.SyncPushRequest
@@ -418,83 +415,7 @@ class SyncEngineTest {
         }
 
     @Test
-    fun `a conflict raised on another device arrives here`() =
-        runTest {
-            val world = world()
-            world.transport.pages +=
-                SyncPullResponse(
-                    cursor = 9,
-                    hasMore = false,
-                    conflicts =
-                        listOf(
-                            SyncConflict(
-                                id = SyncConflictId("conflict-1"),
-                                studioId = STUDIO,
-                                entityTable = "session",
-                                entityId = "s1",
-                                losingPayload = """{"title":"Ceremony — 2pm"}""",
-                                winningPayload = """{"title":"Ceremony — 3pm"}""",
-                                detectedAt = NOW,
-                                audit = AuditMetadata.createdAt(NOW),
-                            ),
-                        ),
-                )
-
-            world.engine.sync()
-
-            val stored =
-                world.database.syncQueries
-                    .selectUnresolvedConflicts(STUDIO.value)
-                    .awaitAsList()
-                    .single()
-            assertEquals("session", stored.entity_table)
-            assertTrue(
-                stored.losing_payload.contains("Ceremony — 2pm"),
-                "the discarded version has to reach the device, or the studio is never told what " +
-                    "reconciliation threw away — which is the condition ADR 0008 put on " +
-                    "last-write-wins in the first place",
-            )
-            assertNull(stored.resolved_at, "and it arrives unresolved rather than pre-dismissed")
-        }
-
-    @Test
-    fun `the same conflict arriving twice does not reopen one already dealt with`() =
-        runTest {
-            val world = world()
-            val conflict =
-                SyncConflict(
-                    id = SyncConflictId("conflict-1"),
-                    studioId = STUDIO,
-                    entityTable = "session",
-                    entityId = "s1",
-                    losingPayload = "{}",
-                    winningPayload = "{}",
-                    detectedAt = NOW,
-                    audit = AuditMetadata.createdAt(NOW),
-                )
-
-            world.transport.pages += SyncPullResponse(cursor = 5, hasMore = false, conflicts = listOf(conflict))
-            world.engine.sync()
-
-            world.database.syncQueries.markConflictResolved(NOW.toEpochMilliseconds(), "conflict-1")
-
-            world.transport.pages += SyncPullResponse(cursor = 6, hasMore = false, conflicts = listOf(conflict))
-            world.engine.sync()
-
-            assertEquals(
-                0,
-                world.database.syncQueries
-                    .countUnresolvedConflicts(STUDIO.value)
-                    .awaitAsOne()
-                    .toInt(),
-                "a conflict somebody has already dealt with must not come back on the next sync",
-            )
-        }
-
-    // -- Order ---------------------------------------------------------------------------
-
-    @Test
-    fun `uploading happens before downloading, so the losing version still exists to be kept`() =
+    fun `uploading happens before downloading, so this device's version is not lost`() =
         runTest {
             val world = world()
             world.gear.saveGearItem(gearItem("g1"))

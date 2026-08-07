@@ -2,7 +2,6 @@ package com.yellowtrack.platform.server.sync
 
 import com.yellowtrack.platform.server.Database
 import java.sql.Connection
-import java.util.UUID
 
 /** What became of one pushed row. */
 enum class PushOutcome {
@@ -10,8 +9,12 @@ enum class PushOutcome {
     Applied,
 
     /**
-     * Stored, and something was discarded to store it — or refused because a tombstone
-     * beat it. Either way a `sync_conflict` row now holds both versions.
+     * Never returned any more. ADR 0012 decision 4 made the later write win silently, so
+     * there is no displaced version to report and nothing for a studio to adjudicate.
+     *
+     * Kept on the wire on purpose: a device running an older build still knows this value,
+     * and removing it would mean a client updated before the server it talks to could not
+     * read the answer at all. It costs one unused branch.
      */
     Conflicted,
 
@@ -43,12 +46,15 @@ data class PulledChanges(
  *    ordered range scan across every synchronised table, because they all draw from one
  *    sequence — which is what lets a device hold one cursor rather than one per table.
  * 2. **Conflicts are detected with `version`** (decision 2), never by comparing clocks.
- * 3. **They are resolved by arrival, and the loser is kept** (decision 3). The push that
- *    arrives later wins, and the version it displaced is written to `sync_conflict` in
- *    full so the studio can read back what it lost.
- * 4. **Tombstones beat concurrent edits** (decision 4). Deleting is deliberate and far
- *    less likely to be accidental than an edit is to be concurrent, and because deletes
- *    are soft the row is recoverable rather than gone.
+ * 3. ~~They are resolved by arrival, and the loser is kept.~~ **ADR 0012 decision 4
+ *    replaced this**: the later arrival still wins, and the version it displaced is
+ *    discarded rather than written to `sync_conflict`. Keeping it was right for a design
+ *    where a whole ledger was edited blind; it is wrong for the four shoot-day surfaces
+ *    that are all this path still carries, where preserving the older value of "packed"
+ *    generates a row somebody must dismiss.
+ * 4. **Tombstones beat concurrent edits**. Deleting is deliberate and far less likely to be
+ *    accidental than an edit is to be concurrent, and because deletes are soft the row is
+ *    recoverable rather than gone.
  */
 class Reconciler(
     private val database: Database,
@@ -139,45 +145,38 @@ class Reconciler(
             val existingIsTombstone = entity.deletedAtOf(existing) != null
             val incomingIsTombstone = entity.deletedAtOf(incoming) != null
 
-            // Rule 4, first half: the row is already deleted and this is an edit. The
-            // tombstone stands whatever order they arrived in, so the edit is the loser —
-            // and is kept, because a discarded edit is still discarded work.
+            // The tombstone still stands whatever order they arrived in. Deleting is
+            // deliberate and far less likely to be accidental than an edit is to be
+            // concurrent, and because deletes are soft the row is recoverable rather than
+            // gone. What has changed is that the displaced edit is no longer written down:
+            // there is nowhere to write it and nobody to read it.
             if (existingIsTombstone && !incomingIsTombstone) {
-                recordConflict(connection, studioId, entity, id, losing = incoming, winning = existing)
-                return@inStudio PushResult(
-                    entity.table,
-                    id,
-                    PushOutcome.Conflicted,
-                    existingVersion,
-                    "that booking was deleted on another device",
-                )
+                return@inStudio PushResult(entity.table, id, PushOutcome.Applied, existingVersion)
             }
 
-            // The row has not moved past what this edit was based on, so nothing is being
-            // displaced. Deletes land here too, which is rule 4's second half: a delete
-            // arriving over a live row is an ordinary write.
+            // The ordinary case: this edit was based on what the server holds, so nothing is
+            // being displaced and the device's own number stands. Deletes land here too — a
+            // delete arriving over a live row is an ordinary write.
+            //
+            // Restoring this after removing the conflict branch was not optional. Without
+            // it every write became "displaced", so a device's own sequential edit came back
+            // one version higher than it sent, permanently.
             if (incomingVersion > existingVersion) {
                 entity.upsert(connection, incoming, incomingVersion)
                 return@inStudio PushResult(entity.table, id, PushOutcome.Applied, incomingVersion)
             }
 
-            // Rules 2 and 3. The server moved on while this device was away, so something
-            // has to give; the later arrival wins and the displaced version is preserved.
+            // Two devices worked from the same version. The later arrival wins, silently —
+            // ADR 0012 decision 4.
             //
-            // The stored version is one past the higher of the two. Keeping the incoming
-            // number would leave two devices sitting on the same version, and every push
-            // between them would conflict forever after.
+            // The version is still one past the higher of the two, and still for the reason
+            // ADR 0008 gave — leaving two devices on the same number means every push
+            // between them displaces the other forever. It is a record now rather than a
+            // negotiation: nothing above reads it to decide a winner.
             val settledVersion = maxOf(incomingVersion, existingVersion) + 1
-            recordConflict(connection, studioId, entity, id, losing = existing, winning = incoming)
             entity.upsert(connection, incoming, settledVersion)
 
-            PushResult(
-                entity.table,
-                id,
-                PushOutcome.Conflicted,
-                settledVersion,
-                "this row had also been changed elsewhere; the other version was kept",
-            )
+            PushResult(entity.table, id, PushOutcome.Applied, settledVersion)
         }
 
     // -- Reading ---------------------------------------------------------------------------
@@ -308,40 +307,6 @@ class Reconciler(
             statement.setString(1, id)
             statement.executeQuery().use { rows -> if (rows.next()) entity.read(rows) else null }
         }
-
-    // -- Keeping the loser -------------------------------------------------------------------
-
-    private fun <T> recordConflict(
-        connection: Connection,
-        studioId: String,
-        entity: SyncedEntity<T>,
-        entityId: String,
-        losing: T,
-        winning: T,
-    ) {
-        val timestamp = now()
-
-        connection
-            .prepareStatement(
-                """
-                INSERT INTO sync_conflict(id, studio_id, entity_table, entity_id,
-                                          losing_payload, winning_payload, detected_at,
-                                          created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, UUID.randomUUID().toString())
-                statement.setString(2, studioId)
-                statement.setString(3, entity.table)
-                statement.setString(4, entityId)
-                statement.setString(5, entity.encode(losing))
-                statement.setString(6, entity.encode(winning))
-                statement.setLong(7, timestamp)
-                statement.setLong(8, timestamp)
-                statement.setLong(9, timestamp)
-                statement.executeUpdate()
-            }
-    }
 
     companion object {
         /**

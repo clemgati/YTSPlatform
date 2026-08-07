@@ -23,7 +23,6 @@ import com.yellowtrack.platform.core.model.session.SessionId
 import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardAllEnquiriesSection
-import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardConflictBanner
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardEnquiriesSection
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardHeader
 import com.yellowtrack.platform.feature.dashboard.presentation.component.DashboardRecentClientsSection
@@ -118,14 +117,6 @@ private fun DashboardContent(
             ),
     ) {
         DashboardHeader(today = summary.todayLabel)
-
-        // Above everything, including the unanswered enquiries. An enquiry left alone gets
-        // worse; work that synchronisation has already discarded has *already* gone wrong,
-        // and the studio does not yet know.
-        DashboardConflictBanner(
-            count = summary.unresolvedConflicts,
-            modifier = Modifier.fillMaxWidth(),
-        )
 
         // Placed above the schedule: an unanswered enquiry is the only thing here that
         // gets worse purely by being left alone. Shown even when empty, so there is always

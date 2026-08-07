@@ -1,0 +1,12 @@
+-- The conflict table goes, with ADR 0012 decision 4.
+--
+-- Nothing writes one any more: the reconciler stops recording a displaced version, the pull
+-- stops carrying them, and the screen that showed them is gone. What is left is a table that
+-- can only be misleading — every row it ever held in production described two devices editing
+-- at once on a studio that has one.
+--
+-- V6 tried to DELETE from this and removed nothing, because FORCE ROW LEVEL SECURITY hides
+-- every row from a migration running with app.studio_id unset, and Flyway called that success.
+-- DROP is not subject to row level security either, so this needs no such care — but it is
+-- worth reading V7's comment before writing another data migration against a policied table.
+DROP TABLE IF EXISTS sync_conflict;

@@ -9,7 +9,6 @@ val settingsModule =
         viewModel {
             SettingsViewModel(
                 profileRepository = get(),
-                conflictRepository = get(),
                 synchroniser = get(),
                 auth = get(),
                 documentSink = get(),

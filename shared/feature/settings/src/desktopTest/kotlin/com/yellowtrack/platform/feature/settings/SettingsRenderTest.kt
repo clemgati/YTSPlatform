@@ -6,13 +6,10 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
-import com.yellowtrack.platform.core.data.sync.ConflictDifference
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
-import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.settings.presentation.AccountSummary
-import com.yellowtrack.platform.feature.settings.presentation.ConflictSummary
 import com.yellowtrack.platform.feature.settings.presentation.DeleteStudioDialog
 import com.yellowtrack.platform.feature.settings.presentation.SettingsContent
 import com.yellowtrack.platform.feature.settings.presentation.SettingsScreen
@@ -43,7 +40,6 @@ class SettingsRenderTest {
                             uiState = UiState.Success(sampleContent()).let(::SettingsUiState),
                             onRetry = {},
                             onSave = {},
-                            onDismissConflict = {},
                             onSyncNow = {},
                             onSignOut = {},
                             onExport = {},
@@ -131,7 +127,6 @@ class SettingsRenderTest {
                             uiState = UiState.Success(sampleContent()).let(::SettingsUiState),
                             onRetry = {},
                             onSave = {},
-                            onDismissConflict = {},
                             onSyncNow = {},
                             onSignOut = {},
                             onExport = {},
@@ -172,22 +167,6 @@ class SettingsRenderTest {
                     email = "ada@harbourline.test",
                     studioName = "Harbourline Photography",
                     isHardwareBacked = false,
-                ),
-            conflicts =
-                listOf(
-                    ConflictSummary(
-                        id = SyncConflictId("conflict-1"),
-                        what = "A shoot day",
-                        whenDetected = "July 30, 2026",
-                        differences =
-                            listOf(
-                                ConflictDifference(
-                                    label = "Title",
-                                    discarded = "Ceremony — 2pm",
-                                    kept = "Ceremony — 3pm",
-                                ),
-                            ),
-                    ),
                 ),
         )
 }

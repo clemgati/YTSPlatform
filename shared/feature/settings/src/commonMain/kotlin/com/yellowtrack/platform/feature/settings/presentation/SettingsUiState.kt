@@ -1,8 +1,6 @@
 package com.yellowtrack.platform.feature.settings.presentation
 
 import com.yellowtrack.platform.core.common.money.CurrencyCode
-import com.yellowtrack.platform.core.data.sync.ConflictDifference
-import com.yellowtrack.platform.core.model.sync.SyncConflictId
 import com.yellowtrack.platform.core.ui.state.UiState
 
 internal data class SettingsUiState(
@@ -36,7 +34,6 @@ internal data class SettingsContent(
     val gaps: List<String>,
     val savedNote: String?,
     /** Work synchronisation discarded, oldest first. */
-    val conflicts: List<ConflictSummary>,
     val sync: SyncSummary,
     /** Null only in the instant between signing out and the shell swapping to sign-in. */
     val account: AccountSummary?,
@@ -82,27 +79,3 @@ internal data class SyncSummary(
      */
     val notReconciled: Set<String> = emptySet(),
 )
-
-/**
- * One clash between two devices, as the studio needs to read it.
- *
- * ADR 0008 chose last-write-wins on the condition that the version it discarded stays
- * recoverable by whoever wrote it. This is the shape that promise takes on a screen: what
- * it was, when it happened, and which fields actually moved.
- */
-internal data class ConflictSummary(
-    val id: SyncConflictId,
-    /** "A shoot day", not "session" — the studio never chose the table names. */
-    val what: String,
-    val whenDetected: String,
-    val differences: List<ConflictDifference>,
-) {
-    /**
-     * True when the payload could not be read into fields.
-     *
-     * The conflict is still shown. A version that cannot be rendered is still a version
-     * that was thrown away, and hiding it would be the failure this whole table exists to
-     * prevent.
-     */
-    val isUnreadable: Boolean get() = differences.isEmpty()
-}

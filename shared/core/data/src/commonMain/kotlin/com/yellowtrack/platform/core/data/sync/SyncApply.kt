@@ -26,7 +26,6 @@ import com.yellowtrack.platform.core.model.service.ServiceTemplate
 import com.yellowtrack.platform.core.model.session.Session
 import com.yellowtrack.platform.core.model.shot.Shot
 import com.yellowtrack.platform.core.model.studio.StudioProfile
-import com.yellowtrack.platform.core.model.sync.SyncConflict
 import kotlinx.serialization.json.Json
 
 /**
@@ -208,31 +207,6 @@ internal suspend fun YellowTrackDatabase.applySession(session: Session) {
         deletedAt = session.audit.deletedAt?.toEpochMilliseconds(),
         version = session.audit.version.toLong(),
         id = session.id.value,
-    )
-}
-
-/**
- * Records work reconciliation discarded.
- *
- * Insert-or-ignore rather than upsert: a conflict is a thing that happened at a moment,
- * and the same one arriving twice is the same event rather than a newer version of it.
- * Overwriting would also wipe a `resolved_at` set locally by somebody who had already dealt
- * with it.
- */
-internal suspend fun YellowTrackDatabase.applyConflict(conflict: SyncConflict) {
-    syncQueries.insertOrIgnoreConflict(
-        id = conflict.id.value,
-        studio_id = conflict.studioId.value,
-        entity_table = conflict.entityTable,
-        entity_id = conflict.entityId,
-        losing_payload = conflict.losingPayload,
-        winning_payload = conflict.winningPayload,
-        detected_at = conflict.detectedAt.toEpochMilliseconds(),
-        resolved_at = conflict.resolvedAt?.toEpochMilliseconds(),
-        created_at = conflict.audit.createdAt.toEpochMilliseconds(),
-        updated_at = conflict.audit.updatedAt.toEpochMilliseconds(),
-        deleted_at = conflict.audit.deletedAt?.toEpochMilliseconds(),
-        version = conflict.audit.version.toLong(),
     )
 }
 

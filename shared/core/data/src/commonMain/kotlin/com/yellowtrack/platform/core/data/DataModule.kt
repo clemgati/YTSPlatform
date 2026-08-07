@@ -24,7 +24,6 @@ import com.yellowtrack.platform.core.data.internal.SqlDelightSessionRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightShotRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStorageVolumeRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightStudioProfileRepository
-import com.yellowtrack.platform.core.data.internal.SqlDelightSyncConflictRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightTalentReleaseRepository
 import com.yellowtrack.platform.core.data.sync.RemoteWriter
 import com.yellowtrack.platform.core.data.sync.SyncEngine
@@ -78,7 +77,6 @@ val dataModule =
                 get(),
             )
         }
-        single<SyncConflictRepository> { SqlDelightSyncConflictRepository(get(), get(), get(), ioDispatcher) }
 
         // Application-lived, so the periodic loop survives navigation. Cancelled only when
         // the process ends, which on every one of these platforms is when the application

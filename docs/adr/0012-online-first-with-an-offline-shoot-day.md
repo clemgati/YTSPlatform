@@ -1,6 +1,6 @@
 # ADR 0012: Work online, cache for reading, and queue writes only on the shoot day
 
-- Status: Accepted
+- Status: Accepted, and carried out
 - Date: 2026-08-06
 - Supersedes: `ADR 0008`, whose own first migration signal fired.
 
@@ -116,6 +116,12 @@ The change is made entity by entity, not all at once:
 3. Leave the four shoot-day surfaces on the outbox.
 4. Delete `sync_conflict`, its screen, and the version negotiation once nothing writes through
    the old path.
+
+**All four steps are done.** Step 4 kept one thing it planned to remove: `SyncPushOutcome.Conflicted`
+stays on the wire, never sent. A device updated before the server it talks to still has to be able
+to read the answer, and an unknown enum value fails the whole response rather than one field.
+`version` also stays and still increments, as decision 5 said it would — what went is anything
+reading it to pick a winner.
 
 Each step is releasable, and the conflict machinery keeps working for whatever has not moved
 yet. **A single cut-over would be the most dangerous change this application has ever had**,

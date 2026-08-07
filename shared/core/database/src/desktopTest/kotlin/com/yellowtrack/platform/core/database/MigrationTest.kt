@@ -1471,7 +1471,7 @@ class MigrationTest {
      * studio looking at exactly the same list.
      */
     @Test
-    fun `the conflicts a studio never caused are cleared on upgrade`() =
+    fun `the conflict table goes, taking the rows a studio never caused with it`() =
         runTest {
             val driver = v14Database()
             YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 14, newVersion = 18)
@@ -1488,12 +1488,13 @@ class MigrationTest {
             )
             assertEquals("1", driver.scalar("SELECT count(*) FROM sync_conflict"))
 
-            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 18, newVersion = 19)
+            YellowTrackDatabase.Schema.awaitMigrate(driver, oldVersion = 18, newVersion = 20)
 
             assertEquals(
                 "0",
-                driver.scalar("SELECT count(*) FROM sync_conflict"),
-                "a studio should not have to dismiss 154 records of something that did not occur",
+                driver.scalar("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'sync_conflict'"),
+                "18 emptied it and 19 removes it — a table nothing writes is one somebody will " +
+                    "later wonder about",
             )
 
             driver.close()
@@ -1504,7 +1505,7 @@ class MigrationTest {
         runTest {
             val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
 
-            assertEquals(19L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
+            assertEquals(20L, YellowTrackDatabase.Schema.version, "adding a migration must bump the version")
 
             driver.close()
         }

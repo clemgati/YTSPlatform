@@ -58,15 +58,15 @@ class SyncOverHttpTest {
             val pulled = transport.pull(since = 0, limit = 1)
 
             assertEquals(
-                SyncedEntity.all.map { it.table }.toSet() - SyncedEntity.Conflicts.table,
+                SyncedEntity.all.map { it.table }.toSet(),
                 pulled.reconciles.toSet(),
                 "a device compares this list against its own, so anything missing from it is a " +
                     "kind of record that would silently go nowhere",
             )
             assertTrue(
-                SyncedEntity.Conflicts.table !in pulled.reconciles,
-                "conflicts travel downward only and are never pushed, so listing them would " +
-                    "invite a device to expect something it can never send",
+                pulled.reconciles.none { it == "sync_conflict" },
+                "there is no such entity any more; a server still offering it would be telling " +
+                    "devices to expect something nothing produces",
             )
         }
 
@@ -114,10 +114,19 @@ class SyncOverHttpTest {
             assertEquals(sent.audit.version, received.audit.version)
         }
 
+    /**
+     * The behaviour ADR 0012 decision 4 replaced, asserted from the other side.
+     *
+     * Two devices working from the same version used to produce a `sync_conflict` row and a
+     * `Conflicted` answer. Now the later arrival simply wins and says so. Nothing is set
+     * aside, because for the four shoot-day surfaces this path still carries, the displaced
+     * value is a tick box — and preserving the older value of "packed" is not preserving
+     * work, it is generating a row somebody has to dismiss.
+     */
     @Test
-    fun `a conflict raised by the server reaches the device over the wire`() =
+    fun `two devices working from the same version resolve silently, later wins`() =
         withSignedInDevice { transport, studioId ->
-            val original = client(studioId, "conflicted", "Ada Okafor")
+            val original = client(studioId, "contested", "Ada Okafor")
             transport.push(SyncPushRequest(clients = listOf(original)))
 
             // Two devices, both working from version 1.
@@ -127,15 +136,19 @@ class SyncOverHttpTest {
             transport.push(SyncPushRequest(clients = listOf(fromLaptop)))
             val second = transport.push(SyncPushRequest(clients = listOf(fromPhone)))
 
-            assertEquals(SyncPushOutcome.Conflicted, second.single().outcome)
+            assertEquals(
+                SyncPushOutcome.Applied,
+                second.single().outcome,
+                "nothing was set aside, so there is nothing to report as a conflict",
+            )
 
-            val conflict = transport.pull(since = 0, limit = 100).conflicts.single()
-
-            assertEquals("client", conflict.entityTable)
-            assertTrue(
-                conflict.losingPayload.contains("From the laptop"),
-                "the discarded version has to arrive readable, or the studio is never shown what " +
-                    "reconciliation threw away",
+            val stored = transport.pull(since = 0, limit = 100).clients.single { it.id == original.id }
+            assertEquals("From the phone", stored.accountName, "the later arrival wins")
+            assertEquals(
+                3,
+                stored.audit.version,
+                "one past the higher of the two, so the two devices do not sit on the same " +
+                    "number and displace each other forever",
             )
         }
 
