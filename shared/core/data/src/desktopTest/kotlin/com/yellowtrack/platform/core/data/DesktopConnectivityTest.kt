@@ -24,8 +24,16 @@ class DesktopConnectivityTest {
     @Test
     fun `reports the connection coming back`() =
         runTest {
+            // Holds the last answer once the script runs out, rather than emptying. The poll
+            // loop is cancelled by `take`, but not before it has asked once more — so a
+            // removeFirst() here threw NoSuchElementException, on CI and eventually here too.
+            // It passed on this machine for a while purely on timing, which is the worst way
+            // for a test to pass.
             val answers = ArrayDeque(listOf(true, false, false, true))
-            val connectivity = DesktopConnectivity(interval = 1.milliseconds) { answers.removeFirst() }
+            val connectivity =
+                DesktopConnectivity(interval = 1.milliseconds) {
+                    if (answers.size > 1) answers.removeFirst() else answers.first()
+                }
 
             val seen = connectivity.online.take(3).toList()
 

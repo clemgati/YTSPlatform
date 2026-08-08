@@ -51,6 +51,22 @@ import kotlin.time.Duration.Companion.seconds
  * and would have masked the drop. It does not, because it goes down with the network beneath
  * it.
  *
+ * And end to end, with the application signed in and the timer's clock deliberately reset
+ * first so it could not be the explanation:
+ *
+ * ```
+ * 00:08:09  timer sync, clock reset      the timer will not fire again for 300s
+ * 00:08:09  Wi-Fi off
+ * 00:08:24  Wi-Fi on
+ * 00:08:30  synced, 20s in               six seconds after the network returned
+ * ```
+ *
+ * Three earlier attempts read as a broken trigger and were a broken measurement: two toggles
+ * happened to land on the timer's boundary, and the machine then had a tethered phone on
+ * `en7`, so turning Wi-Fi off never took it offline at all. The predicate was right to report
+ * `true` throughout. Worth knowing before repeating this: check what is actually routable
+ * before trusting a toggle.
+ *
  * That is one machine and not a proof. A tunnel that *does* survive its underlying network —
  * some VPNs hold their interface up while reconnecting — would mask the transition here.
  * Excluding interfaces by name (`utun`, `tun`, `ppp`) would be a guess about the machine that
