@@ -355,7 +355,10 @@ and used.
   above the box, because a studio reading a name sees who it is going to where an address
   alone is something the eye skips on the way to the button
 - **The share sheet on Android and iOS** is compiled and has never been run. Sign-in has
-  now been exercised on both, so the session stores are proved — this is not
+  now been exercised on both, so the session stores are proved — this is not. It is now the
+  last thing in the application that has only ever been compiled: as of 1.11.0 every
+  `Connectivity` and `AppVisibility` implementation has been driven, three of the four on
+  real hardware
 - **Two studio names.** `studio.name` is fixed at sign-up and shown in Settings → Account;
   `studio_profile.name` is the editable one every document carries. They can disagree
   permanently. One of them should stop existing, and `adoptStudioName` — a workaround from
@@ -456,8 +459,13 @@ and used.
   was read from `MAIL_HOST` at boot and stayed true through a wrong password, an expired
   credential, an unverified sender and a sandboxed region — every way mail actually stops.
   `mailError` now carries what the last send did, and `mailLastSucceededAt` separates
-  *working* from *never tried*, which one boolean could not. Bounces are still invisible:
-  SES accepts the message first and bounces out of band
+  *working* from *never tried*, which one boolean could not.
+  - ✓ **Bounces are visible too, since 8th August 2026.** SES publishes to an SNS topic the
+    server subscribes to, so `/ready` reports `mailLastDeliveredAt` beside
+    `mailLastSucceededAt` — *SES confirmed delivery* beside *SMTP accepted it* — with bounce
+    and complaint counts for the window SES judges the account on. Recorded and surfaced,
+    deliberately not acted on: silently refusing to send somebody a password reset is a worse
+    failure than the one it would prevent
   - ✓ Proved rather than reported. A password reset to an address that was never an SES
     identity put a real timestamp in `mailLastSucceededAt`, from the process now running —
     it is held in memory, so it is this server's own evidence and not a memory of a previous
@@ -512,10 +520,9 @@ and used.
   writing blind. Migrated entity by entity rather than cut over, since a single cut-over would
   be the most dangerous change this application has had and the one whose failures are least
   visible
-  - **The browser has no local database at all.** sql.js in a worker, in memory, so a reload
-    starts empty and re-pulls everything — offline-first is not unproved there, it is absent.
-    Under ADR 0012 that stops being data loss and becomes a cold start, which is one of the
-    reasons for it
+  - ✓ **The browser has a local database, since 1.8.0.** sql.js in a worker, persisted to
+    IndexedDB, so a reload resumes rather than re-pulling the whole studio. It was in memory
+    from the day the web build existed
 - ◐ **Synchronisation is triggered by work as well as by a clock.** A write now brings the
   next run forward — the outbox going from empty to holding something schedules one ten
   seconds later, debounced so filling in a form uploads once. That was the trigger a timer
@@ -523,10 +530,10 @@ and used.
   phone is lost bookings until it goes up. Repeated failures back off from five minutes to an
   hour and reset on any success, so a venue with no signal is not asked every five minutes all
   day for something it already answered
-  - **It still does not sync when the application comes to the foreground**, which is the
-    remaining gap and the one a studio would notice: opening the app on a phone shows what the
-    last run left until the next one. It needs a lifecycle signal per platform, which is why
-    it is not here — the two changes above needed none
+  - ✓ **It syncs when the application comes to the foreground, since 1.11.0.** This entry
+    called it the remaining gap and the one a studio would notice, and it was. Each platform
+    supplies its own signal; desktop supplies none on purpose. Proved on a phone rather than
+    only in tests
   - **And not at all while closed.** Background sync is per-platform work (WorkManager, BGTask)
     and a decision about battery, not a gap to close casually
 - **A pull skips a row rather than merging it**, when the device is still holding an unsent
@@ -677,20 +684,118 @@ and producing conflicts describing edits nobody made.
   the mechanical change the others were, and worth its own change
 - The shoot day stays offline-first by design, and keeps its outbox
 
-## 1.5.0 — Collaboration
+### 1.4.1 ✓ — 6th August 2026
 
-Was 0.8.0, then 1.1.0, then 1.2.0, then 1.3.0, then 1.4.0 — renumbered each time a release
-overtook it rather than because the work changed. The gallery is the largest thing this application does not do, and
-the one a studio replaces with another product today.
+- ✓ The rest of the ledger writes through the server, finishing what 1.4.0 started
+
+## 1.5.0 — The conflicts stop being manufactured ✓ — 7th August 2026
+
+- ✓ **Bookings, sessions and enquiries write online**, which is most of ADR 0012 step 2
+- ✓ **154 conflicts a studio never caused, cleared** — and the clearing had to be done twice.
+  V6 deleted nothing: row level security hides every row from a migration that never names a
+  studio, so the `DELETE` matched nothing, removed nothing, and Flyway reported success. V7
+  is the one that worked. A migration that silently affects no rows is now a case with a test
+  against it
+
+## 1.6.0 — Online-first, finished ✓ — 7th August 2026
+
+The last of `docs/adr/0012-online-first-with-an-offline-shoot-day.md`.
+
+- ✓ **Clients write through the server**, the one entity 1.4.0 deliberately left: `saveClient`
+  reconciles contacts and links in one transaction, so the plan had to be computed before the
+  write rather than during it. Split into a read half and a write half
+- ✓ **`service_template` and `studio_profile` too** — the two that caused every remaining
+  conflict, because devices *invented* version-1 rows from local emptiness. Seeding now waits
+  for the first sync to answer, which was found by reading the conflict payloads rather than
+  the code: they were byte-identical apart from audit fields
+- ✓ **The conflict machinery is deleted** — 1,216 lines, the table, and the screen that
+  displayed what it held. Under online-first there is nothing to display
+
+## 1.7.0 — Reconnecting ✓ — 7th August 2026
+
+- ✓ **A returning connection brings a sync forward**, rather than waiting out a backoff that
+  may have reached an hour. Android reads `NET_CAPABILITY_VALIDATED`, iOS `NWPathMonitor`,
+  the browser `navigator.onLine`
+- ✓ **The offline-saving promise is withdrawn** from the screens that still made it
+
+### 1.7.1 ✓ — 7th August 2026
+
+- ✓ **The crash 1.7.0 shipped.** `registerNetworkCallback` needs `ACCESS_NETWORK_STATE`, and
+  the manifest declared no permissions at all — `INTERNET` had always arrived merged from a
+  library. `verify-platforms.sh` passed on the crashing build, because it proves a thing
+  compiles and not that it starts. A `runCatching` guard now stops a connectivity hint ever
+  killing the application
+
+## 1.8.0 — The browser keeps its database ✓ — 7th August 2026
+
+- ✓ **sql.js persists to IndexedDB**, so a reload resumes rather than re-pulling the whole
+  studio. The web build's database was in memory since it existed
+- ✓ **The mobile sidebar scrolls**, so Settings is reachable in landscape — found by looking
+  at it, not by a test
+- ✓ **The version is visible before signing in**, which is what makes a bug report usable
+
+## 1.9.0 — The pricing floor's own figures ✓ — 7th August 2026
+
+- ✓ **A studio can adjust what the floor is built from.** `annualOverheadOverride` and
+  `desiredProfitMarginBasisPoints` had been stored and synchronised since the calculator was
+  written, and nothing in the application could set either
+- ✓ **The profit the working was silently leaving out** is shown — a column that did not sum
+
+### 1.9.1 ✓ — 7th August 2026
+
+- ✓ **A failure has somewhere to go.** The desktop build printed `No SLF4J providers were
+  found` at startup, so even Ktor's account of a failed request went nowhere. `logFailure`
+  keeps the throwable, and the desktop writes to a rotating file beside the database
+
+## 1.10.0 — The desktop reconnects too ✓ — 8th August 2026
+
+- ✓ **Polled, because the JVM has no callback for it**, and measured end to end: Wi-Fi off,
+  Wi-Fi on, synced six seconds later with the timer's clock deliberately reset first so it
+  could not be the explanation. Three earlier readings were a broken *measurement* rather
+  than a broken trigger — twice landing on the timer boundary, then a tethered phone meaning
+  the machine never went offline at all
+
+## 1.11.0 — Looked at again ✓ — 8th August 2026
+
+- ✓ **Opening the application reconciles.** `ROADMAP.md` called this "the remaining gap and
+  the one a studio would notice": a phone in a pocket all afternoon reports no connection
+  change, so the reconnect trigger never fires, and the timer has backed off to an hour.
+  Android counts started activities, iOS takes `DidBecomeActive`, the browser
+  `visibilitychange`; desktop binds nothing deliberately, because a window regaining focus is
+  not somebody reopening an application. **Proved on a phone**: three returns produced three
+  runs within a second each, in one process, eighteen seconds apart
+- ✓ **The browser and iOS connectivity implementations are driven**, not merely compiled —
+  the first tests in this repository outside `desktopTest`. The iOS *transition* is recorded
+  as unverifiable rather than working: the Simulator delivers no path updates for host network
+  changes, which was established by watching a bare `nw_path_monitor` behave identically
+
+Shipped to the server rather than to clients, in the same period:
+
+- ✓ **Bounces and complaints are recorded.** SES accepts a message before deciding what to do
+  with it, so a mistyped domain looked exactly like a success and `mailLastSucceededAt` was
+  routinely read as proof of delivery. `/ready` now separates *SMTP accepted* from *SES
+  confirmed delivery*, with counts for the rates SES judges the account on. Verified against
+  real payloads: delivery, a permanent bounce with its diagnostic, and a complaint
+- ✓ **`/ready` is no longer public.** The documented vhost proxied `/` wholesale, so an
+  endpoint carrying raw Postgres error text answered to anyone — while the comment justifying
+  that text said the instance was the only caller
+- ✓ **The wasm browser tests run in their own Gradle invocation**, after a yarn race left
+  three test bundles unable to resolve a package the lockfile pins
+
+## 1.12.0 — Collaboration
+
+Was 0.8.0, then 1.1.0, 1.2.0, 1.3.0, 1.4.0, then 1.5.0 — renumbered each time a release
+overtook it rather than because the work changed. The gallery is the largest thing this
+application does not do, and the one a studio replaces with another product today.
 
 - Client proofing, selections, and approvals — and the object storage they need, moved here
   from 0.7.0 because the gallery is what decides its shape
 - Second shooters and editors, with roles
 
-## 1.6.0 — Hardening
+## 1.13.0 — Hardening
 
-Was 0.9.0, then 1.2.0, then 1.3.0, then 1.4.0, then 1.5.0. Named for what it is rather than "release candidate",
-which it no longer is.
+Was 0.9.0, then 1.2.0, 1.3.0, 1.4.0, 1.5.0, then 1.6.0. Named for what it is rather than
+"release candidate", which it no longer is.
 
 - Accessibility, performance, and migration validation
 - Localisation — `DateFormats` is English-only today
