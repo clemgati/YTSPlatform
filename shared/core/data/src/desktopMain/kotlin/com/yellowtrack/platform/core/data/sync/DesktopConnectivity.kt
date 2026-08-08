@@ -36,18 +36,27 @@ import kotlin.time.Duration.Companion.seconds
  * interfaces up permanently. Requiring a routable address is what makes the difference between
  * a signal and a constant.
  *
- * ## Where it will not fire
+ * ## Measured
  *
- * A tunnel that stays up while the network underneath it goes away. This machine carries a
- * `utun10` holding `fd0d:…`, a unique local address, which Java reports as neither loopback
- * nor link-local — so it satisfies the test on its own. If Wi-Fi drops and that tunnel does
- * not, no transition is seen.
+ * Toggling Wi-Fi on a Mac carrying a `utun10` tunnel, sampling this predicate once a second:
  *
- * Left alone deliberately. Excluding interfaces by name (`utun`, `tun`, `ppp`) is a guess
- * about the machine that would be wrong somewhere, and excluding unique local addresses would
- * take a plain IPv6 home network with it. The cost of missing a transition is the behaviour
- * this feature replaced — the timer, and up to an hour — so a miss degrades to yesterday
- * rather than to something worse.
+ * ```
+ * 23:20:43  -> online      baseline
+ * 23:20:50  -> OFFLINE     about a second after the radio went off
+ * 23:21:13  -> online      about two seconds after it came back
+ * ```
+ *
+ * The tunnel was the thing worth checking. It holds `fd0d:…`, a unique local address, which
+ * Java reports as neither loopback nor link-local — so on paper it satisfies this test alone
+ * and would have masked the drop. It does not, because it goes down with the network beneath
+ * it.
+ *
+ * That is one machine and not a proof. A tunnel that *does* survive its underlying network —
+ * some VPNs hold their interface up while reconnecting — would mask the transition here.
+ * Excluding interfaces by name (`utun`, `tun`, `ppp`) would be a guess about the machine that
+ * is wrong somewhere, and excluding unique local addresses would take a plain IPv6 home
+ * network with it. A miss degrades to the timer: to the behaviour this replaced, not to
+ * something worse.
  */
 class DesktopConnectivity(
     private val interval: Duration = POLL_INTERVAL,
