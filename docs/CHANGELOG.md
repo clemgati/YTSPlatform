@@ -4,6 +4,54 @@ All notable changes to Yellow Track Platform will be documented here.
 
 The project follows semantic versioning.
 
+## How to read this file
+
+**This file lapsed after 0.6.0 and was not kept through the nineteen releases that
+followed.** `docs/ROADMAP.md` carried the account instead, in more detail than this ever
+did, and remains the better record of *why* each thing was done and what is still unproved.
+
+That is worth stating rather than quietly backfilling, because the two halves below are not
+the same kind of document:
+
+- **The release index** was reconstructed from git history on 8th August 2026. The versions,
+  the dates and the headline of each release are accurate — they come from the commits.
+  The detail is not the detail somebody would have written on the day, and it does not
+  pretend to be.
+- **The 0.3.0 to 0.6.0 entries** below it are the original ones, written at the time and
+  left as they were. Their "Unreleased" headings are now wrong in a specific way: all of
+  that work shipped in **1.0.0** on 4th August 2026. The heading is kept so the entries are
+  not silently re-dated.
+
+Anything after 1.11.0 belongs in the release index, written when it ships.
+
+## Release index
+
+Reconstructed from git history. One line per release; `docs/ROADMAP.md` has the reasoning.
+
+| Version | Date | What shipped |
+| --- | --- | --- |
+| 1.11.0 | 2026-08-08 | Reconciling when the application is looked at again — a foreground signal per platform, proved on a phone |
+| 1.10.0 | 2026-08-08 | A reconnect trigger for the desktop, measured end to end after three false readings |
+| 1.9.1 | 2026-08-07 | A failure keeps its throwable, and the desktop writes to a log file beside its database |
+| 1.9.0 | 2026-08-07 | The figures behind the pricing floor became adjustable, and the profit the working omitted is shown |
+| 1.8.0 | 2026-08-07 | The browser keeps its database across reloads; the mobile sidebar scrolls; the version shows before sign-in |
+| 1.7.1 | 2026-08-07 | The crash 1.7.0 shipped: `registerNetworkCallback` needs a permission the manifest never declared |
+| 1.7.0 | 2026-08-07 | A returning connection brings a sync forward; the offline-saving promise withdrawn from the screens |
+| 1.6.0 | 2026-08-07 | Clients write through the server, and the conflict machinery is deleted — ADR 0012 finished |
+| 1.5.0 | 2026-08-07 | Bookings, sessions and enquiries write online; 154 manufactured conflicts cleared, twice |
+| 1.4.1 | 2026-08-06 | The rest of the ledger writes through the server |
+| 1.4.0 | 2026-08-06 | Invoices and payments are written online and awaited — ADR 0012 step 1 |
+| 1.3.3 | 2026-08-06 | A write brings the next sync forward; a pull stops overwriting work that has not been sent |
+| 1.3.2 | 2026-08-06 | The client's own address is offered when emailing a document |
+| 1.3.1 | 2026-08-06 | Converting an enquiry can open its booking too |
+| 1.3.0 | 2026-08-05 | An enquiry that is won becomes a client without retyping what it already said |
+| 1.2.1 | 2026-08-05 | A document records that it was emailed, and the row says so |
+| 1.2.0 | 2026-08-05 | A studio emails a quote or an invoice to its client, from its own name — ADR 0011 |
+| 1.1.1 | 2026-08-05 | The thirty-day deletion window got a door: signing in recognises the state and offers the studio back |
+| 1.1.0 | 2026-08-05 | Account deletion with a window, data export, and something that watches the server |
+| 1.0.1 | 2026-08-04 | An address is checked for shape at sign-up; the web vhost stops serving a cached old build |
+| 1.0.0 | 2026-08-04 | Launch — an enquiry to a paid invoice, on four platforms, against one server |
+
 ## Unreleased — 0.6.0 Pipeline
 
 ### Added
