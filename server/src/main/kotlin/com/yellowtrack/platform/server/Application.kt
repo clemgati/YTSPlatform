@@ -12,8 +12,10 @@ import com.yellowtrack.platform.server.document.DocumentMail
 import com.yellowtrack.platform.server.document.documentRoutes
 import com.yellowtrack.platform.server.mail.MailConfig
 import com.yellowtrack.platform.server.mail.MailHealth
+import com.yellowtrack.platform.server.mail.MailNotifications
 import com.yellowtrack.platform.server.mail.MonitoredMailer
 import com.yellowtrack.platform.server.mail.SmtpMail
+import com.yellowtrack.platform.server.mail.sesNotificationRoutes
 import com.yellowtrack.platform.server.sync.Reconciler
 import com.yellowtrack.platform.server.sync.syncRoutes
 import io.ktor.http.HttpHeaders
@@ -114,6 +116,15 @@ fun Application.module(
             onSendFailure = { log.error("could not send a document", it) },
         )
 
+    // What SES says *after* it has accepted a message, which is the half neither the SMTP
+    // conversation nor the 202 can see. Null topic means the route refuses everything: a
+    // signature proves an AWS customer sent it, not that the customer was us.
+    val sesTopicArn = System.getenv("SES_TOPIC_ARN")?.takeIf { it.isNotBlank() }
+    if (sesTopicArn == null) {
+        log.warn("SES_TOPIC_ARN is not set: bounces and deliveries will not be recorded. See docs/DEPLOYMENT.md.")
+    }
+    val mailNotifications = MailNotifications(database)
+
     val deletion = AccountDeletion(database, AccountDeletion.retentionFromEnvironment())
 
     // Deletion is a promise with a date on it, and a promise nothing ever runs is a way of
@@ -192,12 +203,20 @@ fun Application.module(
             val reached =
                 runCatching { database.unscoped { it.createStatement().use { s -> s.execute("SELECT 1") } } }
 
+            // Null rather than fatal when the database is unreachable: this endpoint's job
+            // is to report that, and a delivery summary that throws would replace the
+            // diagnosis with a 500.
+            val delivery = runCatching { mailNotifications.summary() }.getOrNull()
+
             val readiness =
                 Readiness(
                     database = reached.isSuccess,
                     mail = mailConfig != null,
                     mailError = mailHealth.lastFailure,
                     mailLastSucceededAt = mailHealth.lastSucceededAt,
+                    mailLastDeliveredAt = delivery?.lastDeliveredAt,
+                    mailRecentBounces = delivery?.recentBounces ?: 0,
+                    mailRecentComplaints = delivery?.recentComplaints ?: 0,
                     // Postgres says "permission denied to set role" here, which names the
                     // problem exactly. Worth forwarding: this endpoint is reachable only
                     // from the instance, so there is no one to disclose it to.
@@ -217,6 +236,9 @@ fun Application.module(
 
         authRoutes(accounts, resets, StudioExport(database), deletion)
         documentRoutes(documentMail)
+        // Unauthenticated by necessity — Amazon posts here with no token of ours. The
+        // signature and the topic check are the authentication; see the route.
+        sesNotificationRoutes(mailNotifications, sesTopicArn)
         syncRoutes(Reconciler(database))
     }
 }
@@ -257,7 +279,7 @@ data class Readiness(
      * is where a wrong credential, an unverified sender and a sandboxed region all land.
      *
      * Only SMTP-level failures. A bounce happens after SES has accepted the message and is
-     * invisible from here.
+     * reported by [mailRecentBounces] instead.
      */
     val mailError: String? = null,
     /**
@@ -267,6 +289,38 @@ data class Readiness(
      * has just restarted has sent nothing, and a deployment where nobody has needed a
      * password reset can sit here for weeks while mail is perfectly healthy. It separates
      * "working" from "never tried", which `mail` alone cannot.
+     *
+     * "Worked" here means SMTP accepted it. Whether anybody received it is
+     * [mailLastDeliveredAt], and the gap between the two is where a mistyped domain lives.
      */
     val mailLastSucceededAt: Long? = null,
+    /**
+     * When SES last confirmed a message was *delivered*, or null if it never has.
+     *
+     * The stronger claim, and the one that used to be impossible to make. [mailLastSucceededAt]
+     * says this server handed a message over; this says it reached a mailbox. Survives a
+     * restart, because it is a fact about a message rather than about this process.
+     *
+     * Null while [mailLastSucceededAt] is set means one of two things: nothing has been
+     * delivered yet, or the SNS subscription is not wired up. `SES_TOPIC_ARN` being unset is
+     * the first thing to check.
+     */
+    val mailLastDeliveredAt: Long? = null,
+    /**
+     * Bounces in the last seven days.
+     *
+     * SES holds the account to a bounce rate under 5% and suspends sending above it, and the
+     * first sign used to be resets no longer arriving for anybody. A number here is not
+     * automatically a fault — one permanent bounce is somebody who mistyped their address —
+     * but a number that climbs is the account's reputation being spent.
+     */
+    val mailRecentBounces: Int = 0,
+    /**
+     * Complaints in the last seven days.
+     *
+     * Held to a far tighter rate than bounces — under 0.1% — so this mattering does not need
+     * it to be large. Any complaint at all against a server that only sends password resets
+     * and documents a studio asked it to send is worth reading.
+     */
+    val mailRecentComplaints: Int = 0,
 )
