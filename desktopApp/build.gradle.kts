@@ -13,6 +13,10 @@ dependencies {
     implementation(libs.kotlinx.coroutinesSwing)
 
     implementation(libs.compose.uiToolingPreview)
+
+    // An SLF4J provider, so the libraries stop talking into a no-operation logger. See
+    // src/main/resources/logback.xml for why the root level is WARN rather than INFO.
+    runtimeOnly(libs.logback.classic)
 }
 
 compose.desktop {

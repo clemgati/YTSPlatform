@@ -1,0 +1,24 @@
+<!--
+  A provider for SLF4J, which the desktop build did not have.
+
+  Every launch printed "No SLF4J providers were found" and defaulted to a no-operation
+  logger, so anything Ktor or SQLDelight had to say about a failure was discarded before it
+  reached a terminal. That is a large part of why a device that stopped advancing its sync
+  cursor did so for forty-one hours in silence.
+
+  Root is WARN on purpose. Ktor and its dependencies are talkative at INFO and DEBUG, and a
+  log nobody can bear to read is the same as no log — which is the state this is fixing. What
+  is wanted here is the thing that went wrong, not an account of what went right.
+-->
+<configuration>
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss} %-5level %logger{24} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="WARN">
+        <appender-ref ref="STDERR"/>
+    </root>
+</configuration>
