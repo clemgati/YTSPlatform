@@ -37,6 +37,11 @@ kotlin {
         // core:data, so these tests deliberately build their own fixtures rather than
         // reusing it, to avoid a project dependency cycle.
         getByName("desktopTest").dependencies {
+            // A logging binding, so the tests about logging can observe something. Without
+            // one SLF4J falls back to a no-operation logger and the assertions pass or fail
+            // for a reason that has nothing to do with the code under test — which is the
+            // exact failure mode being fixed, arriving in the test suite.
+            implementation(libs.logback.classic)
             implementation(libs.sqldelight.sqliteDriver)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)

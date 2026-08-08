@@ -1,0 +1,14 @@
+<!--
+  Console only, to System.err, because that is what the tests capture. Deliberately not the
+  desktop application's configuration: a test suite that writes a rolling file into somebody's
+  application-data directory is a test suite with a side effect.
+-->
+<configuration>
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder><pattern>%-5level %logger - %msg%n</pattern></encoder>
+    </appender>
+    <root level="WARN">
+        <appender-ref ref="STDERR"/>
+    </root>
+</configuration>
