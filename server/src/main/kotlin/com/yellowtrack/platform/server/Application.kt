@@ -218,8 +218,13 @@ fun Application.module(
                     mailRecentBounces = delivery?.recentBounces ?: 0,
                     mailRecentComplaints = delivery?.recentComplaints ?: 0,
                     // Postgres says "permission denied to set role" here, which names the
-                    // problem exactly. Worth forwarding: this endpoint is reachable only
-                    // from the instance, so there is no one to disclose it to.
+                    // problem exactly, so it is worth forwarding rather than swallowing.
+                    //
+                    // That is only safe because the deployment restricts this endpoint to
+                    // the instance — a `<Location /ready>` block in the Apache vhost, since
+                    // `ProxyPass /` would otherwise answer it to anyone. The text names
+                    // roles and hosts. If that block is ever dropped, this line starts
+                    // disclosing them; see `docs/DEPLOYMENT.md` under Apache.
                     databaseError =
                         reached
                             .exceptionOrNull()
