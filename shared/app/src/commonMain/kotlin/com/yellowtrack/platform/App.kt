@@ -67,6 +67,9 @@ fun App() {
             // And when a connection comes back, which is the one moment the timer is worst
             // at: by then it has usually backed off to something long.
             synchroniser.startSyncOnReconnect()
+            // And when the application is looked at again, which is the moment a phone's
+            // screen is most likely to be showing an hour-old picture of the business.
+            synchroniser.startSyncOnForeground()
         }
     }
 

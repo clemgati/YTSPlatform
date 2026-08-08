@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.storage.JvmVolumeInspector
 import com.yellowtrack.platform.core.common.storage.VolumeInspector
 import com.yellowtrack.platform.core.data.auth.FileSessionStore
 import com.yellowtrack.platform.core.data.auth.SessionStore
+import com.yellowtrack.platform.core.data.sync.AppVisibility
 import com.yellowtrack.platform.core.data.sync.Connectivity
 import com.yellowtrack.platform.core.data.sync.DesktopConnectivity
 import com.yellowtrack.platform.core.database.DatabaseDriverFactory
@@ -20,4 +21,7 @@ actual fun platformModule(): Module =
         single<VolumeInspector> { JvmVolumeInspector() }
         single<SessionStore> { FileSessionStore() }
         single<Connectivity> { DesktopConnectivity() }
+        // Deliberately absent rather than unimplemented — see AppVisibility.Unknown. A window
+        // regaining focus happens many times an hour and is not "the application was reopened".
+        single<AppVisibility> { AppVisibility.Unknown }
     }

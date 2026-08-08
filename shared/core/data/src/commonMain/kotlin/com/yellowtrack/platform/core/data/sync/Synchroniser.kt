@@ -79,6 +79,11 @@ class Synchroniser(
      * loop exactly as it was rather than being told the device is always online.
      */
     private val connectivity: Connectivity = Connectivity.Unknown,
+    /**
+     * Advisory and absent by default, on the same terms as [connectivity]. A platform with no
+     * foreground moment keeps exactly the behaviour it had.
+     */
+    private val visibility: AppVisibility = AppVisibility.Unknown,
 ) {
     private val state = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
 
@@ -150,6 +155,31 @@ class Synchroniser(
                 .distinctUntilChanged()
                 .filter { it }
                 .collect { runOnce() }
+        }
+    }
+
+    /**
+     * Reconciles when the application comes back in front of somebody.
+     *
+     * The trigger neither of the other two can be. The timer knows nothing about attention and
+     * has usually backed off to something long by the time a phone is picked up again;
+     * [startSyncOnReconnect] fires on a *connection* returning, which for a phone that kept
+     * good signal in a pocket all afternoon never happens at all. That case — unchanged
+     * network, hours of background, screen opened — is precisely when what is on screen is
+     * most out of date, and it was the one moment nothing covered.
+     *
+     * Runs directly rather than nudging the periodic loop, for the same reasons
+     * [startSyncOnReconnect] gives.
+     *
+     * Not debounced, and it does not need to be: the platforms report this at process level
+     * rather than per screen, so rotating a phone or moving between screens does not produce
+     * one. Should a platform ever become chatty here, [runOnce] holds a mutex and the extra
+     * runs would collapse rather than pile up — but the fix would belong in that platform's
+     * implementation, not in a delay here.
+     */
+    fun startSyncOnForeground() {
+        scope.launch {
+            visibility.foregrounded.collect { runOnce() }
         }
     }
 

@@ -95,6 +95,7 @@ val dataModule =
                 scope = CoroutineScope(SupervisorJob() + ioDispatcher),
                 pendingWork = get<SyncOutbox>().pending(),
                 connectivity = get(),
+                visibility = get(),
             )
         }
 

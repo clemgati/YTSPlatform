@@ -4,7 +4,9 @@ import com.yellowtrack.platform.core.common.storage.IosVolumeInspector
 import com.yellowtrack.platform.core.common.storage.VolumeInspector
 import com.yellowtrack.platform.core.data.auth.KeychainSessionStore
 import com.yellowtrack.platform.core.data.auth.SessionStore
+import com.yellowtrack.platform.core.data.sync.AppVisibility
 import com.yellowtrack.platform.core.data.sync.Connectivity
+import com.yellowtrack.platform.core.data.sync.IosAppVisibility
 import com.yellowtrack.platform.core.data.sync.IosConnectivity
 import com.yellowtrack.platform.core.database.DatabaseDriverFactory
 import com.yellowtrack.platform.core.database.NativeDatabaseDriverFactory
@@ -20,4 +22,5 @@ actual fun platformModule(): Module =
         single<VolumeInspector> { IosVolumeInspector() }
         single<SessionStore> { KeychainSessionStore() }
         single<Connectivity> { IosConnectivity() }
+        single<AppVisibility> { IosAppVisibility() }
     }
