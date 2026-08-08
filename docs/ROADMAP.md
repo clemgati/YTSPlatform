@@ -555,7 +555,7 @@ before it, renumbered rather than dropped.
 - no second shooters or editors with roles of their own
 - no accessibility or localisation pass — `DateFormats` is English-only
 - one environment, no staging
-- password reset that reaches any address, but tells nobody when it stops
+- password reset that reachedos any address, but tells nobody when it stops
 
 ### 1.0.1
 
