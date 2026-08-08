@@ -7,6 +7,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("com.yellowtrack.platform.server.mail.SesNotifications")
@@ -17,6 +18,45 @@ private val log = LoggerFactory.getLogger("com.yellowtrack.platform.server.mail.
  * of the system whose job is to notice outages.
  */
 private val snsJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * Why a body could not be read, in terms somebody can act on.
+ *
+ * This exists because the message it replaces — "could not parse an SNS message" — cost a
+ * live debugging session. Notifications were arriving and being dropped, the subscription
+ * was confirmed, the topic was right, and the only clue that anything was wrong was a vague
+ * warning sitting one second after a send. The cause was **raw message delivery** enabled on
+ * the subscription, which strips the SNS envelope and with it the signature.
+ *
+ * That case is detectable with certainty — a body carrying `notificationType` but no `Type`
+ * is a bare SES payload — so it is named outright rather than described.
+ *
+ * ## Why this reports shape and not content
+ *
+ * An SES notification names the people it was sent to. Printing the body to diagnose a
+ * parsing problem would put recipient addresses in the log, permanently, for the convenience
+ * of whoever is reading it that day. The keys answer the question — which shape arrived —
+ * and the addresses are already recorded in `mail_notification` where they belong and can be
+ * removed with the row.
+ *
+ * A body that is not JSON at all has no keys, so a short prefix is used instead. That is a
+ * deliberate exception: it is either a health probe, a stray request or a truncated post,
+ * and none of those carry a studio's data.
+ */
+internal fun describeUnparseableBody(body: String): String {
+    val keys =
+        runCatching { snsJson.parseToJsonElement(body).jsonObject.keys }.getOrNull()
+            ?: return "it is not a JSON object (${body.length} bytes, starting \"${body.take(80).replace('\n', ' ')}\")"
+
+    return when {
+        "notificationType" in keys && "Type" !in keys ->
+            "raw message delivery appears to be enabled on the subscription. SNS has stripped its " +
+                "envelope and with it the signature, so this cannot be verified and will never be " +
+                "accepted. Turn off Raw message delivery on the subscription."
+
+        else -> "the envelope was not the shape expected; its top-level keys were ${keys.sorted()}"
+    }
+}
 
 /**
  * Where Amazon tells us what happened to the mail we sent.
@@ -65,7 +105,7 @@ fun Route.sesNotificationRoutes(
             val message =
                 runCatching { snsJson.decodeFromString<SnsMessage>(body) }.getOrNull()
                     ?: run {
-                        log.warn("could not parse an SNS message; ignoring it")
+                        log.warn("could not read an SNS message, so it was ignored: ${describeUnparseableBody(body)}")
                         // 200: an unparseable body will not parse on the fourth attempt
                         // either.
                         call.respond(HttpStatusCode.OK, "ignored")
@@ -103,7 +143,10 @@ fun Route.sesNotificationRoutes(
                     val notification =
                         runCatching { snsJson.decodeFromString<SesNotification>(message.message) }.getOrNull()
                     if (notification == null) {
-                        log.warn("an SNS notification carried a payload this cannot read; ignoring it")
+                        log.warn(
+                            "an SNS notification carried a payload this cannot read, so it was ignored: " +
+                                describeUnparseableBody(message.message),
+                        )
                         call.respond(HttpStatusCode.OK, "ignored")
                         return@post
                     }
