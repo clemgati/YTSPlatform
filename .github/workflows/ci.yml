@@ -33,7 +33,11 @@ jobs:
             # `build` here means desktop, Android and web, plus ktlint over every source
             # set including the Apple ones — formatting is a text check and needs no SDK.
             # Apple targets are not declared on this host, so there are no tasks to skip.
-            tasks: build -Pyellowtrack.appleTargets=false
+            #
+            # The wasm browser tests are held back to their own invocation below; see the
+            # comment on that step.
+            tasks: build -x wasmJsBrowserTest -Pyellowtrack.appleTargets=false
+            browserTasks: wasmJsBrowserTest -Pyellowtrack.appleTargets=false
 
           - name: Apple targets
             os: macos-latest
@@ -47,6 +51,8 @@ jobs:
             # simulator test binary links every module, and Xcode links the device
             # framework the moment anyone builds the app.
             tasks: iosSimulatorArm64Test compileKotlinIosArm64 -Pyellowtrack.iosReleaseFrameworks=false
+            # No wasm target on this host, so there is nothing to hold back.
+            browserTasks: ''
 
     steps:
       - name: Checkout repository
@@ -94,3 +100,30 @@ jobs:
           YELLOWTRACK_TEST_DB_URL: jdbc:postgresql://localhost:5432/yellowtrack_test
           YELLOWTRACK_TEST_DB_USER: postgres
           YELLOWTRACK_TEST_DB_PASSWORD: postgres
+
+      # Alone, because everything wasm shares one yarn workspace under `build/wasm`.
+      #
+      # Inside a single `build`, webApp's production webpack and the per-module test
+      # bundles reach for that workspace at the same time, and yarn says so:
+      # "Waiting for the other yarn instance to finish". On 1.10.0 three test bundles
+      # then came up unable to resolve `@js-joda/core` and `@js-joda/timezone` —
+      # packages the lockfile pins and the generated test package.json asks for. The
+      # same commit passed on a re-run with nothing changed.
+      #
+      # Worth knowing before trusting the failure message: a test bundle that fails to
+      # build registers no tests, and Gradle reports *that* as "did not discover any
+      # tests to execute". The `Module not found` line is printed above the stack
+      # traces and is not part of the task failure, so `gh run view --log-failed` does
+      # not show it. The message names the wrong problem.
+      #
+      # This gives the browser tests an invocation where nothing else is installing
+      # into `node_modules`. It is a mitigation rather than a proven fix: the race
+      # never reproduced locally, including from a wiped `build/wasm` with the
+      # production webpack interleaved the same way. If it recurs even here, the cause
+      # is not contention and this comment is the place to start.
+      #
+      # The task name is deliberately unqualified — it selects every module that has
+      # one, so a new module with wasm tests is covered without editing this file.
+      - name: Browser tests
+        if: matrix.browserTasks != ''
+        run: ./gradlew ${{ matrix.browserTasks }} --stacktrace
