@@ -262,6 +262,7 @@ internal fun buildPricing(
         annualOverhead = breakdown.annualOverhead.display(),
         targetSalary = breakdown.targetSalary.display(),
         taxAllowance = breakdown.taxAllowance.display(),
+        profitAllowance = breakdown.profitAllowance.takeIf { it.isPositive }?.display(),
         totalAnnualRequirement = breakdown.totalAnnualRequirement.display(),
         billableDaysPerYear = breakdown.billableDaysPerYear,
     )

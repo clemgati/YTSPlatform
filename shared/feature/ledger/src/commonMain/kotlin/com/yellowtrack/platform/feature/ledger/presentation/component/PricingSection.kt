@@ -77,6 +77,7 @@ internal fun PricingSection(
             WorkingRow("Overhead", pricing.annualOverhead)
             WorkingRow("Take-home target", pricing.targetSalary)
             WorkingRow("Tax to cover it", pricing.taxAllowance)
+            pricing.profitAllowance?.let { WorkingRow("Profit kept back", it) }
             WorkingRow("Total to earn", pricing.totalAnnualRequirement, emphasised = true)
 
             // There was no way back to these at all once they were saved once. A studio
@@ -119,10 +120,13 @@ private fun NotConfigured(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.medium)) {
         Text(
+            // Names what is required and what is optional, rather than listing the fields —
+            // it listed three when there were three, and went stale the moment there were
+            // five.
             text =
-                "Enter a take-home target, the days a year you can realistically sell, and " +
-                    "your tax rate. Yellow Track will work out the least a job can be sold for " +
-                    "without losing money.",
+                "Tell Yellow Track what you need to earn and how many days a year you can " +
+                    "sell, and it works out the least a job can go for without losing money. " +
+                    "The last two are optional.",
             style = YTTheme.typography.bodyMedium,
             color = YTTheme.colors.onSurfaceVariant,
         )
