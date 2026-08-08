@@ -353,6 +353,7 @@ here — every one of them is a laptop default.
 | `ALERT_EMAIL` | `you@yourdomain` | Where `watch-deployment.sh` reports a change of state |
 | `DELETION_RETENTION_DAYS` | `30` | How long a deleted studio can still be put back. Defaults to 30 |
 | `DOCUMENT_FROM` | `clement@yourdomain` | Sends a studio's documents to its clients. Must be on the verified domain — see `ADR 0011` |
+| `SES_TOPIC_ARN` | `arn:aws:sns:eu-west-1:123456789012:yellowtrack-ses` | The SNS topic SES publishes bounces to. **Unset means `/ses/notifications` refuses everything** |
 | `PORT` | `8080` | Bound to loopback; Apache is the only thing that reaches it |
 
 `MAIL_USERNAME` catches people out: SES SMTP credentials are generated separately in the
@@ -475,14 +476,91 @@ verified address proves only what already worked in the sandbox.
 In the sandbox a bad address is refused at the API, in the request, where it is logged. In
 production SES accepts it and bounces asynchronously — and holds the account to a bounce
 rate under 5% and a complaint rate under 0.1%, above which sending goes under review and
-then away. Nothing here subscribes to the SNS bounce topic, so the first sign would be
-resets no longer arriving for anyone.
+then away. Without a subscription the first sign would be resets no longer arriving for
+anyone.
 
-The volume protects you more than the code does: the only mail this application sends is a
-password reset, to an address somebody typed at sign-up and has to still control to have
-got in. That is a small number of sends and a small number of ways to bounce. It is worth
-knowing rather than acting on today — but it is now a thing that can be got wrong, and in
-the sandbox it was not.
+The server now listens. `POST /ses/notifications` takes SNS notifications and records them,
+and `/ready` reports what they said:
+
+```json
+{"mailLastSucceededAt": 1786203028314, "mailLastDeliveredAt": 1786203031002,
+ "mailRecentBounces": 0, "mailRecentComplaints": 0}
+```
+
+Those first two fields are different claims and the gap between them is the entire point.
+`mailLastSucceededAt` means SMTP accepted the message — the credentials work.
+`mailLastDeliveredAt` means SES confirmed it *arrived*. Before this, only the first could be
+observed, and it was routinely read as the second: a message to a mistyped domain is
+accepted happily and bounces a second later, and every check available said mail was fine.
+
+Bounces are recorded and surfaced, **not acted on**. Nothing suppresses sending to an
+address that has bounced. That is deliberate: the volume here is small, and a rule that
+silently stops sending password resets to somebody would be a worse failure than the one it
+prevents. If the counts start climbing, that is a decision for a person.
+
+> **`/ready` is reachable from outside with the vhost in this document.** The Apache config
+> below proxies `/` wholesale, so `https://api.yourdomain/ready` answers to anyone — and it
+> carries the raw Postgres error text, which names roles and hosts, alongside these counts.
+> Nothing here is a credential and the code comments assumed the instance was the only
+> caller. If that assumption is worth keeping, restrict it:
+>
+> ```apache
+> <Location /ready>
+>     Require local
+> </Location>
+> ```
+>
+> `/health` should stay open — it answers `{"status":"ok"}` and nothing else, and a proxy or
+> an uptime check needs it.
+
+#### Wiring it up
+
+1. **A topic.** SNS → *Create topic* → Standard, in the instance's region.
+   ```sh
+   aws sns create-topic --name yellowtrack-ses --region eu-west-1
+   ```
+2. **Tell SES to publish to it.** In the SES console, the verified *domain identity* →
+   *Notifications* → edit *Feedback notifications*, and set Bounce, Complaint and Delivery to
+   the topic. Delivery is the one that is easy to skip and is what makes
+   `mailLastDeliveredAt` mean anything.
+3. **Set `SES_TOPIC_ARN`** in `/etc/yellowtrack/env` to the topic's ARN, and restart. Until
+   this is set the endpoint refuses everything and says so in the log — see below for why.
+4. **Subscribe the endpoint.**
+   ```sh
+   aws sns subscribe --topic-arn arn:aws:sns:eu-west-1:123456789012:yellowtrack-ses \
+     --protocol https --notification-endpoint https://api.yourdomain/ses/notifications \
+     --region eu-west-1
+   ```
+   SNS immediately posts a `SubscriptionConfirmation`, and the server confirms it by fetching
+   the URL inside. Check it took:
+   ```sh
+   aws sns list-subscriptions-by-topic \
+     --topic-arn arn:aws:sns:eu-west-1:123456789012:yellowtrack-ses --region eu-west-1
+   ```
+   A `SubscriptionArn` of `PendingConfirmation` means the confirmation never arrived or never
+   succeeded — the server logs both cases.
+
+#### Why this endpoint is unauthenticated, and why that is not a hole
+
+An SNS HTTPS subscription is a POST from Amazon's network carrying no token of yours. There
+is nothing to authenticate *with*, so the message is authenticated instead: every one is
+signed, and the server verifies the signature against a certificate fetched from Amazon.
+
+Two details in that sentence are load-bearing, and both are easy to leave out:
+
+- **The certificate URL is checked before it is fetched.** The message names the certificate
+  that validates it, so an unconstrained fetch lets the sender supply both halves of the
+  proof — and makes a request from inside your instance to a URL a stranger chose.
+- **The topic ARN is checked as well as the signature.** A valid Amazon signature proves an
+  AWS customer sent it, *not that the customer was you*. Anyone can create a topic and
+  publish perfectly-signed notifications describing bounces that never happened. This is why
+  an unset `SES_TOPIC_ARN` refuses everything rather than accepting anything Amazon-shaped.
+
+#### What it still cannot see
+
+A message SES accepted and delivered can still be filtered into a spam folder afterwards.
+Delivery means it reached the receiving server, not that anybody read it. That gap is not
+closable from here, and no field pretends otherwise.
 
 ---
 

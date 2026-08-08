@@ -66,9 +66,13 @@ class SchemaDriftTest {
      *
      * `password_reset` is here for a plainer reason: a device has no use for anybody's
      * reset codes, including its own. The code arrives by email and is typed in.
+     *
+     * `mail_notification` is operational fact about the deployment — what SES said happened
+     * to messages this server sent. It belongs to nobody's studio and syncing it to a device
+     * would be sending one studio the bounce history of every other.
      */
     private val serverOnlyTables =
-        setOf("studio", "account", "studio_member", "auth_session", "password_reset")
+        setOf("studio", "account", "studio_member", "auth_session", "password_reset", "mail_notification")
 
     /**
      * The one column the server adds to every synced table.
