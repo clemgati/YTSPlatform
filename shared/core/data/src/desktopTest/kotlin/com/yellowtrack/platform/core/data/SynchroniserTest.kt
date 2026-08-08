@@ -233,6 +233,66 @@ class SynchroniserTest {
         override val online: MutableStateFlow<Boolean>,
     ) : Connectivity
 
+    // -- Leaving a trace ---------------------------------------------------------------------
+
+    /**
+     * A failed sync leaves a stack trace behind, and not only a sentence.
+     *
+     * The sentence always existed: `SyncStatus.Failed` carries `error.message` and Settings
+     * shows it. What did not exist was anywhere the *exception* went — and a message is
+     * precisely the part of an exception that omits where it came from.
+     *
+     * The cost was measured. A device stopped advancing its sync cursor and did so for
+     * forty-one hours before anybody noticed, and the diagnosis came entirely from comparing
+     * a local cursor against `server_seq` in the database. Nothing was written down anywhere,
+     * because the desktop build had no SLF4J provider and this application logged nothing of
+     * its own.
+     */
+    @Test
+    fun `a failed sync writes the throwable where somebody can read it`() =
+        runTest {
+            val world = world { error("the cursor did not advance") }
+            world.auth.restore(now = 0)
+
+            val recorded = captureStandardError { world.synchroniser.syncNow() }
+
+            assertTrue(recorded.contains("sync"), "it should say where, in words worth searching for")
+            assertTrue(
+                recorded.contains("the cursor did not advance"),
+                "and it should carry what actually went wrong",
+            )
+            assertTrue(recorded.contains("at "), "with a stack trace, which is the half a message throws away")
+        }
+
+    /** A working sync is not an event. A log that reports success is one nobody reads. */
+    @Test
+    fun `a sync that worked writes nothing`() =
+        runTest {
+            val world = world { SyncReport(0, 0, 0, 0, 0) }
+            world.auth.restore(now = 0)
+
+            val recorded = captureStandardError { world.synchroniser.syncNow() }
+
+            assertTrue(recorded.isBlank(), "nothing went wrong, so there is nothing to say")
+        }
+
+    /**
+     * Restored in a `finally`: leaving it swapped would silently swallow every other test's
+     * output in the same JVM, which is the sort of fault this pair of tests is about.
+     */
+    private inline fun captureStandardError(block: () -> Unit): String {
+        val original = System.err
+        val buffer = java.io.ByteArrayOutputStream()
+
+        return try {
+            System.setErr(java.io.PrintStream(buffer, true))
+            block()
+            buffer.toString()
+        } finally {
+            System.setErr(original)
+        }
+    }
+
     private fun world(
         pendingWork: Flow<Long> = emptyFlow(),
         scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),

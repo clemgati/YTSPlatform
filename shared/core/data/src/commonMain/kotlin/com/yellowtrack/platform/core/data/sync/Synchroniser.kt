@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.data.sync
 
+import com.yellowtrack.platform.core.common.logging.logFailure
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
@@ -212,6 +213,12 @@ class Synchroniser(
             // signs in, and the loop above stops running while signed out anyway.
             return true
         } catch (error: Throwable) {
+            // The message goes on screen for the studio; the throwable goes to the log for
+            // whoever has to work out why. Keeping only the message is how a device stopped
+            // advancing its cursor for forty-one hours with nothing anywhere to say so — and
+            // a message is exactly the part of an exception that omits where it came from.
+            logFailure("sync", error)
+
             state.value =
                 SyncStatus.Failed(clock.now().toEpochMilliseconds(), error.message ?: "Could not synchronise.")
             return false
