@@ -117,6 +117,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -292,6 +293,87 @@ class SyncEngineTest {
                     .single()
             assertEquals(1L, entry.attempts)
             assertEquals("that row belongs to another studio", entry.last_error)
+        }
+
+    // -- Saying so, rather than stopping quietly ---------------------------------------------
+
+    /**
+     * A cap that reports nothing is the shape of failure this project keeps finding.
+     *
+     * The cursor is saved either way, so the next run continues and nothing is lost — but a
+     * device that stopped halfway through a studio's history would otherwise say "Received
+     * 100,000 changes" and look finished.
+     */
+    @Test
+    fun `a pull that gives up at the page limit says so`() =
+        runTest {
+            val world = world()
+            world.transport.endlessPages = true
+
+            val report = world.engine.sync()
+
+            assertTrue(
+                report.stoppedAtPageLimit,
+                "it stopped because it ran out of pages, and the studio has no way to know that",
+            )
+            assertFalse(report.isQuiet, "a truncated run must not read as up to date")
+        }
+
+    /** Finishing on the last page is not truncation, however many pages it took. */
+    @Test
+    fun `a pull that reaches the end does not claim it stopped early`() =
+        runTest {
+            val world = world()
+
+            val report = world.engine.sync()
+
+            assertFalse(report.stoppedAtPageLimit)
+        }
+
+    /**
+     * The number that explains a device quietly disagreeing with the server.
+     *
+     * While a push keeps being rejected, every pull skips that row rather than overwrite work
+     * that has not been sent — which is right, and means the two stay apart for as long as it
+     * lasts. `attempts` had been recorded on every failure since the outbox was written and
+     * read by nothing.
+     */
+    @Test
+    fun `a row that could not be sent is counted`() =
+        runTest {
+            val world =
+                world(
+                    onPush = { changes ->
+                        changes.gearItems.map {
+                            SyncPushResult(
+                                SyncTables.GEAR_ITEM,
+                                it.id.value,
+                                SyncPushOutcome.Rejected,
+                                1,
+                                "that row belongs to another studio",
+                            )
+                        }
+                    },
+                )
+            world.gear.saveGearItem(gearItem("g1"))
+
+            val report = world.engine.sync()
+
+            assertEquals(1, report.stuck, "the device is holding work it cannot send, and said nothing")
+            assertFalse(report.isQuiet, "a device holding unsendable work is not up to date")
+        }
+
+    /** A row that sends on the first attempt is not stuck, and must not be reported as one. */
+    @Test
+    fun `a row that sent successfully is not counted as stuck`() =
+        runTest {
+            val world = world()
+            world.gear.saveGearItem(gearItem("g1"))
+
+            val report = world.engine.sync()
+
+            assertEquals(0, report.stuck)
+            assertEquals(1, report.uploaded)
         }
 
     @Test

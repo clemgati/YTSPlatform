@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.core.data.sync
 
 import app.cash.sqldelight.async.coroutines.awaitAsList
+import app.cash.sqldelight.async.coroutines.awaitAsOne
 import app.cash.sqldelight.async.coroutines.awaitAsOneOrNull
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.ClientRepository
@@ -31,8 +32,41 @@ data class SyncReport(
      * category of its work stayed on one device.
      */
     val notReconciledByServer: Set<String> = emptySet(),
+    /**
+     * The pull stopped because it reached its page limit, with more still waiting.
+     *
+     * Not data loss: the cursor is saved either way, so the next run continues from where
+     * this one stopped. It is reported because a cap that says nothing is the shape of
+     * failure this project keeps finding — the device would show "Received 100,000 changes"
+     * and look finished while a studio's work was still arriving.
+     *
+     * Reaching it at all means something unusual: 500 pages of 200 rows is 100,000 rows in
+     * one run, which a studio meets on a first sync of a large history or not at all.
+     */
+    val stoppedAtPageLimit: Boolean = false,
+    /**
+     * Rows this device has tried and failed to send.
+     *
+     * The number that explains a device quietly disagreeing with the server. A rejected push
+     * keeps its outbox entry and retries; while it does, every pull **skips** that row rather
+     * than overwrite work that has not been sent. That protection is right, and its cost is
+     * that the two stay apart for as long as the push keeps failing.
+     *
+     * Nothing is lost — the work is still queued, and a push that eventually lands wins —
+     * but until this was reported there was no way to tell that state from a healthy one.
+     * `attempts` and `last_error` had been recorded on every failure since the outbox was
+     * written, and read by nothing.
+     */
+    val stuck: Int = 0,
 ) {
-    val isQuiet: Boolean get() = uploaded == 0 && downloaded == 0
+    /**
+     * Nothing moved and nothing is wrong.
+     *
+     * A run that hit the page limit or is holding rows it cannot send is *not* quiet, even
+     * with nothing uploaded or downloaded — that is exactly the state that must not read as
+     * "Up to date."
+     */
+    val isQuiet: Boolean get() = uploaded == 0 && downloaded == 0 && !stoppedAtPageLimit && stuck == 0
 }
 
 /**
@@ -68,6 +102,14 @@ class SyncEngine(
         val pushed = drain(database)
         val pulled = apply(database)
 
+        // Read after the drain, so a row that has just been sent successfully is no longer
+        // counted. What remains is what this device tried and could not send.
+        val stuck =
+            database.outboxQueries
+                .countStuck(studioId)
+                .awaitAsOne()
+                .toInt()
+
         return SyncReport(
             uploaded = pushed.uploaded,
             downloaded = pulled.downloaded,
@@ -75,6 +117,8 @@ class SyncEngine(
             rejected = pushed.rejected,
             cursor = pulled.cursor,
             notReconciledByServer = pulled.notReconciled,
+            stoppedAtPageLimit = pulled.stoppedAtPageLimit,
+            stuck = stuck,
         )
     }
 
@@ -342,6 +386,8 @@ class SyncEngine(
         val cursor: Long,
         /** What the server did not claim to reconcile. Empty when it claimed everything. */
         val notReconciled: Set<String> = emptySet(),
+        /** Stopped at [MAX_PAGES] with the server still offering more. */
+        val stoppedAtPageLimit: Boolean = false,
     )
 
     /**
@@ -365,7 +411,12 @@ class SyncEngine(
         // answering successfully, so the absence has to be noticed here or not at all.
         var notReconciled = emptySet<String>()
 
-        while (pages < MAX_PAGES) {
+        // Tracked rather than inferred from `pages`, because "ran exactly 500 pages and
+        // finished" and "ran 500 pages and gave up" are different outcomes that the counter
+        // alone cannot tell apart.
+        var moreRemains = true
+
+        while (moreRemains && pages < MAX_PAGES) {
             val page = transport.pull(since = cursor, limit = BATCH)
             val arrived =
                 page.clients.size + page.contacts.size + page.clientContactLinks.size +
@@ -523,11 +574,17 @@ class SyncEngine(
             downloaded += arrived
             cursor = page.cursor
             pages++
-
-            if (!page.hasMore) break
+            moreRemains = page.hasMore
         }
 
-        return PullSummary(downloaded, cursor, notReconciled)
+        return PullSummary(
+            downloaded = downloaded,
+            cursor = cursor,
+            notReconciled = notReconciled,
+            // Only when the server still had more to give. Finishing on the last page is
+            // not truncation, however many pages it took.
+            stoppedAtPageLimit = moreRemains,
+        )
     }
 
     private suspend fun currentCursor(database: YellowTrackDatabase): Long =

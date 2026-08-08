@@ -234,6 +234,19 @@ internal class SettingsViewModel(
                                 if (report.uploaded > 0) append("Sent ${report.uploaded}. ")
                                 append("Received ${report.downloaded} ")
                                 append(if (report.downloaded == 1) "change." else "changes.")
+
+                                // Both of these describe a run that finished successfully and
+                                // is nonetheless not the whole story. Said here rather than
+                                // logged, because the studio is the one who can act on the
+                                // first and needs to not trust "Up to date" on the second.
+                                if (report.stoppedAtPageLimit) {
+                                    append(" More is still arriving — sync again to continue.")
+                                }
+                                if (report.stuck > 0) {
+                                    append(" ${report.stuck} ")
+                                    append(if (report.stuck == 1) "change has" else "changes have")
+                                    append(" not been sent yet, so this device may differ from your others.")
+                                }
                             }
                         },
                     notReconciled = report.notReconciledByServer,
