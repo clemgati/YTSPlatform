@@ -4,6 +4,8 @@ import com.yellowtrack.platform.core.common.storage.VolumeInspector
 import com.yellowtrack.platform.core.common.storage.WebVolumeInspector
 import com.yellowtrack.platform.core.data.auth.BrowserSessionStore
 import com.yellowtrack.platform.core.data.auth.SessionStore
+import com.yellowtrack.platform.core.data.sync.AppVisibility
+import com.yellowtrack.platform.core.data.sync.BrowserAppVisibility
 import com.yellowtrack.platform.core.data.sync.BrowserConnectivity
 import com.yellowtrack.platform.core.data.sync.Connectivity
 import com.yellowtrack.platform.core.database.DatabaseDriverFactory
@@ -21,4 +23,5 @@ actual fun platformModule(): Module =
         single<VolumeInspector> { WebVolumeInspector() }
         single<SessionStore> { BrowserSessionStore() }
         single<Connectivity> { BrowserConnectivity() }
+        single<AppVisibility> { BrowserAppVisibility() }
     }

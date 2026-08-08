@@ -5,6 +5,7 @@ import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.auth.SessionStore
 import com.yellowtrack.platform.core.data.auth.StoredSession
+import com.yellowtrack.platform.core.data.sync.AppVisibility
 import com.yellowtrack.platform.core.data.sync.Connectivity
 import com.yellowtrack.platform.core.data.sync.SyncReport
 import com.yellowtrack.platform.core.data.sync.SyncStatus
@@ -13,6 +14,7 @@ import com.yellowtrack.platform.core.data.sync.Synchroniser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -233,6 +235,86 @@ class SynchroniserTest {
         override val online: MutableStateFlow<Boolean>,
     ) : Connectivity
 
+    // -- Coming back to the application ------------------------------------------------------
+
+    /**
+     * The gap a studio actually notices. A phone spends the afternoon in a pocket, the timer
+     * has backed off to an hour, and the screen it is opened to shows what the last run left.
+     */
+    @Test
+    fun `opening the application reconciles without waiting for the timer`() =
+        runTest {
+            var runs = 0
+            val foreground = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+            val world =
+                world(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    visibility = ReportedVisibility(foreground),
+                ) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.auth.restore(now = 0)
+            world.synchroniser.startSyncOnForeground()
+
+            foreground.emit(Unit)
+
+            assertEquals(1, runs, "the application was opened and nothing noticed, which is the fault")
+        }
+
+    /**
+     * Unlike a connection, every foreground is news: the device may have been away for an hour
+     * between two of them. This is the property that distinguishes it from
+     * [startSyncOnReconnect], which deliberately ignores repeats.
+     */
+    @Test
+    fun `every return to the application reconciles`() =
+        runTest {
+            var runs = 0
+            val foreground = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+            val world =
+                world(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    visibility = ReportedVisibility(foreground),
+                ) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.auth.restore(now = 0)
+            world.synchroniser.startSyncOnForeground()
+
+            foreground.emit(Unit)
+            foreground.emit(Unit)
+            foreground.emit(Unit)
+
+            assertEquals(3, runs, "each return may follow an hour away, so none of them is a repeat")
+        }
+
+    /** Signed out, there is nowhere to sync to, and opening the application changes that not at all. */
+    @Test
+    fun `opening the application while signed out reconciles nothing`() =
+        runTest {
+            var runs = 0
+            val foreground = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+            val world =
+                world(
+                    scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+                    visibility = ReportedVisibility(foreground),
+                ) {
+                    runs++
+                    SyncReport(0, 0, 0, 0, 0)
+                }
+            world.synchroniser.startSyncOnForeground()
+
+            foreground.emit(Unit)
+
+            assertEquals(0, runs, "a device with no session would only discover it has nowhere to go")
+        }
+
+    private class ReportedVisibility(
+        override val foregrounded: MutableSharedFlow<Unit>,
+    ) : AppVisibility
+
     // -- Leaving a trace ---------------------------------------------------------------------
 
     /**
@@ -297,6 +379,7 @@ class SynchroniserTest {
         pendingWork: Flow<Long> = emptyFlow(),
         scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),
         connectivity: Connectivity = Connectivity.Unknown,
+        visibility: AppVisibility = AppVisibility.Unknown,
         reconcile: suspend () -> SyncReport,
     ): World {
         val auth = AuthRepository(store = StoredSessionStore(), api = UnusedApi)
@@ -307,6 +390,7 @@ class SynchroniserTest {
                 scope = scope,
                 pendingWork = pendingWork,
                 connectivity = connectivity,
+                visibility = visibility,
             ),
             auth,
         )
