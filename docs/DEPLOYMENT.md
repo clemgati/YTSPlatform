@@ -498,20 +498,18 @@ address that has bounced. That is deliberate: the volume here is small, and a ru
 silently stops sending password resets to somebody would be a worse failure than the one it
 prevents. If the counts start climbing, that is a decision for a person.
 
-> **`/ready` is reachable from outside with the vhost in this document.** The Apache config
-> below proxies `/` wholesale, so `https://api.yourdomain/ready` answers to anyone — and it
+> **`/ready` is restricted to the instance**, by the `<Location /ready>` block in the Apache
+> vhost below. Without it, `ProxyPass /` answers this endpoint to anyone who asks — and it
 > carries the raw Postgres error text, which names roles and hosts, alongside these counts.
-> Nothing here is a credential and the code comments assumed the instance was the only
-> caller. If that assumption is worth keeping, restrict it:
 >
-> ```apache
-> <Location /ready>
->     Require local
-> </Location>
-> ```
+> Nothing in it is a credential, and the code comments in `Application.kt` were written
+> assuming the instance was the only caller. That assumption is only true because of the
+> vhost, which is why the restriction lives in this document rather than being left as an
+> exercise: the endpoint and the config are one decision in two files.
 >
-> `/health` should stay open — it answers `{"status":"ok"}` and nothing else, and a proxy or
-> an uptime check needs it.
+> If you deployed before this was added, the check is `curl https://api.yourdomain/ready`
+> from anywhere that is not the instance. A 403 is correct. A JSON body means the block is
+> missing — most likely from the `-le-ssl.conf` that certbot generated from an earlier copy.
 
 #### Wiring it up
 
@@ -860,6 +858,19 @@ missing.
     ProxyPass        / http://127.0.0.1:8080/
     ProxyPassReverse / http://127.0.0.1:8080/
 
+    # /ready forwards the database's own error text, which names roles and hosts. That is
+    # the right detail for somebody on the instance working out why a deploy failed, and
+    # not something to answer to the internet — and `ProxyPass /` alone would.
+    #
+    # Nothing legitimate loses by this: deploy-server.sh and verify-deployment.sh both
+    # reach the application directly on 127.0.0.1:8080 and never come through Apache.
+    #
+    # /health deliberately stays open. It answers {"status":"ok"} and nothing else, and a
+    # proxy or an uptime check needs to be able to ask.
+    <Location /ready>
+        Require local
+    </Location>
+
     # A device that has been offline for a day pushes its whole outbox at once.
     ProxyTimeout 120
 </VirtualHost>
@@ -906,6 +917,13 @@ Certbot writes `yellowtrack-le-ssl.conf` beside your file, which is the finished
     ProxyPreserveHost On
     ProxyPass        / http://127.0.0.1:8080/
     ProxyPassReverse / http://127.0.0.1:8080/
+
+    # As above, and this is the one that matters: after certbot this vhost is what the
+    # internet actually reaches. Certbot copies the file it found, so if the block was not
+    # in the :80 vhost when you ran it, add it here by hand.
+    <Location /ready>
+        Require local
+    </Location>
 
     ProxyTimeout 120
 </VirtualHost>
