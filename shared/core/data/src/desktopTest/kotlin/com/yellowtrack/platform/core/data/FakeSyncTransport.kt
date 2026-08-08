@@ -32,12 +32,25 @@ class FakeSyncTransport(
     /** Set to throw from the next push, standing in for a connection that drops. */
     var failNextPush: Throwable? = null
 
+    /**
+     * Answers every pull with "there is more", for as long as it is asked.
+     *
+     * Stands in for a studio whose history is longer than one run can carry. Needed because
+     * the page cap is reached by *page count* rather than by row count, so a test for it
+     * cannot be written by handing over a big list.
+     */
+    var endlessPages: Boolean = false
+
     override suspend fun pull(
         since: Long,
         limit: Int,
     ): SyncPullResponse {
         pullsSince += since
-        return if (pages.isEmpty()) SyncPullResponse(cursor = since, hasMore = false) else pages.removeAt(0)
+        return when {
+            endlessPages -> SyncPullResponse(cursor = since + 1, hasMore = true)
+            pages.isEmpty() -> SyncPullResponse(cursor = since, hasMore = false)
+            else -> pages.removeAt(0)
+        }
     }
 
     override suspend fun push(changes: SyncPushRequest): List<SyncPushResult> {

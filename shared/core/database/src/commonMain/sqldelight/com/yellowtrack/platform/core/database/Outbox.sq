@@ -55,3 +55,17 @@ countPending:
 SELECT count(*)
 FROM outbox
 WHERE studio_id = :studioId;
+
+-- Rows this device has tried and failed to send.
+--
+-- `attempts` and `last_error` have been recorded since the outbox was written and read by
+-- nothing, which is the whole problem: a rejected push keeps its entry and retries forever,
+-- and while it does, every pull *skips* that row to avoid overwriting the unsent work. The
+-- device and the server then stay apart, silently, for as long as the push keeps failing.
+--
+-- Counted rather than listed, because what a studio needs to know is that this device is
+-- holding work it cannot send. Which rows is a question for whoever reads `last_error`.
+countStuck:
+SELECT count(*)
+FROM outbox
+WHERE studio_id = :studioId AND attempts > 0;
