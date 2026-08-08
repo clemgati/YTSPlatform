@@ -58,7 +58,13 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.SendTo
 internal fun LedgerScreen(
     uiState: LedgerUiState,
     onRetry: () -> Unit,
-    onSavePricingBasis: (salary: String, billableDays: String, taxRate: String) -> Unit,
+    onSavePricingBasis: (
+        salary: String,
+        billableDays: String,
+        taxRate: String,
+        annualOverhead: String,
+        profitMargin: String,
+    ) -> Unit,
     /** The second argument is the row being corrected, or null when recording a new one. */
     onSaveExpense: (NewExpense, String?) -> Unit,
     onSaveMileage: (NewMileage, String?) -> Unit,

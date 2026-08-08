@@ -21,7 +21,7 @@ import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 
 /**
- * The four figures the pricing floor cannot be computed without.
+ * The figures the pricing floor is computed from.
  *
  * Each field carries its own explanation, because the one people get badly wrong —
  * billable days — is wrong in a predictable way: they count the days they shoot rather
@@ -32,17 +32,29 @@ internal fun PricingSetupForm(
     initialSalary: String,
     initialBillableDays: String,
     initialTaxRate: String,
+    initialAnnualOverhead: String,
+    initialProfitMargin: String,
     currency: CurrencyCode,
-    onSave: (salary: String, billableDays: String, taxRate: String) -> Unit,
+    onSave: (
+        salary: String,
+        billableDays: String,
+        taxRate: String,
+        annualOverhead: String,
+        profitMargin: String,
+    ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var salary by remember(initialSalary) { mutableStateOf(initialSalary) }
     var billableDays by remember(initialBillableDays) { mutableStateOf(initialBillableDays) }
     var taxRate by remember(initialTaxRate) { mutableStateOf(initialTaxRate) }
+    var overhead by remember(initialAnnualOverhead) { mutableStateOf(initialAnnualOverhead) }
+    var profitMargin by remember(initialProfitMargin) { mutableStateOf(initialProfitMargin) }
 
     val salaryValid = parseMoney(salary, currency)?.isPositive == true
     val daysValid = billableDays.toIntOrNull()?.let { it in 1..366 } == true
     val taxValid = taxRate.isBlank() || parsePercentageToBasisPoints(taxRate)?.let { it < 10_000 } == true
+    val overheadValid = overhead.isBlank() || parseMoney(overhead, currency)?.isNegative == false
+    val profitValid = profitMargin.isBlank() || parsePercentageToBasisPoints(profitMargin) != null
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -80,10 +92,33 @@ internal fun PricingSetupForm(
             keyboardType = KeyboardType.Decimal,
         )
 
+        FormField(
+            value = overhead,
+            onValueChange = { overhead = it },
+            label = "Annual overhead (${currency.code})",
+            help =
+                "Leave blank to add up the expenses you have logged. State it directly if " +
+                    "you have not recorded a full year yet — a floor built on part of a year " +
+                    "is too low, and too low is the direction that closes a business.",
+            isError = overhead.isNotBlank() && !overheadValid,
+            keyboardType = KeyboardType.Decimal,
+        )
+
+        FormField(
+            value = profitMargin,
+            onValueChange = { profitMargin = it },
+            label = "Profit margin (%)",
+            help =
+                "Kept on top of costs and pay — reinvestment, and a buffer against a bad " +
+                    "year. Leave blank for none.",
+            isError = profitMargin.isNotBlank() && !profitValid,
+            keyboardType = KeyboardType.Decimal,
+        )
+
         YTButton(
             text = "Save pricing basis",
-            onClick = { onSave(salary, billableDays, taxRate) },
-            enabled = salaryValid && daysValid && taxValid,
+            onClick = { onSave(salary, billableDays, taxRate, overhead, profitMargin) },
+            enabled = salaryValid && daysValid && taxValid && overheadValid && profitValid,
             modifier = Modifier.fillMaxWidth(),
         )
     }

@@ -35,5 +35,15 @@ internal data class PricingBasisFields(
     val salary: String = "",
     val billableDays: String = "",
     val taxRate: String = "",
+    /**
+     * Blank means "add up the expenses I have logged".
+     *
+     * The model has carried this since the calculator was written and nothing could set it,
+     * so a studio without a full year of expenses got a floor built on a partial sum — too
+     * low, which is the one direction that puts a business out of operation.
+     */
+    val annualOverhead: String = "",
+    /** Blank means none. Retained on top of costs and pay, not part of them. */
+    val profitMargin: String = "",
     val currency: CurrencyCode = CurrencyCode.USD,
 )
