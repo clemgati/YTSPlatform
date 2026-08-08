@@ -11,6 +11,13 @@
   is wanted here is the thing that went wrong, not an account of what went right.
 -->
 <configuration>
+    <!--
+      Set by DesktopApp.main before anything logs. The fallback is the working directory,
+      which is only reached if this file is somehow configured before main runs — better a
+      file in an odd place than a start-up that fails over logging.
+    -->
+    <property name="logDir" value="${yellowtrack.logDir:-.}"/>
+
     <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.err</target>
         <encoder>
@@ -18,7 +25,31 @@
         </encoder>
     </appender>
 
+    <!--
+      The reason this change exists. Standard error is only read by somebody who launched
+      from a terminal and was already suspicious; an application opened from the Finder
+      discards it, which is every real use of this build.
+    -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${logDir}/yellowtrack.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${logDir}/yellowtrack.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <!--
+              Bounded twice over. A studio's laptop is not a log server, and the fault this
+              was built for took forty-one hours to notice — so a fortnight is generous and
+              200MB is a ceiling nothing should ever approach.
+            -->
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>200MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{24} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
     <root level="WARN">
         <appender-ref ref="STDERR"/>
+        <appender-ref ref="FILE"/>
     </root>
 </configuration>

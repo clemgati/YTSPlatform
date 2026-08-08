@@ -8,6 +8,10 @@ plugins {
 
 dependencies {
     implementation(project(":shared:app"))
+    // For the application-data directory, so the log file lands beside the database rather
+    // than wherever the process happened to be started from. The alternative was a second
+    // copy of the per-operating-system path logic, which would drift.
+    implementation(project(":shared:core:database"))
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)
