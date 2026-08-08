@@ -4,12 +4,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
+import com.yellowtrack.platform.core.designsystem.component.YTTextButton
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.feature.ledger.presentation.PricingBasisFields
 import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
@@ -24,9 +30,19 @@ import com.yellowtrack.platform.feature.ledger.presentation.model.PricingSummary
 internal fun PricingSection(
     pricing: PricingSummary?,
     basis: PricingBasisFields,
-    onSaveBasis: (salary: String, billableDays: String, taxRate: String) -> Unit,
+    onSaveBasis: (
+        salary: String,
+        billableDays: String,
+        taxRate: String,
+        annualOverhead: String,
+        profitMargin: String,
+    ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The figures behind the floor, hidden until asked for. Not a dialog: the point of
+    // adjusting them is to watch the number move, and a dialog covers the number.
+    var adjusting by remember { mutableStateOf(false) }
+
     YTSectionCard(
         title = "Pricing floor",
         modifier = modifier.fillMaxWidth(),
@@ -62,7 +78,37 @@ internal fun PricingSection(
             WorkingRow("Overhead", pricing.annualOverhead)
             WorkingRow("Take-home target", pricing.targetSalary)
             WorkingRow("Tax to cover it", pricing.taxAllowance)
+            pricing.profitAllowance?.let { WorkingRow("Profit kept back", it) }
             WorkingRow("Total to earn", pricing.totalAnnualRequirement, emphasised = true)
+
+            // There was no way back to these at all once they were saved once. A studio
+            // that gave itself a rise, changed tax band, or discovered it sells forty days
+            // rather than sixty was stuck with the first answer it ever typed — and the
+            // floor is the number every package on this screen is measured against.
+            // Pulled back by exactly the button's own horizontal padding, so its label lines
+            // up with the working above it rather than sitting indented from everything else.
+            // The padding stays where it is — it is the touch target, and taking it off the
+            // shared component would shift every text button in the application.
+            YTTextButton(
+                text = if (adjusting) "Done" else "Adjust the figures",
+                onClick = { adjusting = !adjusting },
+                modifier = Modifier.offset(x = -YTTheme.spacing.large),
+            )
+
+            if (adjusting) {
+                PricingSetupForm(
+                    initialSalary = basis.salary,
+                    initialBillableDays = basis.billableDays,
+                    initialTaxRate = basis.taxRate,
+                    initialAnnualOverhead = basis.annualOverhead,
+                    initialProfitMargin = basis.profitMargin,
+                    currency = basis.currency,
+                    onSave = { salary, days, tax, overhead, profit ->
+                        onSaveBasis(salary, days, tax, overhead, profit)
+                        adjusting = false
+                    },
+                )
+            }
         }
     }
 }
@@ -70,14 +116,23 @@ internal fun PricingSection(
 @Composable
 private fun NotConfigured(
     basis: PricingBasisFields,
-    onSaveBasis: (salary: String, billableDays: String, taxRate: String) -> Unit,
+    onSaveBasis: (
+        salary: String,
+        billableDays: String,
+        taxRate: String,
+        annualOverhead: String,
+        profitMargin: String,
+    ) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.medium)) {
         Text(
+            // Names what is required and what is optional, rather than listing the fields —
+            // it listed three when there were three, and went stale the moment there were
+            // five.
             text =
-                "Enter a take-home target, the days a year you can realistically sell, and " +
-                    "your tax rate. Yellow Track will work out the least a job can be sold for " +
-                    "without losing money.",
+                "Tell Yellow Track what you need to earn and how many days a year you can " +
+                    "sell, and it works out the least a job can go for without losing money. " +
+                    "The last two are optional.",
             style = YTTheme.typography.bodyMedium,
             color = YTTheme.colors.onSurfaceVariant,
         )
@@ -86,6 +141,8 @@ private fun NotConfigured(
             initialSalary = basis.salary,
             initialBillableDays = basis.billableDays,
             initialTaxRate = basis.taxRate,
+            initialAnnualOverhead = basis.annualOverhead,
+            initialProfitMargin = basis.profitMargin,
             currency = basis.currency,
             onSave = onSaveBasis,
         )

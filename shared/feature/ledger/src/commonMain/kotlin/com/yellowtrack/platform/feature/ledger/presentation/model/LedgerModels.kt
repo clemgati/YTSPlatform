@@ -144,6 +144,14 @@ internal data class PricingSummary(
     val annualOverhead: String,
     val targetSalary: String,
     val taxAllowance: String,
+    /**
+     * Null when the studio has not asked for one, so the row is absent rather than zero.
+     *
+     * It was *always* absent until profit became settable, and the working quietly did not
+     * add up as a result: overhead plus pay plus tax is short of the total by exactly this.
+     * Found by rendering the section and adding the column up.
+     */
+    val profitAllowance: String?,
     val totalAnnualRequirement: String,
     val billableDaysPerYear: Int,
 )

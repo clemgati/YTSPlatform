@@ -278,6 +278,17 @@ internal class LedgerViewModel(
                                                     ?.taxRateBasisPoints
                                                     ?.basisPointsAsPercentage()
                                                     .orEmpty(),
+                                            annualOverhead =
+                                                costs.profile
+                                                    ?.annualOverheadOverride
+                                                    ?.toPlainString()
+                                                    .orEmpty(),
+                                            profitMargin =
+                                                costs.profile
+                                                    ?.desiredProfitMarginBasisPoints
+                                                    ?.takeIf { it > 0 }
+                                                    ?.basisPointsAsPercentage()
+                                                    .orEmpty(),
                                             currency = currency,
                                         ),
                                 ),
@@ -473,6 +484,8 @@ internal class LedgerViewModel(
         salaryText: String,
         billableDaysText: String,
         taxRateText: String,
+        annualOverheadText: String,
+        profitMarginText: String,
     ) {
         viewModelScope.launch {
             val currency = studioProfileRepository.currency()
@@ -485,6 +498,22 @@ internal class LedgerViewModel(
                     parsePercentageToBasisPoints(taxRateText)?.takeIf { it < 10_000 } ?: return@launch
                 }
 
+            // Blank is a decision, not a missing answer: it means "use the expenses I have
+            // logged" for overhead, and "none" for profit. Null rather than zero for the
+            // override, because zero overhead is a claim and the calculator would believe it.
+            val overhead =
+                if (annualOverheadText.isBlank()) {
+                    null
+                } else {
+                    parseMoney(annualOverheadText, currency)?.takeIf { !it.isNegative } ?: return@launch
+                }
+            val profitBasisPoints =
+                if (profitMarginText.isBlank()) {
+                    0
+                } else {
+                    parsePercentageToBasisPoints(profitMarginText)?.takeIf { it >= 0 } ?: return@launch
+                }
+
             val existing = codbRepository.getProfile()
 
             codbRepository.saveProfile(
@@ -493,6 +522,8 @@ internal class LedgerViewModel(
                     targetAnnualSalary = salary,
                     billableDaysPerYear = billableDays,
                     taxRateBasisPoints = taxBasisPoints,
+                    annualOverheadOverride = overhead,
+                    desiredProfitMarginBasisPoints = profitBasisPoints,
                     audit = existing.audit.touched(clock.now()),
                 ) ?: CodbProfile(
                     // Keyed by the studio, for the same reason StudioProfile is: one row per
@@ -504,6 +535,8 @@ internal class LedgerViewModel(
                     targetAnnualSalary = salary,
                     billableDaysPerYear = billableDays,
                     taxRateBasisPoints = taxBasisPoints,
+                    annualOverheadOverride = overhead,
+                    desiredProfitMarginBasisPoints = profitBasisPoints,
                     audit = AuditMetadata.createdAt(clock.now()),
                 ),
             )

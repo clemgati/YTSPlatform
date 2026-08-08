@@ -82,7 +82,7 @@ class LedgerScreenRenderTest {
                         LedgerScreen(
                             uiState = LedgerUiState(content = UiState.Success(sampleContent(bookings))),
                             onRetry = {},
-                            onSavePricingBasis = { _, _, _ -> },
+                            onSavePricingBasis = { _, _, _, _, _ -> },
                             onSaveExpense = { _, _ -> },
                             onSaveMileage = { _, _ -> },
                             onRemoveCost = {},
