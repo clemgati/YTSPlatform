@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,9 +85,14 @@ internal fun PricingSection(
             // that gave itself a rise, changed tax band, or discovered it sells forty days
             // rather than sixty was stuck with the first answer it ever typed — and the
             // floor is the number every package on this screen is measured against.
+            // Pulled back by exactly the button's own horizontal padding, so its label lines
+            // up with the working above it rather than sitting indented from everything else.
+            // The padding stays where it is — it is the touch target, and taking it off the
+            // shared component would shift every text button in the application.
             YTTextButton(
                 text = if (adjusting) "Done" else "Adjust the figures",
                 onClick = { adjusting = !adjusting },
+                modifier = Modifier.offset(x = -YTTheme.spacing.large),
             )
 
             if (adjusting) {
