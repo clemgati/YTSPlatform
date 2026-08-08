@@ -14,6 +14,10 @@ config.plugins.push(
     new CopyWebpackPlugin({
         patterns: [
             { from: '../../node_modules/sql.js/dist/sql-wasm.wasm', to: 'sql-wasm.wasm' },
+            // The classic (non-module) sql.js build, for our own worker. It uses
+            // importScripts rather than an ES import so that it does not depend on where
+            // webpack chooses to emit chunks — see yellowtrack-sqljs.worker.js.
+            { from: '../../node_modules/sql.js/dist/sql-wasm.js', to: 'sql-wasm.js' },
         ],
     })
 );
