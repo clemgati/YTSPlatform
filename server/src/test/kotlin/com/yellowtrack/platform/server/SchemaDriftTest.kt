@@ -75,6 +75,12 @@ class SchemaDriftTest {
      * record of what sits in a bucket, so that the purge can delete objects as well as rows
      * (ADR 0013 decision 6). A device has no use for object keys it cannot reach and no
      * business holding the list that a deletion promise depends on.
+     *
+     * The `event*` tables are server-only for a sharper reason than convenience. Under ADR
+     * 0012 the studio application writes through the server, and these decide *whose
+     * photograph this is* — a slot opened on a device that is offline would route by a state
+     * the server does not share, and the failure would be somebody receiving another
+     * person's headshot. The routing answer has to come from one place.
      */
     private val serverOnlyTables =
         setOf(
@@ -85,6 +91,11 @@ class SchemaDriftTest {
             "password_reset",
             "mail_notification",
             "stored_object",
+            "event",
+            "event_registration",
+            "event_station",
+            "event_slot",
+            "event_photo",
         )
 
     /**
