@@ -3,6 +3,7 @@ package com.yellowtrack.platform.core.network
 import com.yellowtrack.platform.core.data.auth.AuthApi
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.document.DocumentSender
+import com.yellowtrack.platform.core.data.event.EventsApi
 import com.yellowtrack.platform.core.data.event.PhotographUploader
 import com.yellowtrack.platform.core.data.sync.SyncTransport
 import io.ktor.client.HttpClient
@@ -31,6 +32,11 @@ fun networkModule(serverUrl: String) =
                 baseUrl = get<String>(),
                 credentials = { auth.token() },
             )
+        }
+
+        single<EventsApi> {
+            val auth = get<AuthRepository>()
+            HttpEventsApi(client = get(), baseUrl = get<String>(), credentials = { auth.token() })
         }
 
         // Stateless: which event and which camera are a runtime choice, so the watcher is
