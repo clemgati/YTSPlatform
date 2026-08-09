@@ -4,6 +4,7 @@ import com.yellowtrack.platform.server.Database
 import com.yellowtrack.platform.server.auth.Passwords
 import com.yellowtrack.platform.server.storage.ObjectStore
 import com.yellowtrack.platform.server.sync.SyncedEntity
+import org.slf4j.LoggerFactory
 import java.sql.Connection
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -15,11 +16,23 @@ data class Deletion(
 )
 
 /** What one run of the purge actually removed. */
+private val log = LoggerFactory.getLogger("com.yellowtrack.platform.server.account.AccountDeletion")
+
 data class PurgeReport(
+    /** Studios erased. Does not count the ones in [failed]. */
     val studios: Int,
     val rows: Int,
+    /**
+     * Studios that were due and could not be erased.
+     *
+     * Named rather than counted, and separate from [studios] rather than folded into it,
+     * because this is somebody who asked to be deleted and has not been. A report that said
+     * "3 studios purged" while a fourth failed would be the shape of failure this project
+     * keeps finding.
+     */
+    val failed: List<String> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = studios == 0
+    val isEmpty: Boolean get() = studios == 0 && failed.isEmpty()
 }
 
 /**
@@ -152,11 +165,23 @@ class AccountDeletion(
         // One transaction each, so a studio that fails to purge does not roll back the ones
         // already done — the next run picks it up again from a row still marked deleted.
         var rows = 0
+        val failed = mutableListOf<String>()
         studios.forEach { studioId ->
-            rows += database.inStudio(studioId) { connection -> purgeStudio(connection, studioId) }
+            try {
+                rows += database.inStudio(studioId) { connection -> purgeStudio(connection, studioId) }
+            } catch (failure: Throwable) {
+                // The comment above promised each studio was independent, and it was only
+                // half true: the transactions were separate but one exception ended the loop,
+                // so a single undeletable studio silently stopped every studio behind it in
+                // the queue from ever being purged. Caught here, and named in the report —
+                // a purge that skipped somebody must not report the number it managed and
+                // nothing else.
+                failed += studioId
+                log.error("could not purge studio {}", studioId, failure)
+            }
         }
 
-        return PurgeReport(studios = studios.size, rows = rows)
+        return PurgeReport(studios = studios.size - failed.size, rows = rows, failed = failed)
     }
 
     private fun purgeStudio(
@@ -176,6 +201,24 @@ class AccountDeletion(
         // studio stays marked deleted until its last row is gone. That is slower than
         // reporting success and quieter than failing, and it is the only version where the
         // promise stays true.
+        // Events first, and before the objects rather than after.
+        //
+        // The five event tables are not synced entities — events are online-first, so they
+        // have no local table and never entered the graph `deletionOrder` walks. Nothing
+        // deleted them, and two foreign keys then refused: `event_photo` points at
+        // `stored_object`, so even the bucket purge failed, and every event table points at
+        // `studio`. A studio that had ever run an event could not be erased at all.
+        //
+        // Written out by hand, unavoidably, because there is no graph to derive it from. The
+        // order is children first: photographs, then slots, then stations and registrations,
+        // then the event.
+        EVENT_TABLES.forEach { table ->
+            connection.prepareStatement("DELETE FROM $table WHERE studio_id = ?").use { statement ->
+                statement.setString(1, studioId)
+                removed += statement.executeUpdate()
+            }
+        }
+
         val objects = purgeObjects(connection, studioId)
         removed += objects.rowsRemoved
 
@@ -305,5 +348,17 @@ class AccountDeletion(
 
         fun retentionFromEnvironment(): Duration =
             System.getenv("DELETION_RETENTION_DAYS")?.toLongOrNull()?.days ?: DEFAULT_RETENTION
+
+        /**
+         * The event tables, children first.
+         *
+         * `event_photo` references `event_slot`, `stored_object` and `event`; `event_slot`
+         * references `event_station` and `event_registration`; both of those reference
+         * `event`. Written out by hand because events are online-first and so are not synced
+         * entities — there is no graph here to derive an order from, which is exactly why
+         * nothing deleted them until now.
+         */
+        internal val EVENT_TABLES =
+            listOf("event_photo", "event_slot", "event_station", "event_registration", "event")
     }
 }
