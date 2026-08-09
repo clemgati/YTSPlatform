@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.server.event
 
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.event.PhotographAccepted
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.storage.StoredObjects
@@ -16,15 +17,6 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.utils.io.readRemaining
 import kotlinx.io.readByteArray
-import kotlinx.serialization.Serializable
-
-/** What became of an uploaded photograph. */
-@Serializable
-data class PhotographAccepted(
-    val photoId: String,
-    /** The registration it belongs to, or null when it belongs to the event's gallery. */
-    val registrationId: String? = null,
-)
 
 /**
  * Where photographs arrive from a photographer's machine.
