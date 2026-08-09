@@ -96,6 +96,7 @@ class SchemaDriftTest {
             "event_station",
             "event_slot",
             "event_photo",
+            "event_invite",
         )
 
     /**

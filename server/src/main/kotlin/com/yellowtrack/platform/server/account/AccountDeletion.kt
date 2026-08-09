@@ -359,6 +359,6 @@ class AccountDeletion(
          * nothing deleted them until now.
          */
         internal val EVENT_TABLES =
-            listOf("event_photo", "event_slot", "event_station", "event_registration", "event")
+            listOf("event_photo", "event_slot", "event_station", "event_registration", "event_invite", "event")
     }
 }

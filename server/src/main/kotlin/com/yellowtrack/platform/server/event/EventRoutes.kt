@@ -3,6 +3,7 @@ package com.yellowtrack.platform.server.event
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
+import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.OpenStationRequest
 import com.yellowtrack.platform.core.model.event.PhotographAccepted
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
@@ -38,6 +39,15 @@ import kotlinx.io.readByteArray
 fun Route.eventRoutes(
     events: Events,
     objects: StoredObjects,
+    invites: EventInvites,
+    /**
+     * Where the public sign-up lives.
+     *
+     * The server builds the URL a QR code encodes rather than the studio's application doing
+     * it, so a printed banner and the route that honours it cannot disagree about the
+     * address — and so it is one environment variable rather than a constant in four builds.
+     */
+    photosUrl: String = System.getenv("PHOTOS_URL")?.trimEnd('/') ?: "https://yellowtrackphotos.com",
 ) {
     route("/events") {
         authenticate(BEARER_AUTH) {
@@ -57,6 +67,35 @@ fun Route.eventRoutes(
                     HttpStatusCode.Created,
                     CreatedResponse(events.createEvent(call.studioId(), request.name.trim(), request.startsAt)),
                 )
+            }
+
+            /**
+             * The event's invite, issued on first ask and unchanged afterwards.
+             *
+             * Idempotent because a studio pressing this twice wants one code, and because a
+             * second code would silently orphan whichever banner was printed from the first.
+             */
+            post("/{eventId}/invite") {
+                val eventId = call.parameters["eventId"] ?: return@post call.missingEvent()
+                val token = invites.issue(call.studioId(), eventId)
+
+                if (token == null) {
+                    // No such event *for this studio*. Said as "no such event" rather than
+                    // "not yours", because the two answers differ only for somebody probing
+                    // for which identifiers exist.
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("There is no such event."))
+                    return@post
+                }
+
+                call.respond(EventInviteResponse(token = token, url = "$photosUrl/join/$token"))
+            }
+
+            /** Withdraws it. The printed code stops working; the event carries on. */
+            post("/{eventId}/invite/revoke") {
+                val eventId = call.parameters["eventId"] ?: return@post call.missingEvent()
+                invites.revoke(call.studioId(), eventId)
+
+                call.respond(HttpStatusCode.NoContent)
             }
 
             get("/{eventId}/stations") {

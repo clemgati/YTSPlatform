@@ -10,8 +10,10 @@ import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
 import com.yellowtrack.platform.server.document.DocumentMail
 import com.yellowtrack.platform.server.document.documentRoutes
+import com.yellowtrack.platform.server.event.EventInvites
 import com.yellowtrack.platform.server.event.Events
 import com.yellowtrack.platform.server.event.eventRoutes
+import com.yellowtrack.platform.server.event.inviteRoutes
 import com.yellowtrack.platform.server.mail.MailConfig
 import com.yellowtrack.platform.server.mail.MailHealth
 import com.yellowtrack.platform.server.mail.MailNotifications
@@ -144,6 +146,7 @@ fun Application.module(
     // Events, and the register that lets the purge reach what they store.
     val events = Events(database)
     val storedObjects = StoredObjects(database, objects)
+    val invites = EventInvites(database, events)
 
     // Deletion is a promise with a date on it, and a promise nothing ever runs is a way of
     // keeping data somebody asked to be rid of. In the server rather than a systemd timer
@@ -262,7 +265,10 @@ fun Application.module(
         // Unauthenticated by necessity — Amazon posts here with no token of ours. The
         // signature and the topic check are the authentication; see the route.
         sesNotificationRoutes(mailNotifications, sesTopicArn)
-        eventRoutes(events, storedObjects)
+        eventRoutes(events, storedObjects, invites)
+
+        // Public. No `authenticate` around it, deliberately and uniquely — see InviteRoutes.
+        inviteRoutes(invites)
         syncRoutes(Reconciler(database))
     }
 }

@@ -2,6 +2,7 @@ package com.yellowtrack.platform.server
 
 import com.yellowtrack.platform.server.account.AccountDeletion
 import com.yellowtrack.platform.server.auth.Accounts
+import com.yellowtrack.platform.server.event.EventInvites
 import com.yellowtrack.platform.server.event.Events
 import com.yellowtrack.platform.server.storage.ObjectStore
 import java.util.UUID
@@ -137,6 +138,8 @@ class AccountDeletionTest {
         val studio = studioWithClient()
         val events = Events(TestDatabase.database)
         val eventId = events.createEvent(studio.studioId, "Harbour Awards 2026")
+        // An invite too — it references both `studio` and `event`, so it is the same trap.
+        EventInvites(TestDatabase.database).issue(studio.studioId, eventId)
         val registration = events.register(studio.studioId, eventId, "guest@example.test")
         val station = events.openStation(studio.studioId, eventId, "Bay 1", "Camera A")
         events.advanceSlot(studio.studioId, station, registration)
