@@ -16,6 +16,9 @@ import com.yellowtrack.platform.server.mail.MailNotifications
 import com.yellowtrack.platform.server.mail.MonitoredMailer
 import com.yellowtrack.platform.server.mail.SmtpMail
 import com.yellowtrack.platform.server.mail.sesNotificationRoutes
+import com.yellowtrack.platform.server.storage.ObjectStore
+import com.yellowtrack.platform.server.storage.S3ObjectStore
+import com.yellowtrack.platform.server.storage.StorageConfig
 import com.yellowtrack.platform.server.sync.Reconciler
 import com.yellowtrack.platform.server.sync.syncRoutes
 import io.ktor.http.HttpHeaders
@@ -125,7 +128,15 @@ fun Application.module(
     }
     val mailNotifications = MailNotifications(database)
 
-    val deletion = AccountDeletion(database, AccountDeletion.retentionFromEnvironment())
+    // Photographs, if this deployment has anywhere to put them. Absent is a normal state:
+    // nothing uploads yet, and a purge with no bucket has no objects to remove.
+    val storage = StorageConfig.fromEnvironment()
+    if (storage == null) {
+        log.info("STORAGE_BUCKET is not set: this deployment cannot store photographs.")
+    }
+    val objects = storage?.let { S3ObjectStore(it) } ?: ObjectStore.Unconfigured
+
+    val deletion = AccountDeletion(database, AccountDeletion.retentionFromEnvironment(), objects = objects)
 
     // Deletion is a promise with a date on it, and a promise nothing ever runs is a way of
     // keeping data somebody asked to be rid of. In the server rather than a systemd timer
