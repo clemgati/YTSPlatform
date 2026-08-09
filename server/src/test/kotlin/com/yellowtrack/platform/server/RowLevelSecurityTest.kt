@@ -92,6 +92,23 @@ class RowLevelSecurityTest {
         )
     }
 
+    /**
+     * Three now, and the third was argued for rather than arrived at.
+     *
+     * `event_invite` resolves a QR code's token to the studio it belongs to, and that lookup
+     * runs before anybody has said who they are — so a policy comparing `studio_id` against
+     * `app.studio_id` would compare against NULL and return nothing, which is the same
+     * position `auth_session` and `studio_member` are in.
+     *
+     * A policy permitting reads when `app.studio_id` is unset was considered and rejected: it
+     * would make the table *look* protected while protecting nothing, which is the failure
+     * the test above exists to catch. Being outside the boundary and saying so is the honest
+     * version.
+     *
+     * The cost is that every studio-scoped query on that table must name the studio itself,
+     * because nothing else will. `EventInviteTest` holds that for both of them — issuing and
+     * revoking — and both failed before they were written.
+     */
     @Test
     fun `the two tables outside the boundary are exactly the ones declared`() {
         TestDatabase.connection().use { db ->
@@ -104,11 +121,11 @@ class RowLevelSecurityTest {
                 }
 
             assertEquals(
-                listOf("auth_session", "studio_member"),
+                listOf("auth_session", "event_invite", "studio_member"),
                 withoutPolicy.sorted(),
-                "a table keyed to a studio and not covered by a policy is either the authentication " +
-                    "hole ADR 0009 decision 7 argues for, or an accident. There are only supposed to " +
-                    "be two, and they are supposed to be these",
+                "a table keyed to a studio and not covered by a policy is either a lookup that has " +
+                    "to run before a studio is known — ADR 0009 decision 7 — or an accident. There " +
+                    "are only supposed to be three, and they are supposed to be these",
             )
         }
     }
@@ -345,9 +362,18 @@ class RowLevelSecurityTest {
         }
     }
 
-    /** Business tables: keyed to a studio and expected to be behind a policy. */
+    /**
+     * Business tables: keyed to a studio and expected to be behind a policy.
+     *
+     * Every table carrying a `studio_id`, minus the ones deliberately outside the boundary.
+     *
+     * The exclusions are the same three the test above pins, and they are listed twice on
+     * purpose: this one asks whether the remaining tables are protected, and that one asks
+     * whether the exclusions are still exactly the intended set. Deriving one from the other
+     * would mean a new unguarded table could quietly excuse itself from both.
+     */
     private fun scopedTables(db: Connection): List<String> =
-        columnOwners(db, "studio_id") - setOf("studio_member", "auth_session")
+        columnOwners(db, "studio_id") - setOf("studio_member", "auth_session", "event_invite")
 
     private fun columnOwners(
         db: Connection,
