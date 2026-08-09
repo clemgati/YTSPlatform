@@ -1,14 +1,25 @@
 package com.yellowtrack.platform.feature.events
 
+import com.yellowtrack.platform.core.common.time.AppClock
+import com.yellowtrack.platform.core.data.event.ChosenFolder
 import com.yellowtrack.platform.core.data.event.EventActionFailed
 import com.yellowtrack.platform.core.data.event.EventsApi
+import com.yellowtrack.platform.core.data.event.IngestPlatform
+import com.yellowtrack.platform.core.data.event.IngestService
+import com.yellowtrack.platform.core.data.event.PhotographUploader
+import com.yellowtrack.platform.core.data.event.UploadLog
+import com.yellowtrack.platform.core.data.event.UploadOutcome
+import com.yellowtrack.platform.core.data.event.WatchedFile
+import com.yellowtrack.platform.core.data.event.WatchedFolder
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.events.presentation.EventsContent
 import com.yellowtrack.platform.feature.events.presentation.EventsViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -16,9 +27,11 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /**
  * The screen a photographer looks at while a queue of people waits.
@@ -44,7 +57,7 @@ class EventsViewModelTest {
     fun `events load when the screen opens`() =
         runTest(dispatcher) {
             val api = FakeApi(events = listOf(summary("event-1", "Headshot day", openStations = 1)))
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
 
             testScheduler.advanceUntilIdle()
 
@@ -57,7 +70,7 @@ class EventsViewModelTest {
     @Test
     fun `a studio with no events sees an empty screen rather than an error`() =
         runTest(dispatcher) {
-            val viewModel = EventsViewModel(FakeApi())
+            val viewModel = viewModel(FakeApi())
 
             testScheduler.advanceUntilIdle()
 
@@ -72,7 +85,7 @@ class EventsViewModelTest {
                     events = listOf(summary("event-1", "Headshot day")),
                     stations = mapOf("event-1" to listOf(station("station-1", "Bay 1", "Camera A"))),
                 )
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
 
             viewModel.open("event-1")
@@ -93,7 +106,7 @@ class EventsViewModelTest {
                     events = listOf(summary("event-1", "Headshot day")),
                     stations = mapOf("event-1" to listOf(station("station-1", "Bay 1", "Camera A", closedAt = 99))),
                 )
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
 
             viewModel.open("event-1")
@@ -125,7 +138,7 @@ class EventsViewModelTest {
                     events = listOf(summary("event-1", "Headshot day")),
                     stations = mapOf("event-1" to listOf(station("station-1", "Bay 1", "Camera A"))),
                 )
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
             viewModel.open("event-1")
             testScheduler.advanceUntilIdle()
@@ -153,7 +166,7 @@ class EventsViewModelTest {
     fun `a failed refresh during an event does not clear the screen`() =
         runTest(dispatcher) {
             val api = FakeApi(events = listOf(summary("event-1", "Headshot day")))
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
 
             api.eventsFails = EventActionFailed("Could not reach the server.")
@@ -169,7 +182,7 @@ class EventsViewModelTest {
     fun `a failure with nothing loaded is an error`() =
         runTest(dispatcher) {
             val api = FakeApi().apply { eventsFails = EventActionFailed("Could not reach the server.") }
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
 
             testScheduler.advanceUntilIdle()
 
@@ -179,13 +192,17 @@ class EventsViewModelTest {
     @Test
     fun `a problem can be dismissed`() =
         runTest(dispatcher) {
-            val viewModel = EventsViewModel(FakeApi())
+            val viewModel = viewModel(FakeApi())
             testScheduler.advanceUntilIdle()
 
+            // `uiState` is derived from two flows now, so a synchronous update to the
+            // screen's own state reaches it on the next tick rather than immediately.
             viewModel.createEvent("  ")
+            testScheduler.advanceUntilIdle()
             assertNotNull(viewModel.uiState.value.problem)
 
             viewModel.dismissProblem()
+            testScheduler.advanceUntilIdle()
             assertNull(viewModel.uiState.value.problem)
         }
 
@@ -206,7 +223,7 @@ class EventsViewModelTest {
                     events = listOf(summary("event-1", "Headshot day")),
                     stations = mapOf("event-1" to emptyList()),
                 )
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
             viewModel.open("event-1")
             testScheduler.advanceUntilIdle()
@@ -232,7 +249,7 @@ class EventsViewModelTest {
                     events = listOf(summary("event-1", "Headshot day")),
                     stations = mapOf("event-1" to emptyList()),
                 )
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
             viewModel.open("event-1")
             testScheduler.advanceUntilIdle()
@@ -256,7 +273,7 @@ class EventsViewModelTest {
     fun `an event with no name is refused without a request`() =
         runTest(dispatcher) {
             val api = FakeApi()
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
 
             viewModel.createEvent("   ")
@@ -274,7 +291,7 @@ class EventsViewModelTest {
                     events = listOf(summary("event-1", "Headshot day")),
                     stations = mapOf("event-1" to emptyList()),
                 )
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
             viewModel.open("event-1")
             testScheduler.advanceUntilIdle()
@@ -294,7 +311,7 @@ class EventsViewModelTest {
                     events = listOf(summary("event-1", "Headshot day")),
                     stations = mapOf("event-1" to listOf(station("station-1", "Bay 1", "Camera A"))),
                 )
-            val viewModel = EventsViewModel(api)
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
             viewModel.open("event-1")
             testScheduler.advanceUntilIdle()
@@ -312,7 +329,202 @@ class EventsViewModelTest {
             )
         }
 
+    // -- Watching a folder -------------------------------------------------------------------
+
+    @Test
+    fun `choosing a folder begins watching it`() =
+        runTest(dispatcher) {
+            val platform = FakeIngestPlatform()
+            val api = openedEvent()
+            val viewModel = viewModel(api, platform)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.watchFolder("event-1", "Camera A")
+            testScheduler.advanceUntilIdle()
+
+            val status = assertNotNull(viewModel.uiState.value.ingest["Camera A"], "nothing is being watched")
+            assertEquals("Camera A", status.folderName)
+        }
+
+    /**
+     * Cancelling the chooser is not a problem, and must not be reported as one.
+     *
+     * Somebody who opened the dialog and thought better of it has encountered nothing. Saying
+     * so would train them to ignore the place real problems appear.
+     */
+    @Test
+    fun `cancelling the folder chooser says nothing`() =
+        runTest(dispatcher) {
+            val platform = FakeIngestPlatform(chosen = null)
+            val viewModel = viewModel(openedEvent(), platform)
+            testScheduler.advanceUntilIdle()
+
+            viewModel.watchFolder("event-1", "Camera A")
+            testScheduler.advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.problem, "cancelling was reported as a problem")
+            assertTrue(
+                viewModel.uiState.value.ingest
+                    .isEmpty(),
+            )
+        }
+
+    /**
+     * The link that matters most on this screen.
+     *
+     * A source whose station has closed still has a folder full of files. A watch left
+     * running keeps sending them, and with no slot open they route to the event's gallery —
+     * so a sitting's leftovers quietly become public photographs.
+     */
+    @Test
+    fun `closing a station stops watching its folder`() =
+        runTest(dispatcher) {
+            val platform = FakeIngestPlatform()
+            val viewModel = viewModel(openedEvent(), platform)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.watchFolder("event-1", "Camera A")
+            testScheduler.advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.ingest["Camera A"])
+
+            viewModel.closeStation("event-1", "station-1")
+            testScheduler.advanceUntilIdle()
+
+            // The record stays — a photographer still wants to see what it sent — but the
+            // watch itself must have stopped.
+            assertNotNull(viewModel.uiState.value.ingest["Camera A"], "the record should survive closing")
+            assertFalse(
+                watching(viewModel, "Camera A"),
+                "the folder is still being watched after its station closed",
+            )
+        }
+
+    @Test
+    fun `stopping a watch leaves the station open`() =
+        runTest(dispatcher) {
+            val platform = FakeIngestPlatform()
+            val viewModel = viewModel(openedEvent(), platform)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.watchFolder("event-1", "Camera A")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.stopWatching("Camera A")
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(
+                viewModel
+                    .content()
+                    .open!!
+                    .stations
+                    .single()
+                    .isOpen,
+                "stopping ingest closed the station as well",
+            )
+        }
+
+    /** A platform with no capture folder does not get offered the control. */
+    @Test
+    fun `a platform that cannot watch folders says so`() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(openedEvent(), FakeIngestPlatform(canWatchFolders = false))
+            testScheduler.advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.canWatchFolders)
+        }
+
     // -- Fixtures ------------------------------------------------------------------------------
+
+    /**
+     * A view model with a real [IngestService] behind a fake platform.
+     *
+     * Real rather than mocked because the link being tested — closing a station stops its
+     * watch — is precisely the join between the two, and a stubbed service would assert that
+     * the call was made rather than that ingest actually stopped.
+     */
+    private fun TestScope.viewModel(
+        api: EventsApi,
+        platform: IngestPlatform = FakeIngestPlatform(),
+    ) = EventsViewModel(
+        api = api,
+        ingest =
+            IngestService(
+                platform = platform,
+                uploader = NeverUploader,
+                scope = backgroundScope,
+                clock = AppClock { Instant.fromEpochMilliseconds(testScheduler.currentTime) },
+            ),
+        platform = platform,
+    ).also { viewModel ->
+        // `uiState` is shared `WhileSubscribed`, so with nobody collecting it never leaves its
+        // initial value and every assertion below would read `Loading`. Compose subscribes for
+        // as long as the screen is on show; this is that, for as long as the test runs.
+        backgroundScope.launch { viewModel.uiState.collect {} }
+    }
+
+    private class FakeIngestPlatform(
+        override val canWatchFolders: Boolean = true,
+        var chosen: ChosenFolder? = ChosenFolder("/Volumes/Capture/Camera A", "Camera A"),
+        private val failToChoose: Throwable? = null,
+    ) : IngestPlatform {
+        var timesAsked = 0
+
+        override suspend fun chooseFolder(): ChosenFolder? {
+            timesAsked++
+            failToChoose?.let { throw it }
+
+            return chosen
+        }
+
+        override fun folderAt(path: String): WatchedFolder =
+            object : WatchedFolder {
+                override fun list(): List<WatchedFile> = emptyList()
+
+                override fun read(path: String): ByteArray = ByteArray(0)
+            }
+
+        override fun logFor(
+            folderPath: String,
+            eventId: String,
+            sourceKey: String,
+        ): UploadLog =
+            object : UploadLog {
+                override suspend fun handled(): Set<String> = emptySet()
+
+                override suspend fun record(
+                    path: String,
+                    delivered: Boolean,
+                ) = Unit
+            }
+    }
+
+    private object NeverUploader : PhotographUploader {
+        override suspend fun upload(
+            eventId: String,
+            sourceKey: String,
+            capturedAt: Long,
+            fileName: String,
+            contentType: String,
+            bytes: ByteArray,
+        ): UploadOutcome = UploadOutcome.Stored("photo")
+    }
+
+    private fun openedEvent() =
+        FakeApi(
+            events = listOf(summary("event-1", "Headshot day")),
+            stations = mapOf("event-1" to listOf(station("station-1", "Bay 1", "Camera A"))),
+        )
+
+    /** Reads through the service the view model was given, rather than trusting the map. */
+    private fun watching(
+        viewModel: EventsViewModel,
+        sourceKey: String,
+    ): Boolean = viewModel.isWatchingForTest(sourceKey)
 
     private fun EventsViewModel.content(): EventsContent =
         (uiState.value.content as UiState.Success<EventsContent>).data

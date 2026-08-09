@@ -6,6 +6,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
+import com.yellowtrack.platform.core.data.event.IngestStatus
+import com.yellowtrack.platform.core.data.event.RefusedPhotograph
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.ui.state.UiState
@@ -80,6 +82,18 @@ class EventsRenderTest {
                         ),
                     ),
                 problem = "A station is already open on Camera A. Close it before opening another.",
+                canWatchFolders = true,
+                ingest =
+                    mapOf(
+                        "Camera A" to
+                            IngestStatus(
+                                sourceKey = "Camera A",
+                                folderName = "Camera A",
+                                sent = 214,
+                                waiting = 2,
+                                refused = listOf(RefusedPhotograph("DSC_0188.JPG", "that photograph was empty")),
+                            ),
+                    ),
             )
         }
     }
@@ -105,6 +119,8 @@ class EventsRenderTest {
                             onCreateEvent = {},
                             onOpenStation = { _, _, _ -> },
                             onCloseStation = { _, _ -> },
+                            onWatchFolder = { _, _ -> },
+                            onStopWatching = {},
                             onDismissProblem = {},
                         )
                     }

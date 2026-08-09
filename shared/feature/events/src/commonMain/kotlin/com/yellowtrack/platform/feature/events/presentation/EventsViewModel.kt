@@ -4,13 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yellowtrack.platform.core.data.event.EventActionFailed
 import com.yellowtrack.platform.core.data.event.EventsApi
+import com.yellowtrack.platform.core.data.event.IngestPlatform
+import com.yellowtrack.platform.core.data.event.IngestService
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.core.ui.state.UiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -35,9 +39,26 @@ import kotlinx.coroutines.launch
  */
 internal class EventsViewModel(
     private val api: EventsApi,
+    private val ingest: IngestService,
+    private val platform: IngestPlatform,
 ) : ViewModel() {
     private val state = MutableStateFlow(EventsUiState(content = UiState.Loading))
-    val uiState: StateFlow<EventsUiState> = state.asStateFlow()
+
+    /**
+     * The screen's own state, plus whatever the watches are doing.
+     *
+     * Combined rather than copied in, because a watch outlives this view model: a
+     * photographer who leaves the Events tab has not stopped shooting, and the counts must
+     * still be right when they come back.
+     */
+    val uiState: StateFlow<EventsUiState> =
+        combine(state, ingest.status) { screen, watches ->
+            screen.copy(ingest = watches, canWatchFolders = platform.canWatchFolders)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+            initialValue = EventsUiState(content = UiState.Loading),
+        )
 
     init {
         refresh()
@@ -150,11 +171,64 @@ internal class EventsViewModel(
         eventId: String,
         stationId: String,
     ) {
+        // The watch stops with the station, and stops first. A source whose station has
+        // closed still has a folder full of files, and a watch left running would keep
+        // sending them — they would route to the event's gallery, because no slot is open,
+        // and a sitting's leftovers would quietly become public photographs.
+        state.value.content
+            .let { it as? UiState.Success }
+            ?.data
+            ?.open
+            ?.stations
+            ?.firstOrNull { it.id == stationId }
+            ?.let { ingest.stop(it.sourceKey) }
+
         act {
             api.closeStation(eventId, stationId)
             reloadStations(eventId)
         }
     }
+
+    /**
+     * Asks for a folder and begins watching it for [sourceKey].
+     *
+     * A cancelled chooser is silent. Somebody who opened the dialog and thought better of it
+     * has not encountered a problem, and saying so would train them to ignore the place real
+     * problems appear.
+     */
+    fun watchFolder(
+        eventId: String,
+        sourceKey: String,
+    ) {
+        viewModelScope.launch {
+            val folder =
+                try {
+                    platform.chooseFolder()
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (failure: Throwable) {
+                    state.update { it.copy(problem = failure.message ?: "That folder could not be opened.") }
+                    return@launch
+                } ?: return@launch
+
+            if (!ingest.watch(eventId, sourceKey, folder)) {
+                state.update { it.copy(problem = "${folder.name} is already being watched.") }
+            }
+        }
+    }
+
+    fun stopWatching(sourceKey: String) {
+        ingest.stop(sourceKey)
+    }
+
+    /**
+     * Whether a source is actually being watched, as opposed to merely having a record.
+     *
+     * The status map deliberately keeps entries after a watch stops, so it cannot answer this
+     * — and "did the loop stop" is the question worth asserting, since a watch left running
+     * on a closed station sends a sitting's leftovers to the public gallery.
+     */
+    internal fun isWatchingForTest(sourceKey: String): Boolean = ingest.isWatching(sourceKey)
 
     fun dismissProblem() {
         state.update { it.copy(problem = null) }
@@ -207,6 +281,7 @@ internal class EventsViewModel(
 
     private companion object {
         const val FALLBACK = "That could not be done just now."
+        const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 

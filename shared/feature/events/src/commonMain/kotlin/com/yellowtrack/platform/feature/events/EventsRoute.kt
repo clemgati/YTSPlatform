@@ -21,6 +21,8 @@ fun EventsRoute(modifier: Modifier = Modifier) {
         onCreateEvent = { viewModel.createEvent(it) },
         onOpenStation = viewModel::openStation,
         onCloseStation = viewModel::closeStation,
+        onWatchFolder = viewModel::watchFolder,
+        onStopWatching = viewModel::stopWatching,
         onDismissProblem = viewModel::dismissProblem,
         modifier = modifier,
     )

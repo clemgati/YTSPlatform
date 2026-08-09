@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
+import com.yellowtrack.platform.core.data.event.IngestStatus
 import com.yellowtrack.platform.core.designsystem.component.YTBadge
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTCard
@@ -47,6 +48,8 @@ internal fun EventsScreen(
     onCreateEvent: (String) -> Unit,
     onOpenStation: (eventId: String, name: String, sourceKey: String) -> Unit,
     onCloseStation: (eventId: String, stationId: String) -> Unit,
+    onWatchFolder: (eventId: String, sourceKey: String) -> Unit,
+    onStopWatching: (sourceKey: String) -> Unit,
     onDismissProblem: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -89,9 +92,13 @@ internal fun EventsScreen(
                     OpenEventDetail(
                         event = open,
                         isBusy = uiState.isBusy,
+                        ingest = uiState.ingest,
+                        canWatchFolders = uiState.canWatchFolders,
                         onBack = onCloseEvent,
                         onOpenStation = onOpenStation,
                         onCloseStation = onCloseStation,
+                        onWatchFolder = onWatchFolder,
+                        onStopWatching = onStopWatching,
                     )
             }
         }
@@ -158,9 +165,13 @@ private fun EventList(
 private fun OpenEventDetail(
     event: OpenEvent,
     isBusy: Boolean,
+    ingest: Map<String, IngestStatus>,
+    canWatchFolders: Boolean,
     onBack: () -> Unit,
     onOpenStation: (eventId: String, name: String, sourceKey: String) -> Unit,
     onCloseStation: (eventId: String, stationId: String) -> Unit,
+    onWatchFolder: (eventId: String, sourceKey: String) -> Unit,
+    onStopWatching: (sourceKey: String) -> Unit,
 ) {
     var stationName by remember(event.id) { mutableStateOf("") }
     var sourceKey by remember(event.id) { mutableStateOf("") }
@@ -242,6 +253,77 @@ private fun OpenEventDetail(
                     YTBadge(text = "Closed")
                 }
             }
+
+            if (station.isOpen && canWatchFolders) {
+                Ingest(
+                    status = ingest[station.sourceKey],
+                    onWatch = { onWatchFolder(event.id, station.sourceKey) },
+                    onStop = { onStopWatching(station.sourceKey) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * What this station's folder is doing, or an offer to point it at one.
+ *
+ * The counts are worth the space because ingest is otherwise invisible: a watch that stopped
+ * looks exactly like one with nothing to send, and the difference is only discovered when
+ * somebody opens the gallery after the guests have gone.
+ */
+@Composable
+private fun Ingest(
+    status: IngestStatus?,
+    onWatch: () -> Unit,
+    onStop: () -> Unit,
+) {
+    if (status == null) {
+        YTTextButton(text = "Watch a folder…", onClick = onWatch)
+
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The folder name is usually the source key — a photographer names the folder
+            // after the camera and the source is taken from it — so naming it again under
+            // the station reads as a stutter. Shown only when they have drifted apart, which
+            // is exactly when somebody needs to know which folder this actually is.
+            val folder =
+                status.folderName
+                    .takeIf { it != status.sourceKey }
+                    ?.let { "$it — " }
+                    .orEmpty()
+
+            Text(
+                folder + "${status.sent} sent" +
+                    if (status.waiting > 0) ", ${status.waiting} waiting" else "",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+            YTTextButton(text = "Stop watching", onClick = onStop)
+        }
+
+        // Each of these is a photograph somebody will not receive, or a reason none will
+        // arrive at all. Said here rather than counted, because a number is something to
+        // scroll past.
+        status.lastSweepFailed?.let { Problem("That folder could not be read: $it") }
+
+        if (status.refused.isNotEmpty()) {
+            Problem(
+                "${status.refused.size} refused and will not be sent: ${status.refused.take(
+                    3,
+                ).joinToString { it.path }}",
+            )
+        }
+
+        if (status.stuck.isNotEmpty()) {
+            Problem("${status.stuck.size} stuck: ${status.stuck.take(3).joinToString()}")
         }
     }
 }
