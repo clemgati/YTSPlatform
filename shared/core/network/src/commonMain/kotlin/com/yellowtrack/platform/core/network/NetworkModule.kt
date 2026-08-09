@@ -3,6 +3,7 @@ package com.yellowtrack.platform.core.network
 import com.yellowtrack.platform.core.data.auth.AuthApi
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.document.DocumentSender
+import com.yellowtrack.platform.core.data.event.PhotographUploader
 import com.yellowtrack.platform.core.data.sync.SyncTransport
 import io.ktor.client.HttpClient
 import org.koin.dsl.module
@@ -26,6 +27,17 @@ fun networkModule(serverUrl: String) =
         single<SyncTransport> {
             val auth = get<AuthRepository>()
             HttpSyncTransport(
+                client = get<HttpClient>(),
+                baseUrl = get<String>(),
+                credentials = { auth.token() },
+            )
+        }
+
+        // Stateless: which event and which camera are a runtime choice, so the watcher is
+        // handed this rather than the module knowing about either.
+        single<PhotographUploader> {
+            val auth = get<AuthRepository>()
+            HttpPhotographUploader(
                 client = get<HttpClient>(),
                 baseUrl = get<String>(),
                 credentials = { auth.token() },
