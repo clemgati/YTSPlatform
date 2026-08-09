@@ -782,20 +782,58 @@ Shipped to the server rather than to clients, in the same period:
 - ✓ **The wasm browser tests run in their own Gradle invocation**, after a yarn race left
   three test bundles unable to resolve a package the lockfile pins
 
-## 1.12.0 — Collaboration
+## 1.12.0 — Event photo delivery
 
-Was 0.8.0, then 1.1.0, 1.2.0, 1.3.0, 1.4.0, then 1.5.0 — renumbered each time a release
-overtook it rather than because the work changed. The gallery is the largest thing this
-application does not do, and the one a studio replaces with another product today.
+Was 0.8.0, then 1.1.0, 1.2.0, 1.3.0, 1.4.0, 1.5.0, then *Collaboration* — renumbered six
+times as releases overtook it, and now renamed as well, because the entry described the
+wrong thing. See `docs/adr/0013-event-photo-delivery-as-a-separate-product.md`.
 
-- Client proofing, selections, and approvals — and the object storage they need, moved here
-  from 0.7.0 because the gallery is what decides its shape
-- Second shooters and editors, with roles
+What it said was proofing, selections, approvals and roles. What is wanted is a **separate
+product on its own domain**, `yellowtrackphotos.com`, and the first useful version of it is
+not the gallery at all: a studio photographs a corporate headshot day, attendees scan a QR
+code and give an email address, and their photographs reach them.
 
-## 1.13.0 — Hardening
+The hard parts are not the gallery either, which is why the old entry was misleading:
 
-Was 0.9.0, then 1.2.0, 1.3.0, 1.4.0, 1.5.0, then 1.6.0. Named for what it is rather than
-"release candidate", which it no longer is.
+- **Ingest.** This application has none by choice — 0.6.0 ruled it out as "a card-reader
+  job". Real-time delivery needs it. The first answer is the desktop application watching a
+  folder that tethered capture writes to, which is near what it already does when it opens a
+  drive and counts files for the 3-2-1 check
+- **Pairing a photograph to a person**, without biometrics. By slot: an attendee registers,
+  the photographer shoots them, the photographer advances. One deliberate act per subject,
+  and a mis-advance is a privacy incident rather than a glitch — so nothing is delivered
+  until a slot is closed and its contents have been seen
+- **Object storage**, deferred from 0.7.0 for exactly this reason. It arrives with a real
+  consumer, and the thirty-day account purge has to reach objects or the promise ADR 0009
+  made becomes quietly false
+
+Deliberately **not** in the first version, each because it brings a regime rather than more
+code: **face matching** (a vendor, a per-face cost, and BIPA-style consent law that opt-in
+makes defensible rather than free), and **SMS or WhatsApp** (a vendor, per-message cost,
+10DLC registration, an opt-out obligation). Email is built, proven, and since 8th August the
+one channel whose delivery can be observed rather than assumed.
+
+## 1.13.0 — Proofing for booked clients
+
+The other half of what *Collaboration* meant, separated from it because the audiences differ.
+An attendee photographed once at a conference should not be made to hold a credential; a
+client reviewing a wedding gallery over three weeks should have a real login.
+
+- Galleries, selections and approvals for a booked client, on the same domain as 1.12.0
+- Client accounts, which is a second user model beside ADR 0009's studio accounts
+
+## 1.14.0 — Second shooters and editors
+
+Lifted out of *Collaboration* on its own. `studio_member.role` has existed since the first
+migration and has never held anything but `Owner`, so the schema anticipates this — but
+roles change the tenancy model and every row level security policy, which is the part of
+this system whose bugs are least visible. It deserves its own decision rather than a line in
+a milestone about galleries.
+
+## 1.15.0 — Hardening
+
+Was 0.9.0, then 1.2.0, 1.3.0, 1.4.0, 1.5.0, 1.6.0, then 1.13.0. Named for what it is rather
+than "release candidate", which it no longer is.
 
 - Accessibility, performance, and migration validation
 - Localisation — `DateFormats` is English-only today
