@@ -1,6 +1,6 @@
 # ADR 0013: Event photo delivery, as a separate product on its own domain
 
-- Status: Proposed
+- Status: Accepted, not yet built
 - Date: 2026-08-08
 
 ## Context
