@@ -16,6 +16,7 @@ import com.yellowtrack.platform.feature.clients.ClientDetailsRoute
 import com.yellowtrack.platform.feature.clients.ClientsRoute
 import com.yellowtrack.platform.feature.clients.ProjectDetailsRoute
 import com.yellowtrack.platform.feature.dashboard.DashboardRoute
+import com.yellowtrack.platform.feature.events.EventsRoute
 import com.yellowtrack.platform.feature.ledger.LedgerRoute
 import com.yellowtrack.platform.feature.sessions.SessionDetailsRoute
 import com.yellowtrack.platform.feature.sessions.SessionsRoute
@@ -137,6 +138,8 @@ private fun CurrentRoute(
             )
 
         AppRoute.Ledger -> LedgerRoute(modifier = modifier)
+
+        AppRoute.Events -> EventsRoute(modifier = modifier)
 
         AppRoute.Studio -> StudioRoute(modifier = modifier)
 

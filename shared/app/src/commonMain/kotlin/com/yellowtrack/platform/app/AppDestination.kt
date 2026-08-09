@@ -34,6 +34,12 @@ enum class AppDestination(
         icon = YTIcons.Ledger,
     ),
 
+    Events(
+        route = "events",
+        label = "Events",
+        icon = YTIcons.Gallery,
+    ),
+
     Studio(
         route = "studio",
         label = "Studio",

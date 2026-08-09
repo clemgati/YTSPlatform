@@ -51,7 +51,7 @@ class HttpEventsApiTest {
                 assertFailsWith<EventActionFailed> {
                     api {
                         respond(
-                            """{"error":"a station is already open on Camera A. Close it before opening another."}""",
+                            """{"error":"A station is already open on Camera A. Close it before opening another."}""",
                             HttpStatusCode.Conflict,
                             headersOf("Content-Type", ContentType.Application.Json.toString()),
                         )
