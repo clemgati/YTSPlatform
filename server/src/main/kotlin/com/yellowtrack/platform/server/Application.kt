@@ -10,6 +10,8 @@ import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
 import com.yellowtrack.platform.server.document.DocumentMail
 import com.yellowtrack.platform.server.document.documentRoutes
+import com.yellowtrack.platform.server.event.Events
+import com.yellowtrack.platform.server.event.eventRoutes
 import com.yellowtrack.platform.server.mail.MailConfig
 import com.yellowtrack.platform.server.mail.MailHealth
 import com.yellowtrack.platform.server.mail.MailNotifications
@@ -19,6 +21,7 @@ import com.yellowtrack.platform.server.mail.sesNotificationRoutes
 import com.yellowtrack.platform.server.storage.ObjectStore
 import com.yellowtrack.platform.server.storage.S3ObjectStore
 import com.yellowtrack.platform.server.storage.StorageConfig
+import com.yellowtrack.platform.server.storage.StoredObjects
 import com.yellowtrack.platform.server.sync.Reconciler
 import com.yellowtrack.platform.server.sync.syncRoutes
 import io.ktor.http.HttpHeaders
@@ -138,6 +141,10 @@ fun Application.module(
 
     val deletion = AccountDeletion(database, AccountDeletion.retentionFromEnvironment(), objects = objects)
 
+    // Events, and the register that lets the purge reach what they store.
+    val events = Events(database)
+    val storedObjects = StoredObjects(database, objects)
+
     // Deletion is a promise with a date on it, and a promise nothing ever runs is a way of
     // keeping data somebody asked to be rid of. In the server rather than a systemd timer
     // because the purge needs the entity registry to know which tables a studio owns and in
@@ -255,6 +262,7 @@ fun Application.module(
         // Unauthenticated by necessity — Amazon posts here with no token of ours. The
         // signature and the topic check are the authentication; see the route.
         sesNotificationRoutes(mailNotifications, sesTopicArn)
+        eventRoutes(events, storedObjects)
         syncRoutes(Reconciler(database))
     }
 }
