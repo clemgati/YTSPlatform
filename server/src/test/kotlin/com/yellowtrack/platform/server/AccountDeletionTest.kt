@@ -2,6 +2,8 @@ package com.yellowtrack.platform.server
 
 import com.yellowtrack.platform.server.account.AccountDeletion
 import com.yellowtrack.platform.server.auth.Accounts
+import com.yellowtrack.platform.server.event.Events
+import com.yellowtrack.platform.server.storage.ObjectStore
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -121,6 +123,94 @@ class AccountDeletionTest {
         assertTrue(deletion.purge().isEmpty, "the second run has nothing left to do")
     }
 
+    /**
+     * A studio that ran an event must still be deletable.
+     *
+     * The five event tables all reference `studio`, and the purge is driven by the synced
+     * entity graph — which events are not part of, being online-first. So nothing deleted
+     * them, and `DELETE FROM studio` met a foreign key that still pointed at it. A studio
+     * that had ever created an event could not be erased, and the promise made when somebody
+     * asks to be deleted is not one to keep partially.
+     */
+    @Test
+    fun `a studio that ran an event can still be purged`() {
+        val studio = studioWithClient()
+        val events = Events(TestDatabase.database)
+        val eventId = events.createEvent(studio.studioId, "Harbour Awards 2026")
+        val registration = events.register(studio.studioId, eventId, "guest@example.test")
+        val station = events.openStation(studio.studioId, eventId, "Bay 1", "Camera A")
+        events.advanceSlot(studio.studioId, station, registration)
+        events.recordPhotograph(
+            studioId = studio.studioId,
+            eventId = eventId,
+            sourceKey = "Camera A",
+            storedObjectId = storedObject(studio.studioId),
+            capturedAt = System.currentTimeMillis(),
+        )
+
+        val deletion = AccountDeletion(TestDatabase.database, retention = 1.milliseconds)
+        deletion.request(studio.accountId, studio.studioId, password)
+        Thread.sleep(5)
+        deletion.purge()
+
+        assertNull(studioRow(studio.studioId), "the studio row survived, so something still references it")
+        assertEquals(0, eventCount(studio.studioId), "the event rows are still there")
+    }
+
+    /**
+     * One studio that cannot be purged must not stop the others.
+     *
+     * The loop said in a comment that each studio was independent, and only half meant it:
+     * the transactions were separate, but one exception ended the whole run. Every studio
+     * queued behind a broken one was silently never purged — and each of those is somebody
+     * who asked to be deleted and was told it had happened.
+     */
+    @Test
+    fun `a studio that cannot be purged does not stop the rest`() {
+        val broken = studioWithClient()
+        val fine = studioWithClient()
+        storedObject(broken.studioId)
+        storedObject(fine.studioId)
+
+        val deletion =
+            AccountDeletion(
+                TestDatabase.database,
+                retention = 1.milliseconds,
+                objects = RefusingStore(forStudio = broken.studioId),
+            )
+
+        deletion.request(broken.accountId, broken.studioId, password)
+        deletion.request(fine.accountId, fine.studioId, password)
+        Thread.sleep(5)
+        val report = deletion.purge()
+
+        assertEquals(listOf(broken.studioId), report.failed, "the failure should be named, not swallowed")
+        assertNull(studioRow(fine.studioId), "a studio behind the broken one was never purged")
+        assertNotNull(studioRow(broken.studioId), "the broken studio should still be there for the next run")
+    }
+
+    /** Refuses one studio's keys and takes everybody else's. */
+    private class RefusingStore(
+        private val forStudio: String,
+    ) : ObjectStore {
+        override fun put(
+            key: String,
+            contentType: String,
+            bytes: ByteArray,
+        ) = Unit
+
+        override fun temporaryUrl(
+            key: String,
+            validFor: kotlin.time.Duration,
+        ): String = ""
+
+        override fun delete(keys: List<String>): Set<String> {
+            if (keys.any { it.startsWith("$forStudio/") }) throw IllegalStateException("the bucket is unreachable")
+
+            return keys.toSet()
+        }
+    }
+
     // -- Reading the database directly ---------------------------------------------------------
 
     private data class Studio(
@@ -161,6 +251,39 @@ class AccountDeletionTest {
     private fun clientCount(studioId: String): Int =
         TestDatabase.database.inStudio(studioId) { connection ->
             connection.prepareStatement("SELECT count(*) FROM client WHERE studio_id = ?").use { statement ->
+                statement.setString(1, studioId)
+                statement.executeQuery().use { rows ->
+                    rows.next()
+                    rows.getInt(1)
+                }
+            }
+        }
+
+    /** A photograph needs something in the bucket to point at. */
+    private fun storedObject(studioId: String): String {
+        val id = UUID.randomUUID().toString()
+
+        TestDatabase.database.inStudio(studioId) { connection ->
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO stored_object(id, studio_id, object_key, content_type, size_bytes, created_at)
+                    VALUES (?, ?, ?, 'image/jpeg', 1, 0)
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, id)
+                    statement.setString(2, studioId)
+                    statement.setString(3, "$studioId/$id")
+                    statement.executeUpdate()
+                }
+        }
+
+        return id
+    }
+
+    private fun eventCount(studioId: String): Int =
+        TestDatabase.database.unscoped { connection ->
+            connection.prepareStatement("SELECT count(*) FROM event WHERE studio_id = ?").use { statement ->
                 statement.setString(1, studioId)
                 statement.executeQuery().use { rows ->
                     rows.next()
