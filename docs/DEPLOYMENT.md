@@ -184,9 +184,14 @@ Do not choose "proceed without a key pair" even if you intend to use SSM Session
 which is better and lets port 22 stay shut: the key is what gets you in when the SSM agent
 is not running, and that is precisely when you need a way in.
 
-**IAM instance profile:** attach a role with `AmazonSSMManagedInstanceCore` and write access
-to the backup bucket. It can be changed on a running instance, so this is tidiness rather
-than a one-shot decision.
+**IAM instance profile:** attach a role with `AmazonSSMManagedInstanceCore`. Call it
+something you will recognise later — this deployment's is `yts-ec2`, and the sections below
+add one policy each to it. It can be changed on a running instance, so this is tidiness
+rather than a one-shot decision.
+
+Policies are added to that role afterwards, from an identity that is **not** the instance:
+`yts-ec2` cannot modify its own permissions, and the failure reads as
+`is not authorized to perform: iam:PutRolePolicy` rather than as anything about the role.
 
 ---
 
@@ -584,16 +589,36 @@ old email, including after a studio deleted itself.
 
 ### What the instance may do with it
 
-The instance profile from *Choosing the instance* needs three actions on this bucket's
-contents and nothing else:
+The instance role — `yts-ec2`, from *Choosing the instance* — needs three actions on this
+bucket's contents and nothing else. Run this from an admin identity, not on the instance:
 
-```json
-{
-  "Effect": "Allow",
-  "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-  "Resource": "arn:aws:s3:::yellowtrack-photos/*"
-}
+```sh
+aws iam put-role-policy \
+  --role-name yts-ec2 \
+  --policy-name yellowtrack-photos \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::yellowtrack-photos/*"
+    }]
+  }'
 ```
+
+Check it **on the instance**, where it matters, and check the refusal as well as the
+permission:
+
+```sh
+aws sts get-caller-identity --query Arn --output text   # expect assumed-role/yts-ec2/...
+echo probe > /tmp/probe.txt
+aws s3 cp /tmp/probe.txt s3://yellowtrack-photos/probe.txt --region us-west-1
+aws s3 rm s3://yellowtrack-photos/probe.txt --region us-west-1
+aws s3 ls s3://yellowtrack-photos --region us-west-1      # expect AccessDenied
+```
+
+That last one failing is the policy working. Run from your own admin identity it will
+succeed and prove nothing, which is an easy half-hour to lose.
 
 `GetObject` is needed even though nothing downloads through the server: presigning signs the
 caller's own permission, so a role that cannot read cannot mint a link that can.
@@ -643,10 +668,23 @@ aws s3api put-public-access-block --bucket yellowtrack-backups \
   --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 ```
 
-The instance profile from *Choosing the instance* needs `s3:PutObject` on
-`arn:aws:s3:::yellowtrack-backups/*` and nothing else. Not `s3:*`, and not `GetObject`: an
-instance that can only write cannot be made to hand back every studio's history by anyone
-who reaches it.
+The instance role `yts-ec2` needs `s3:PutObject` on `arn:aws:s3:::yellowtrack-backups/*`
+and nothing else. Not `s3:*`, and not `GetObject`: an instance that can only write cannot be
+made to hand back every studio's history by anyone who reaches it.
+
+```sh
+aws iam put-role-policy \
+  --role-name yts-ec2 \
+  --policy-name yellowtrack-backups \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Action": ["s3:PutObject"],
+      "Resource": "arn:aws:s3:::yellowtrack-backups/*"
+    }]
+  }'
+```
 
 Add a lifecycle rule expiring objects after 90 days, or the bucket grows forever.
 
