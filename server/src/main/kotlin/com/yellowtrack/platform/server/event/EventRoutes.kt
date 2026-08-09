@@ -97,7 +97,7 @@ fun Route.eventRoutes(
                         call.respond(
                             HttpStatusCode.Conflict,
                             ErrorResponse(
-                                "a station is already open on ${clash.sourceKey}. Close it before opening another.",
+                                "A station is already open on ${clash.sourceKey}. Close it before opening another.",
                             ),
                         )
                         return@post

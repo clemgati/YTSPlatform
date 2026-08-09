@@ -145,6 +145,7 @@ kotlin {
             implementation(project(":shared:feature:ledger"))
             implementation(project(":shared:feature:sessions"))
             implementation(project(":shared:feature:studio"))
+            implementation(project(":shared:feature:events"))
             implementation(project(":shared:feature:settings"))
 
             implementation(libs.compose.materialIconsExtended)

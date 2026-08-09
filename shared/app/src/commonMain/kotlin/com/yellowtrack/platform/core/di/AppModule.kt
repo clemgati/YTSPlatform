@@ -6,6 +6,7 @@ import com.yellowtrack.platform.core.network.networkModule
 import com.yellowtrack.platform.feature.auth.authFeatureModule
 import com.yellowtrack.platform.feature.clients.clientsModule
 import com.yellowtrack.platform.feature.dashboard.dashboardModule
+import com.yellowtrack.platform.feature.events.eventsModule
 import com.yellowtrack.platform.feature.ledger.ledgerModule
 import com.yellowtrack.platform.feature.sessions.sessionsModule
 import com.yellowtrack.platform.feature.settings.settingsModule
@@ -29,5 +30,6 @@ val appModule =
             sessionsModule,
             settingsModule,
             studioModule,
+            eventsModule,
         )
     }

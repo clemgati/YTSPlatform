@@ -49,6 +49,10 @@ sealed interface AppRoute {
         override val destination = AppDestination.Ledger
     }
 
+    data object Events : AppRoute {
+        override val destination = AppDestination.Events
+    }
+
     data object Studio : AppRoute {
         override val destination = AppDestination.Studio
     }
@@ -66,6 +70,7 @@ internal val AppDestination.rootRoute: AppRoute
             AppDestination.Clients -> AppRoute.Clients
             AppDestination.Sessions -> AppRoute.Sessions
             AppDestination.Ledger -> AppRoute.Ledger
+            AppDestination.Events -> AppRoute.Events
             AppDestination.Studio -> AppRoute.Studio
             AppDestination.Settings -> AppRoute.Settings
         }

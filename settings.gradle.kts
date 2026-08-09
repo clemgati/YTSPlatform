@@ -55,6 +55,7 @@ include(":shared:feature:settings")
 include(":shared:feature:ledger")
 include(":shared:feature:sessions")
 include(":shared:feature:studio")
+include(":shared:feature:events")
 
 include(":server")
 
