@@ -14,9 +14,10 @@ before anything is built. What is wanted is **two things**:
 
 1. A **client-facing delivery site**, on its own domain, where a studio's booked clients log
    in to review, proof and approve.
-2. **Events** — a studio photographs a corporate headshot day or a public event, and
-   attendees receive their photographs on their phones, close to as they are taken. The
-   reference product is `SpotMyPhotos.com`.
+2. **Events** — a studio photographs an event and attendees receive their photographs on
+   their phones, close to as they are taken. Not one kind of event: corporate headshot days,
+   conferences, weddings, parties, public festivals. The reference product is
+   `SpotMyPhotos.com`.
 
 Yellow Track today is a studio's private tool. Every screen is behind a studio sign-in, the
 only outward act is emailing a document to a client (ADR 0011), and 0.6.0 explicitly ruled
@@ -79,29 +80,57 @@ Each of the things left out brings a whole regime rather than merely more code:
 - **Face matching** brings a vendor, a per-face cost, and biometric consent law. Illinois
   BIPA carries statutory damages per violation and has produced nine-figure settlements;
   Texas and Washington have their own. A corporate headshot day in Chicago is precisely the
-  scenario those statutes were written about. Opt-in makes it defensible — it does not make
-  it free, and it requires a written retention and destruction policy that would have to
-  survive the thirty-day account purge.
+  scenario those statutes were written about, and a public festival is the one where nobody
+  in the frame agreed to anything. Opt-in makes it defensible — it does not make it free,
+  and it requires a written retention and destruction policy that would have to survive the
+  thirty-day account purge.
 - **SMS** brings a vendor, per-message cost, 10DLC registration in the United States, and an
   opt-out regime that must be honoured.
 
 Email is already built, already proven, and — since the SNS work of 8th August — is the one
 delivery channel whose success can actually be *observed* rather than assumed.
 
-### 4. Photographs are paired to a person by session, not by face
+### 4. An event is one of two shapes, and they pair photographs differently
 
-An attendee registers and is given a **slot**. The photographer shoots that person, then
-advances to the next slot. Frames captured while a slot is open belong to that slot.
+"Event" is not one thing. A corporate headshot day, a conference floor, a wedding reception
+and a public festival are the same product to a studio and completely different problems
+here, because the question *"which of these photographs are mine?"* has a cheap answer in
+one shape and no cheap answer at all in the other.
 
-This is how a photo booth already works, and it is the only mechanism that needs neither
-biometrics nor a QR card held in frame. Its cost is honest and should be stated: it requires
-one deliberate act from the photographer between subjects, and a mis-advanced slot sends one
-person's headshot to another person. That is a **privacy incident, not a glitch**, so:
+Without biometrics, there are exactly two honest answers, so the product has two modes and
+the studio chooses when it creates the event.
+
+**Station events — a photographer at a fixed point, one subject at a time.** Headshot days,
+photo booths, branded step-and-repeats. An attendee registers and is given a **slot**; the
+photographer shoots them and then advances. Frames captured while a slot is open belong to
+that slot, and each attendee receives **only their own photographs**.
+
+This is how a photo booth already works and needs neither biometrics nor a QR card held in
+frame. Its cost is honest: one deliberate act from the photographer between subjects, and a
+mis-advanced slot sends one person's headshot to another. That is a **privacy incident, not
+a glitch**, so:
 
 - Advancing the slot is an explicit action, never inferred from a timer.
 - Photographs are held against a slot and are **not delivered until the slot is closed**,
-  which gives a moment in which a mistake is recoverable.
+  which leaves a moment in which a mistake is recoverable.
 - A slot's contents are visible to the photographer before they are sent.
+
+**Roaming events — a photographer moving through a crowd.** Receptions, conferences,
+parties, festivals. There is no slot to advance and no moment at which a photographer could
+say whose photograph this is, because a candid of three people at a bar belongs to three
+people who never registered together.
+
+Registered attendees receive the **event's gallery**, not a personal one. Everyone who signs
+up gets access to what the studio publishes.
+
+This is a real reduction against the reference product and is stated rather than hidden:
+giving each person only their own photographs at a roaming event **is** what selfie matching
+exists to do, and there is no cheap substitute for it. A shared gallery is the honest thing
+to offer until that decision is taken, and it is genuinely what many public events want
+anyway — a festival does not need to partition its photographs by face.
+
+The studio controls what reaches the gallery, so a roaming event is not an unreviewed feed:
+nothing is published until the studio publishes it.
 
 This decision is the one most likely to be revisited, and decision 8 says on what signal.
 
@@ -164,7 +193,10 @@ Written now, while it is cheap to admit:
 - A second front end to build, style and deploy.
 - Delivery is not instant. Holding photographs until a slot closes deliberately trades the
   incumbent's 2.5 seconds for a window in which a misdirected headshot can be caught.
-- No parity with SpotMyPhotos, and this should not be described as though there were.
+- No parity with SpotMyPhotos, and this should not be described as though there were. The
+  gap is specific: at a **roaming** event the incumbent gives each attendee their own
+  photographs and this gives them the event's gallery, because the difference between those
+  two is exactly the selfie matching left out of decision 3.
 
 ### Neutral
 
@@ -185,14 +217,20 @@ they are before anything can be sent to them.
 only, on regulatory exposure rather than difficulty. Decision 8 names the signal that would
 change it.
 
-**Everyone gets every photograph in a shared gallery.** Right for a public event, wrong for
-corporate headshots, which is the case being built for first.
+**One pairing mechanism for every event.** Rejected once it was clear that "event" covers
+both a photographer at a fixed station and a photographer moving through a crowd. Slot
+pairing is right for the first and impossible for the second; a shared gallery is right for
+the second and insulting for the first, where the whole point is that a person receives
+their own headshot. Two modes is the smaller lie.
 
 ## Migration signals
 
 Revisit when any of the following is true:
 
 - Slot mis-pairing produces a real misdirected delivery.
+- A studio wants attendees at a **roaming** event to receive only their own photographs.
+  That is selfie matching, and there is no cheaper answer — this is the signal that buys the
+  regime in decision 3 rather than an argument for more pairing cleverness.
 - Fewer than half of attendees complete sign-up at an event.
 - A studio asks for delivery to a phone number rather than an inbox, more than once.
 - Ingest fails at a venue for a reason folder-watching cannot fix.

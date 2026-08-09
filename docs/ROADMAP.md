@@ -790,8 +790,9 @@ wrong thing. See `docs/adr/0013-event-photo-delivery-as-a-separate-product.md`.
 
 What it said was proofing, selections, approvals and roles. What is wanted is a **separate
 product on its own domain**, `yellowtrackphotos.com`, and the first useful version of it is
-not the gallery at all: a studio photographs a corporate headshot day, attendees scan a QR
-code and give an email address, and their photographs reach them.
+not the gallery at all: a studio photographs an **event** — a headshot day, a conference, a
+wedding, a party, a festival — attendees scan a QR code and give an email address, and their
+photographs reach them.
 
 The hard parts are not the gallery either, which is why the old entry was misleading:
 
@@ -799,10 +800,14 @@ The hard parts are not the gallery either, which is why the old entry was mislea
   job". Real-time delivery needs it. The first answer is the desktop application watching a
   folder that tethered capture writes to, which is near what it already does when it opens a
   drive and counts files for the 3-2-1 check
-- **Pairing a photograph to a person**, without biometrics. By slot: an attendee registers,
-  the photographer shoots them, the photographer advances. One deliberate act per subject,
-  and a mis-advance is a privacy incident rather than a glitch — so nothing is delivered
-  until a slot is closed and its contents have been seen
+- **Pairing a photograph to a person**, without biometrics — and "event" turns out to be two
+  problems, not one. At a **station** (headshots, a booth) an attendee takes a slot, the
+  photographer shoots and advances, and each person gets only their own; a mis-advance is a
+  privacy incident rather than a glitch, so nothing is delivered until a slot is closed and
+  seen. At a **roaming** event there is no slot to advance — a candid of three people at a
+  bar belongs to three people who never registered together — so registered attendees get
+  the event's gallery. Giving each person only their own at a roaming event *is* what selfie
+  matching exists to do, and there is no cheap substitute
 - **Object storage**, deferred from 0.7.0 for exactly this reason. It arrives with a real
   consumer, and the thirty-day account purge has to reach objects or the promise ADR 0009
   made becomes quietly false
