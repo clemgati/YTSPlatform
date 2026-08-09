@@ -10,6 +10,10 @@ import platform.Foundation.NSUserDomainMask
 import platform.Foundation.writeToURL
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
+import platform.UIKit.UISceneActivationStateForegroundActive
+import platform.UIKit.UIWindow
+import platform.UIKit.UIWindowScene
+import platform.UIKit.popoverPresentationController
 
 /**
  * Writes documents to the app's Documents directory.
@@ -46,8 +50,8 @@ class IosDocumentSink : DocumentSink {
      *
      * The window hierarchy is reached rather than injected, so nothing has to be threaded
      * from the Swift side into dependency injection. Everything after the write is wrapped:
-     * a key window that has gone away, or a controller already presenting something, must
-     * not cost the studio the document it asked for.
+     * a window that has gone away, or a controller already presenting something, must not
+     * cost the studio the document it asked for.
      */
     @OptIn(ExperimentalForeignApi::class)
     override suspend fun share(document: Document): SavedDocument {
@@ -61,20 +65,54 @@ class IosDocumentSink : DocumentSink {
                     applicationActivities = null,
                 )
 
-            val root =
-                UIApplication.sharedApplication.keyWindow
-                    ?.rootViewController
-
             // Presenting from the topmost controller rather than the root: presenting on a
             // controller that is itself presenting something is silently ignored.
-            var presenter = root
+            var presenter = presentingWindow()?.rootViewController
             while (presenter?.presentedViewController != null) {
                 presenter = presenter.presentedViewController
+            }
+
+            // Required on iPad, and a crash rather than a refusal without it: UIKit raises
+            // NSInvalidArgumentException when a UIActivityViewController is presented with
+            // no popover source. That is an Objective-C exception, so the `runCatching`
+            // around this would not catch it — the application would go away. On iPhone the
+            // sheet ignores this entirely.
+            presenter?.view?.let { anchor ->
+                sheet.popoverPresentationController?.sourceView = anchor
             }
 
             presenter?.presentViewController(sheet, animated = true, completion = null)
         }
 
         return saved
+    }
+
+    /**
+     * The window to present from, found through the scene rather than the application.
+     *
+     * `UIApplication.keyWindow` has been deprecated since iOS 13 and is documented as
+     * unreliable once an application adopts scenes — which this one does: `iOSApp.swift` is
+     * a SwiftUI `App` with a `WindowGroup`. When it returns nil the share sheet is not
+     * presented and **nothing is reported**, because there is no error to catch: the code
+     * simply finds no presenter and returns the saved file. That is the quietest possible
+     * failure and the reason this walks the scenes instead.
+     *
+     * Falls back to the deprecated property rather than giving up, so a state this does not
+     * anticipate is no worse than it was before.
+     */
+    @Suppress("DEPRECATION")
+    private fun presentingWindow(): UIWindow? {
+        val scenes = UIApplication.sharedApplication.connectedScenes
+        val active =
+            scenes
+                .filterIsInstance<UIWindowScene>()
+                .firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
+                ?: scenes.filterIsInstance<UIWindowScene>().firstOrNull()
+
+        val windows = active?.windows.orEmpty().filterIsInstance<UIWindow>()
+
+        return windows.firstOrNull { it.isKeyWindow() }
+            ?: windows.firstOrNull()
+            ?: UIApplication.sharedApplication.keyWindow
     }
 }
