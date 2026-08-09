@@ -90,47 +90,55 @@ Each of the things left out brings a whole regime rather than merely more code:
 Email is already built, already proven, and — since the SNS work of 8th August — is the one
 delivery channel whose success can actually be *observed* rather than assumed.
 
-### 4. An event is one of two shapes, and they pair photographs differently
+### 4. An event has a gallery, and stations are opened inside it
 
 "Event" is not one thing. A corporate headshot day, a conference floor, a wedding reception
-and a public festival are the same product to a studio and completely different problems
-here, because the question *"which of these photographs are mine?"* has a cheap answer in
-one shape and no cheap answer at all in the other.
+and a public festival are the same product to a studio and different problems here, because
+*"which of these photographs are mine?"* has a cheap answer at a fixed station and no cheap
+answer at all in a crowd.
 
-Without biometrics, there are exactly two honest answers, so the product has two modes and
-the studio chooses when it creates the event.
+The first draft of this decision made those two exclusive shapes and a studio chose one when
+it created an event. That was wrong, and a wedding shows why: it is roaming all evening with
+formal groups shot in a corner for twenty minutes. Forcing it to be one or the other means
+either losing personal delivery for the family groups or pretending the dance floor is a
+booth.
 
-**Station events — a photographer at a fixed point, one subject at a time.** Headshot days,
-photo booths, branded step-and-repeats. An attendee registers and is given a **slot**; the
-photographer shoots them and then advances. Frames captured while a slot is open belong to
-that slot, and each attendee receives **only their own photographs**.
+So an event is not a mode. **Every event has a gallery, and a station is something a
+photographer opens inside it and closes again.**
 
-This is how a photo booth already works and needs neither biometrics nor a QR card held in
-frame. Its cost is honest: one deliberate act from the photographer between subjects, and a
-mis-advanced slot sends one person's headshot to another. That is a **privacy incident, not
-a glitch**, so:
+**The gallery** is the default destination. Registered attendees receive what the studio
+publishes to it. This is what a roaming photographer produces, and it is the whole of a
+festival or a conference floor.
+
+**A station** is a period, not an event type. While it is open, an attendee holds a **slot**;
+the photographer shoots and advances; frames captured during that slot belong to that slot
+and reach **only that person**. Closing the station returns everything to the gallery.
+
+A photograph is therefore routed by asking one question: *was a slot open on the source this
+arrived from?* If yes it is personal, if no it belongs to the event.
+
+That question needs a **source** to be identifiable, which is a real requirement rather than
+a detail: a station is bound to an ingest source — a watched folder, and through it one
+photographer's camera — so a second photographer roaming the same wedding does not have
+their candids swallowed by the first photographer's open slot. An event with two
+photographers and one station is the case that breaks a naive implementation.
+
+Slot pairing is how a photo booth already works and needs neither biometrics nor a QR card
+held in frame. Its cost is honest: one deliberate act from the photographer between
+subjects, and a mis-advanced slot sends one person's headshot to another. That is a
+**privacy incident, not a glitch**, so:
 
 - Advancing the slot is an explicit action, never inferred from a timer.
 - Photographs are held against a slot and are **not delivered until the slot is closed**,
   which leaves a moment in which a mistake is recoverable.
 - A slot's contents are visible to the photographer before they are sent.
+- Nothing reaches the gallery either until the studio publishes it. An event is not an
+  unreviewed feed of whatever came off a camera.
 
-**Roaming events — a photographer moving through a crowd.** Receptions, conferences,
-parties, festivals. There is no slot to advance and no moment at which a photographer could
-say whose photograph this is, because a candid of three people at a bar belongs to three
-people who never registered together.
-
-Registered attendees receive the **event's gallery**, not a personal one. Everyone who signs
-up gets access to what the studio publishes.
-
-This is a real reduction against the reference product and is stated rather than hidden:
-giving each person only their own photographs at a roaming event **is** what selfie matching
-exists to do, and there is no cheap substitute for it. A shared gallery is the honest thing
-to offer until that decision is taken, and it is genuinely what many public events want
-anyway — a festival does not need to partition its photographs by face.
-
-The studio controls what reaches the gallery, so a roaming event is not an unreviewed feed:
-nothing is published until the studio publishes it.
+What this still does not do is give each attendee **their own** photographs from the roaming
+half. That is stated rather than hidden: it is exactly what selfie matching exists to do, and
+there is no cheap substitute for it. A shared gallery is the honest offer until that decision
+is taken, and it is what a festival wants anyway.
 
 This decision is the one most likely to be revisited, and decision 8 says on what signal.
 
@@ -221,7 +229,13 @@ change it.
 both a photographer at a fixed station and a photographer moving through a crowd. Slot
 pairing is right for the first and impossible for the second; a shared gallery is right for
 the second and insulting for the first, where the whole point is that a person receives
-their own headshot. Two modes is the smaller lie.
+their own headshot.
+
+**Two exclusive event modes, chosen at creation.** This was the first draft of decision 4 and
+survived about an hour. A wedding is roaming all evening with formal groups shot in a corner,
+so choosing once means either losing personal delivery for the family groups or pretending
+the dance floor is a booth. A station opened *inside* an event costs nothing extra and covers
+both.
 
 ## Migration signals
 
