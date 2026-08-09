@@ -354,6 +354,8 @@ here — every one of them is a laptop default.
 | `DELETION_RETENTION_DAYS` | `30` | How long a deleted studio can still be put back. Defaults to 30 |
 | `DOCUMENT_FROM` | `clement@yourdomain` | Sends a studio's documents to its clients. Must be on the verified domain — see `ADR 0011` |
 | `SES_TOPIC_ARN` | `arn:aws:sns:eu-west-1:123456789012:yellowtrack-ses` | The SNS topic SES publishes bounces to. **Unset means `/ses/notifications` refuses everything** |
+| `STORAGE_BUCKET` | `yellowtrack-photos` | Where photographs go — ADR 0013. Unset means this deployment cannot store any |
+| `STORAGE_REGION` | `us-west-1` | Defaults to the instance's region. A bucket elsewhere works and costs more in transfer |
 | `PORT` | `8080` | Bound to loopback; Apache is the only thing that reaches it |
 
 `MAIL_USERNAME` catches people out: SES SMTP credentials are generated separately in the
@@ -561,6 +563,62 @@ Delivery means it reached the receiving server, not that anybody read it. That g
 closable from here, and no field pretends otherwise.
 
 ---
+
+## Object storage
+
+Photographs do not go in Postgres. `ADR 0013` puts them in S3, which means a studio's records
+live in two places and the thirty-day deletion promise has to reach both.
+
+### The bucket
+
+```sh
+aws s3 mb s3://yellowtrack-photos --region us-west-1
+aws s3api put-public-access-block --bucket yellowtrack-photos \
+  --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+```
+
+**Public access stays blocked.** Attendees never receive a bucket URL — the server signs a
+link that expires, so a photograph is readable only by somebody holding a live one. A bucket
+readable without a signature would make every photograph readable by anyone ever forwarded an
+old email, including after a studio deleted itself.
+
+### What the instance may do with it
+
+The instance profile from *Choosing the instance* needs three actions on this bucket's
+contents and nothing else:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+  "Resource": "arn:aws:s3:::yellowtrack-photos/*"
+}
+```
+
+`GetObject` is needed even though nothing downloads through the server: presigning signs the
+caller's own permission, so a role that cannot read cannot mint a link that can.
+
+Not `s3:*`, and no `ListBucket`. An instance that cannot enumerate the bucket cannot be made
+to hand back every studio's photographs by whoever reaches it — the same reasoning that keeps
+the backups bucket write-only.
+
+### Deletion is the part that fails quietly
+
+The purge deletes objects **before** the rows that name them, and stops on a studio whose
+objects did not all go. `stored_object` is the only record of which keys belong to whom, so
+deleting the rows first would leave photographs in the bucket with nothing left that knows
+they are there — no error, no orphan anybody can find, and a promise broken in silence.
+
+A studio that fails this way stays marked deleted and is found again by the next run.
+`StoredObjectPurgeTest` holds both halves, and was written before anything uploads so the
+purge was not being changed underneath a feature.
+
+### What is not decided
+
+**There is no storage limit.** Nothing caps what one studio can upload, so nothing caps the
+bill. `stored_object.size_bytes` exists so the question can be answered without asking S3,
+which charges for listing — but no policy reads it yet. Worth a lifecycle rule and a budget
+alarm before the first real event rather than after it.
 
 ## Backups
 

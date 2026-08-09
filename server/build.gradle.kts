@@ -32,6 +32,12 @@ dependencies {
     implementation(libs.hikari)
     implementation(libs.bouncycastle)
     implementation(libs.angus.mail)
+
+    // Photographs go to S3 (ADR 0013). The url-connection client rather than the
+    // default Netty one: this makes a handful of calls per event and has no use for an
+    // async engine, and the lighter client keeps the deployed distribution smaller.
+    implementation(libs.awssdk.s3)
+    implementation(libs.awssdk.urlConnectionClient)
     runtimeOnly(libs.logback.classic)
 
     implementation(libs.flyway.core)

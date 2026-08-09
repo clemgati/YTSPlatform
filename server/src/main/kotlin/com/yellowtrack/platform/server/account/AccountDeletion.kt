@@ -2,6 +2,7 @@ package com.yellowtrack.platform.server.account
 
 import com.yellowtrack.platform.server.Database
 import com.yellowtrack.platform.server.auth.Passwords
+import com.yellowtrack.platform.server.storage.ObjectStore
 import com.yellowtrack.platform.server.sync.SyncedEntity
 import java.sql.Connection
 import kotlin.time.Duration
@@ -43,6 +44,13 @@ class AccountDeletion(
     private val database: Database,
     private val retention: Duration = DEFAULT_RETENTION,
     private val now: () -> Long = System::currentTimeMillis,
+    /**
+     * Where the studio's photographs are, if anywhere.
+     *
+     * Unconfigured by default, which answers "deleted" for every key — a deployment with no
+     * bucket has no objects, and the purge must not fail because of that.
+     */
+    private val objects: ObjectStore = ObjectStore.Unconfigured,
 ) {
     /**
      * Signs every device out and marks the studio deleted.
@@ -157,6 +165,29 @@ class AccountDeletion(
     ): Int {
         var removed = 0
 
+        // Objects before rows, and this order is the whole point rather than a preference.
+        //
+        // `stored_object` is the only record of which keys belong to this studio. Deleting
+        // the rows first would leave every photograph in the bucket with nothing left that
+        // knows they are there — unreachable, unbilled to anybody's attention, and directly
+        // contrary to what the studio was told when it pressed delete.
+        //
+        // A key that fails to delete keeps its row. The next run finds it again, because the
+        // studio stays marked deleted until its last row is gone. That is slower than
+        // reporting success and quieter than failing, and it is the only version where the
+        // promise stays true.
+        val objects = purgeObjects(connection, studioId)
+        removed += objects.rowsRemoved
+
+        // Stop here if anything is still in the bucket.
+        //
+        // `stored_object` references `studio`, so a surviving row makes the studio row
+        // undeletable and the purge would fail on a foreign key rather than move on. Leaving
+        // the studio marked deleted is the right outcome anyway: the promise is not kept
+        // until the photographs are gone, so the studio should still be found by the next
+        // run rather than reported as purged.
+        if (objects.remaining > 0) return removed
+
         // Children first, or a foreign key refuses. The order comes from the `parents` each
         // entity already declares for sync paging rather than from a second list written out
         // by hand here — a hand-written one would be correct until somebody adds an entity
@@ -197,6 +228,50 @@ class AccountDeletion(
         }
 
         return removed
+    }
+
+    /** How much went, and how much is still in the bucket. */
+    private data class ObjectPurge(
+        val rowsRemoved: Int,
+        val remaining: Int,
+    )
+
+    /**
+     * Removes this studio's objects, then the rows that named them.
+     *
+     * Returns how many rows went, so the purge's own count stays honest: a studio whose
+     * objects could not be deleted reports fewer rows removed, which is what somebody
+     * reading the log needs to see.
+     */
+    private fun purgeObjects(
+        connection: Connection,
+        studioId: String,
+    ): ObjectPurge {
+        val keys =
+            connection
+                .prepareStatement("SELECT object_key FROM stored_object WHERE studio_id = ?")
+                .use { statement ->
+                    statement.setString(1, studioId)
+                    statement.executeQuery().use { rows ->
+                        buildList { while (rows.next()) add(rows.getString(1)) }
+                    }
+                }
+
+        if (keys.isEmpty()) return ObjectPurge(rowsRemoved = 0, remaining = 0)
+
+        val gone = objects.delete(keys)
+
+        var removed = 0
+        if (gone.isNotEmpty()) {
+            connection.prepareStatement("DELETE FROM stored_object WHERE object_key = ?").use { statement ->
+                gone.forEach { key ->
+                    statement.setString(1, key)
+                    removed += statement.executeUpdate()
+                }
+            }
+        }
+
+        return ObjectPurge(rowsRemoved = removed, remaining = keys.size - gone.size)
     }
 
     /**

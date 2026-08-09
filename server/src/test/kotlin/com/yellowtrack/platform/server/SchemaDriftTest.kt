@@ -70,9 +70,22 @@ class SchemaDriftTest {
      * `mail_notification` is operational fact about the deployment — what SES said happened
      * to messages this server sent. It belongs to nobody's studio and syncing it to a device
      * would be sending one studio the bounce history of every other.
+     *
+     * `stored_object` does belong to a studio, and is still not mirrored: it is the server's
+     * record of what sits in a bucket, so that the purge can delete objects as well as rows
+     * (ADR 0013 decision 6). A device has no use for object keys it cannot reach and no
+     * business holding the list that a deletion promise depends on.
      */
     private val serverOnlyTables =
-        setOf("studio", "account", "studio_member", "auth_session", "password_reset", "mail_notification")
+        setOf(
+            "studio",
+            "account",
+            "studio_member",
+            "auth_session",
+            "password_reset",
+            "mail_notification",
+            "stored_object",
+        )
 
     /**
      * The one column the server adds to every synced table.
