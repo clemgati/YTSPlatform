@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.coroutines.ioDispatcher
 import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionStudioContext
+import com.yellowtrack.platform.core.data.event.IngestService
 import com.yellowtrack.platform.core.data.internal.SqlDelightClientRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightCodbRepository
 import com.yellowtrack.platform.core.data.internal.SqlDelightContractRepository
@@ -82,6 +83,18 @@ val dataModule =
         // the process ends, which on every one of these platforms is when the application
         // is gone anyway.
         single { SyncOutbox(get(), get(), ioDispatcher) }
+
+        // Watching capture folders, for as long as their stations are open. Its own scope,
+        // application-lived: a watch outlives the screen that started it, because a
+        // photographer who navigates away from Events has not stopped shooting.
+        single {
+            IngestService(
+                platform = get(),
+                uploader = get(),
+                scope = CoroutineScope(SupervisorJob() + ioDispatcher),
+                clock = get(),
+            )
+        }
 
         // ADR 0012: the ledger writes through the server and waits. Its own thing rather than a
         // method on the engine, because writing now and reconciling later are different acts.

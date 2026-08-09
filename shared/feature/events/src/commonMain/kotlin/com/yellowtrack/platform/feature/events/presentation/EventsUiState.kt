@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.events.presentation
 
+import com.yellowtrack.platform.core.data.event.IngestStatus
 import com.yellowtrack.platform.core.ui.state.UiState
 
 internal data class EventsUiState(
@@ -15,6 +16,15 @@ internal data class EventsUiState(
     val problem: String? = null,
     /** True while an action is in flight, so a second tap does not open two stations. */
     val isBusy: Boolean = false,
+    /** What each watched folder has done, keyed by source. Empty where nothing is watched. */
+    val ingest: Map<String, IngestStatus> = emptyMap(),
+    /**
+     * False on platforms with no capture folder — a phone is not what a camera shoots into.
+     *
+     * Asked before the control is drawn rather than discovered when it is pressed. Offering a
+     * button that can only fail is worse than not offering it.
+     */
+    val canWatchFolders: Boolean = false,
 )
 
 internal data class EventsContent(

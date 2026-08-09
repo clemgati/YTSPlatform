@@ -4,6 +4,8 @@ import com.yellowtrack.platform.core.common.storage.JvmVolumeInspector
 import com.yellowtrack.platform.core.common.storage.VolumeInspector
 import com.yellowtrack.platform.core.data.auth.FileSessionStore
 import com.yellowtrack.platform.core.data.auth.SessionStore
+import com.yellowtrack.platform.core.data.event.DesktopIngestPlatform
+import com.yellowtrack.platform.core.data.event.IngestPlatform
 import com.yellowtrack.platform.core.data.sync.AppVisibility
 import com.yellowtrack.platform.core.data.sync.Connectivity
 import com.yellowtrack.platform.core.data.sync.DesktopConnectivity
@@ -17,6 +19,8 @@ import org.koin.dsl.module
 actual fun platformModule(): Module =
     module {
         single<DatabaseDriverFactory> { JvmDatabaseDriverFactory() }
+        // The only platform a camera is tethered to.
+        single<IngestPlatform> { DesktopIngestPlatform() }
         single<DocumentSink> { JvmDocumentSink() }
         single<VolumeInspector> { JvmVolumeInspector() }
         single<SessionStore> { FileSessionStore() }
