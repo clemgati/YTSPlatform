@@ -1,5 +1,7 @@
 package com.yellowtrack.platform.server.event
 
+import com.yellowtrack.platform.core.model.event.EventSummary
+import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.server.Database
 import java.sql.Connection
 import java.util.UUID
@@ -18,6 +20,21 @@ sealed interface Routed {
         val photoId: String,
     ) : Routed
 }
+
+/**
+ * Two stations cannot hold one source at the same time.
+ *
+ * Enforced by a partial unique index rather than by a check, because a check would be a race
+ * — two photographers opening a station on the same camera within the same second would both
+ * find it free. The index is scoped to the studio, so two studios may each name a folder
+ * "Camera A" without colliding.
+ *
+ * A distinct type rather than a raw constraint violation, so the route can answer 409 with
+ * something a photographer can act on instead of 500.
+ */
+class SourceAlreadyInUse(
+    val sourceKey: String,
+) : Exception("a station is already open on $sourceKey")
 
 /**
  * Events, stations, slots, and the one question that decides who a photograph belongs to.
@@ -124,7 +141,14 @@ class Events(
                     statement.setString(4, name)
                     statement.setString(5, sourceKey)
                     statement.setLong(6, now())
-                    statement.executeUpdate()
+                    try {
+                        statement.executeUpdate()
+                    } catch (violation: java.sql.SQLException) {
+                        // 23505 is unique_violation. Only this index can raise it here, and
+                        // it means a station is already open on the source.
+                        if (violation.sqlState == "23505") throw SourceAlreadyInUse(sourceKey)
+                        throw violation
+                    }
                 }
             id
         }
@@ -235,6 +259,85 @@ class Events(
                     }
                 }
             published
+        }
+
+    // -- Reading ---------------------------------------------------------------------------
+
+    /**
+     * The studio's events, most recent first.
+     *
+     * The counts are subqueries rather than a second round trip because the open-station
+     * count is the one thing the list must not be stale about: a station left open after
+     * everybody has gone home keeps claiming photographs for whoever was last in front of
+     * the camera.
+     */
+    fun listEvents(studioId: String): List<EventSummary> =
+        database.inStudio(studioId) { connection ->
+            connection
+                .prepareStatement(
+                    """
+                    SELECT e.id,
+                           e.name,
+                           e.starts_at,
+                           (SELECT count(*) FROM event_station s
+                             WHERE s.event_id = e.id AND s.closed_at IS NULL),
+                           (SELECT count(*) FROM event_photo p WHERE p.event_id = e.id)
+                    FROM event e
+                    ORDER BY coalesce(e.starts_at, e.created_at) DESC, e.id
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.executeQuery().use { rows ->
+                        buildList {
+                            while (rows.next()) {
+                                val startsAt = rows.getLong(3).takeUnless { rows.wasNull() }
+                                add(
+                                    EventSummary(
+                                        id = rows.getString(1),
+                                        name = rows.getString(2),
+                                        startsAt = startsAt,
+                                        openStations = rows.getInt(4),
+                                        photographs = rows.getInt(5),
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+        }
+
+    /** The event's stations, open ones first — those are the ones a photographer acts on. */
+    fun listStations(
+        studioId: String,
+        eventId: String,
+    ): List<StationSummary> =
+        database.inStudio(studioId) { connection ->
+            connection
+                .prepareStatement(
+                    """
+                    SELECT id, name, source_key, opened_at, closed_at
+                    FROM event_station
+                    WHERE event_id = ?
+                    ORDER BY closed_at IS NOT NULL, opened_at DESC, id
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, eventId)
+                    statement.executeQuery().use { rows ->
+                        buildList {
+                            while (rows.next()) {
+                                val closedAt = rows.getLong(5).takeUnless { rows.wasNull() }
+                                add(
+                                    StationSummary(
+                                        id = rows.getString(1),
+                                        name = rows.getString(2),
+                                        sourceKey = rows.getString(3),
+                                        openedAt = rows.getLong(4),
+                                        closedAt = closedAt,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
         }
 
     // -- Internals -----------------------------------------------------------------------

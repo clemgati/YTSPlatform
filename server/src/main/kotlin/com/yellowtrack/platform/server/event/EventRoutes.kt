@@ -1,18 +1,24 @@
 package com.yellowtrack.platform.server.event
 
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.event.CreateEventRequest
+import com.yellowtrack.platform.core.model.event.CreatedResponse
+import com.yellowtrack.platform.core.model.event.OpenStationRequest
 import com.yellowtrack.platform.core.model.event.PhotographAccepted
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.storage.StoredObjects
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
 import io.ktor.server.request.contentType
+import io.ktor.server.request.receive
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.utils.io.readRemaining
@@ -35,13 +41,99 @@ fun Route.eventRoutes(
 ) {
     route("/events") {
         authenticate(BEARER_AUTH) {
+            /** The studio's events, for the list it opens on. */
+            get {
+                call.respond(events.listEvents(call.studioId()))
+            }
+
+            post {
+                val request = call.receive<CreateEventRequest>()
+                if (request.name.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("an event needs a name"))
+                    return@post
+                }
+
+                call.respond(
+                    HttpStatusCode.Created,
+                    CreatedResponse(events.createEvent(call.studioId(), request.name.trim(), request.startsAt)),
+                )
+            }
+
+            get("/{eventId}/stations") {
+                val eventId = call.parameters["eventId"] ?: return@get call.missingEvent()
+
+                call.respond(events.listStations(call.studioId(), eventId))
+            }
+
+            /**
+             * Opens a station on a source, or says why it could not.
+             *
+             * The refusal here is the interesting one: a source already carrying an open
+             * station is a 409, not a 500, because it happens to photographers rather than to
+             * programmers — two people setting up on the same camera, or a station left open
+             * from the morning. The answer names the source so the message can say which.
+             */
+            post("/{eventId}/stations") {
+                val eventId = call.parameters["eventId"] ?: return@post call.missingEvent()
+                val request = call.receive<OpenStationRequest>()
+
+                if (request.name.isBlank() || request.sourceKey.isBlank()) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("a station needs a name and a source"),
+                    )
+                    return@post
+                }
+
+                val id =
+                    try {
+                        events.openStation(
+                            studioId = call.studioId(),
+                            eventId = eventId,
+                            name = request.name.trim(),
+                            sourceKey = request.sourceKey.trim(),
+                        )
+                    } catch (clash: SourceAlreadyInUse) {
+                        call.respond(
+                            HttpStatusCode.Conflict,
+                            ErrorResponse(
+                                "a station is already open on ${clash.sourceKey}. Close it before opening another.",
+                            ),
+                        )
+                        return@post
+                    }
+
+                call.respond(HttpStatusCode.Created, CreatedResponse(id))
+            }
+
+            /**
+             * Closing is idempotent, and deliberately says nothing about whether it did
+             * anything.
+             *
+             * A photographer packing up taps this; a second tap, or a tap on a station a
+             * colleague already closed, must not read as an error. The station's source
+             * returns to the gallery either way, which is the state being asked for.
+             */
+            post("/{eventId}/stations/{stationId}/close") {
+                val stationId =
+                    call.parameters["stationId"]
+                        ?: return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("which station?"),
+                        )
+
+                events.closeStation(call.studioId(), stationId)
+
+                call.respond(HttpStatusCode.NoContent)
+            }
+
             /**
              * `sourceKey` identifies the watched folder, and through it one camera. It is
              * what stops a second photographer's candids landing in the first one's open
              * slot, so it is required rather than defaulted.
              */
             post("/{eventId}/photographs") {
-                val studioId = call.principal<SessionPrincipal>()!!.session.studioId
+                val studioId = call.studioId()
                 val eventId = call.parameters["eventId"]
 
                 val sourceKey = call.request.queryParameters["source"]
@@ -93,3 +185,7 @@ fun Route.eventRoutes(
         }
     }
 }
+
+private fun ApplicationCall.studioId(): String = principal<SessionPrincipal>()!!.session.studioId
+
+private suspend fun ApplicationCall.missingEvent() = respond(HttpStatusCode.BadRequest, ErrorResponse("which event?"))
