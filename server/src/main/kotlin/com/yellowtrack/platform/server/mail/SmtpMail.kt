@@ -52,35 +52,53 @@ class SmtpMail(
     }
 
     override fun send(email: Email) {
-        val message =
-            MimeMessage(session).apply {
-                // The address is always this deployment's; only the name in front of it
-                // changes. ADR 0011 decision 1: one verified sender, so what leaves is signed
-                // by the domain it claims to come from.
-                setFrom(InternetAddress(email.fromAddress ?: config.fromAddress, email.fromName ?: config.fromName))
-                setRecipients(Message.RecipientType.TO, InternetAddress.parse(email.to))
-                email.cc?.let { setRecipients(Message.RecipientType.CC, InternetAddress.parse(it)) }
-                email.replyTo?.let { replyTo = InternetAddress.parse(it) }
-                subject = email.subject
+        Transport.send(build(email))
+    }
 
-                when (val html = email.html) {
-                    // A password reset, which is one line and has no second form.
-                    null -> setText(email.body, "UTF-8")
-                    else ->
-                        setContent(
-                            MimeMultipart("alternative").apply {
-                                // Text first. `multipart/alternative` is ordered worst to
-                                // best, and a client shows the last part it can render — so
-                                // reversing these sends the plain text to everybody.
-                                addBodyPart(MimeBodyPart().apply { setText(email.body, "UTF-8") })
-                                addBodyPart(MimeBodyPart().apply { setContent(html, "text/html; charset=UTF-8") })
-                            },
-                        )
-                }
+    /**
+     * The message as it will go out.
+     *
+     * Separated from the send so it can be read without a mail server. What is worth checking
+     * here is the part `Mailer` fakes away: a recording mailer sees an [Email] and says
+     * nothing about whether its headers ever reached a wire, which is where `List-Unsubscribe`
+     * would have been quietly lost.
+     */
+    internal fun build(email: Email): MimeMessage =
+        MimeMessage(session).apply {
+            // The address is always this deployment's; only the name in front of it
+            // changes. ADR 0011 decision 1: one verified sender, so what leaves is signed
+            // by the domain it claims to come from.
+            setFrom(InternetAddress(email.fromAddress ?: config.fromAddress, email.fromName ?: config.fromName))
+            setRecipients(Message.RecipientType.TO, InternetAddress.parse(email.to))
+            email.cc?.let { setRecipients(Message.RecipientType.CC, InternetAddress.parse(it)) }
+            email.replyTo?.let { replyTo = InternetAddress.parse(it) }
+            subject = email.subject
+
+            // Before the body, because a header set after the content is still a header
+            // — but the ordering here is the one a reader expects.
+            email.headers.forEach { (name, value) -> setHeader(name, value) }
+
+            when (val html = email.html) {
+                // A password reset, which is one line and has no second form.
+                null -> setText(email.body, "UTF-8")
+                else ->
+                    setContent(
+                        MimeMultipart("alternative").apply {
+                            // Text first. `multipart/alternative` is ordered worst to
+                            // best, and a client shows the last part it can render — so
+                            // reversing these sends the plain text to everybody.
+                            addBodyPart(MimeBodyPart().apply { setText(email.body, "UTF-8") })
+                            addBodyPart(MimeBodyPart().apply { setContent(html, "text/html; charset=UTF-8") })
+                        },
+                    )
             }
 
-        Transport.send(message)
-    }
+            // Writes the headers the parts only describe until now: without it a body part
+            // set to text/html still reports text/plain, because `getContentType` reads a
+            // header nothing has written yet. `Transport.send` does this itself, so calling
+            // it here changes nothing about what is sent and makes what this returns true.
+            saveChanges()
+        }
 
     private companion object {
         const val TIMEOUT_MILLIS = "10000"

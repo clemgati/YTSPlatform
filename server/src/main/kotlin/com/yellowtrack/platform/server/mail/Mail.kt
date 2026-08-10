@@ -39,6 +39,17 @@ data class Email(
     val replyTo: String? = null,
     /** Copied, so the studio holds what its client received. Nothing else keeps the body. */
     val cc: String? = null,
+    /**
+     * Extra headers, for the ones a receiving provider reads rather than a person.
+     *
+     * `List-Unsubscribe` is why this exists. Gmail weights it, and for somebody who typed
+     * their address at an event it is correct regardless of what any filter thinks: they
+     * gave it for one purpose and should be able to withdraw it without composing a reply.
+     *
+     * Deliberately a map rather than named fields. The next one of these will be somebody
+     * else's requirement, not a decision this codebase makes.
+     */
+    val headers: Map<String, String> = emptyMap(),
 )
 
 /**

@@ -124,14 +124,27 @@ class EventDelivery(
                 Email(
                     to = sitting.email,
                     subject = "Your photographs from ${sitting.eventName}",
-                    body = plainText(sitting, link),
+                    body = plainText(sitting, studio.name, link),
                     html = html(sitting, studio.name, link),
-                    // The studio's name, this deployment's address — SES signs for the domain
-                    // it can sign for, and a message signed by one domain while claiming
-                    // another is a message in a spam folder.
+                    // The studio's name, and an address on the domain the link points at.
+                    //
+                    // The first delivery ever sent landed in spam with SPF, DKIM and DMARC
+                    // all passing — so authentication was never the problem. What was left
+                    // was shape: a short message from yellowtrackstudios.com whose entire
+                    // call to action was a link to yellowtrackphotos.com, sent to somebody
+                    // who had corresponded with neither. Individually fine, together the
+                    // pattern filters are trained on.
                     fromName = studio.name,
                     fromAddress = from,
                     replyTo = replyTo,
+                    // A mailto rather than a one-click URL, deliberately. One-Click requires
+                    // an HTTPS endpoint that unsubscribes without confirmation, and there is
+                    // no such route — announcing the header without it would be worse than
+                    // not offering it. This reaches the studio, which is a person who can act.
+                    headers =
+                        mapOf(
+                            "List-Unsubscribe" to "<mailto:$replyTo?subject=Unsubscribe>",
+                        ),
                 ),
             )
         }.onFailure {
@@ -257,20 +270,36 @@ class EventDelivery(
                 }
         }
 
+    /**
+     * Enough words to be a message rather than a link.
+     *
+     * The first version was three lines and one URL, which is the shape of a phishing mail
+     * and was treated as one. Naming the event, the studio, and *where the address came
+     * from* tells a filter and a person the same true thing — and somebody who signed up at
+     * a conference three hours ago genuinely may not remember doing it.
+     */
     private fun plainText(
         sitting: Sitting,
+        studioName: String,
         link: String,
     ): String =
         buildString {
             appendLine(sitting.name?.let { "Hello $it," } ?: "Hello,")
             appendLine()
-            appendLine("Your photographs from ${sitting.eventName} are ready.")
+            appendLine(
+                "You scanned a code at ${sitting.eventName} and asked us to send you your " +
+                    "photographs. They are ready, and $studioName took them.",
+            )
             appendLine()
+            appendLine("See them here:")
             appendLine(link)
             appendLine()
-            // Said plainly, because somebody who was photographed at a conference has no
-            // relationship with this company and no reason to guess what the link is for.
             appendLine("The link is yours alone — anybody you send it to can see the photographs too.")
+            appendLine()
+            appendLine(
+                "If you did not sign up for this, you can ignore this message and nothing " +
+                    "further will be sent. Replying to this email reaches $studioName directly.",
+            )
         }
 
     private fun html(
@@ -282,9 +311,17 @@ class EventDelivery(
 
         return """
             <p>$greeting</p>
-            <p>Your photographs from ${escape(sitting.eventName)} are ready.</p>
+            <p>
+                You scanned a code at ${escape(sitting.eventName)} and asked us to send you
+                your photographs. They are ready, and ${escape(studioName)} took them.
+            </p>
             <p><a href="${escape(link)}">See your photographs</a></p>
             <p>The link is yours alone — anybody you send it to can see the photographs too.</p>
+            <p>
+                If you did not sign up for this, you can ignore this message and nothing
+                further will be sent. Replying to this email reaches ${escape(studioName)}
+                directly.
+            </p>
             <p>${escape(studioName)}</p>
             """.trimIndent()
     }

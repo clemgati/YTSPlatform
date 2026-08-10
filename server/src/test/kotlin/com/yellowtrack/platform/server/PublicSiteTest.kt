@@ -76,6 +76,25 @@ class PublicSiteTest {
             assertFalse("alert(1)" in body, "a crafted token reached the page: $body")
         }
 
+    /**
+     * The sign-up page says where to look if the email does not arrive.
+     *
+     * The first delivery this product sent went to spam with every authentication check
+     * passing. A new sending domain has no reputation and nothing in the software fixes that
+     * on the day — so the page says so, because at an event the difference between a guest
+     * finding their photographs and deciding none were sent is one sentence.
+     */
+    @Test
+    fun `the sign-up page tells people to check their spam folder`() =
+        withServer { client ->
+            // Comments stripped first. The first version of this assertion passed on an HTML
+            // comment explaining *why* the line exists — a word no reader can see, in a test
+            // that claimed they could.
+            val visible = client.get("/join/any-token").bodyAsText().replace(Regex("(?s)<!--.*?-->"), "")
+
+            assertTrue("spam" in visible.lowercase(), "the page does not mention spam")
+        }
+
     // -- What a page holding a private link must not do ---------------------------------------
 
     /**

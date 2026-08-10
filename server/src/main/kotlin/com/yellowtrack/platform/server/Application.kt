@@ -152,13 +152,22 @@ fun Application.module(
     val invites = EventInvites(database, events)
     val galleries = EventGalleries(database, objects)
 
-    // Its own sender and its own reason to exist, like DocumentMail: this goes to somebody
-    // who has never heard of Yellow Track, about photographs of themselves.
+    // Its own sender, and on the domain the link points at.
+    //
+    // EVENTS_FROM rather than DOCUMENT_FROM: a guest sees `yellowtrackphotos.com` in the
+    // sender and in the link, which is one name rather than two, and a document to a client
+    // has no reason to leave from the photograph-delivery domain. Falls back to DOCUMENT_FROM
+    // so a deployment that has not verified the second domain in SES still delivers.
+    val eventsFrom = System.getenv("EVENTS_FROM")?.takeIf { it.isNotBlank() } ?: documentFrom
+    if (System.getenv("EVENTS_FROM").isNullOrBlank()) {
+        log.info("EVENTS_FROM is not set: event deliveries will leave from DOCUMENT_FROM.")
+    }
+
     val delivery =
         EventDelivery(
             database = database,
             mailer = mailConfig?.let { MonitoredMailer(SmtpMail(it), mailHealth) },
-            fromAddress = documentFrom,
+            fromAddress = eventsFrom,
             onSendFailure = { log.error("could not deliver a sitting", it) },
         )
 

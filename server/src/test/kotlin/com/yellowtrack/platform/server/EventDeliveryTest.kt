@@ -193,6 +193,76 @@ class EventDeliveryTest {
         assertEquals(2, world.mailer.sent.size, "the second sitting should still be announced")
     }
 
+    // -- What the message has to be, rather than merely say ------------------------------------
+
+    /**
+     * Somebody must be able to stop this without composing a reply.
+     *
+     * A mailto rather than a one-click URL: One-Click promises an HTTPS endpoint that
+     * unsubscribes without confirmation, and there is none. Announcing the header without
+     * the route behind it would be worse than not offering it — a provider would call it and
+     * get nothing.
+     */
+    @Test
+    fun `the delivery offers a way to unsubscribe that reaches the studio`() {
+        val world = World()
+        world.photograph()
+        world.closeSitting()
+        world.deliver()
+
+        val email = world.mailer.sent.single()
+        val unsubscribe = email.headers["List-Unsubscribe"]
+
+        assertNotNull(unsubscribe, "no List-Unsubscribe header")
+        assertTrue("ada@harbourline.test" in unsubscribe, "it should reach the studio: $unsubscribe")
+        assertTrue(unsubscribe.startsWith("<") && unsubscribe.endsWith(">"), unsubscribe)
+    }
+
+    /**
+     * The message has to be a message.
+     *
+     * The first version was three lines and one link, from a domain the recipient had never
+     * corresponded with, pointing at a different domain — and it went to spam with SPF, DKIM
+     * and DMARC all passing. Naming the event, the studio, and where the address came from is
+     * what makes it read as what it is, to a filter and to a person who signed up three hours
+     * ago and may not remember.
+     */
+    @Test
+    fun `the delivery says where the address came from and who took the photographs`() {
+        val world = World()
+        world.photograph()
+        world.closeSitting()
+        world.deliver()
+
+        val email = world.mailer.sent.single()
+
+        listOf(email.body, email.html.orEmpty()).forEach { part ->
+            assertTrue("Harbour Awards 2026" in part, "the event is not named: $part")
+            assertTrue("Harbourline Photography" in part, "the studio is not named: $part")
+            assertTrue("scanned a code" in part, "it does not say where the address came from: $part")
+            assertTrue("did not sign up" in part, "it offers no way out: $part")
+        }
+    }
+
+    /**
+     * The sender is on the domain the link points at.
+     *
+     * One name for a guest to recognise instead of two, and the mismatch was the strongest
+     * spam signal in the first message this product ever sent.
+     */
+    @Test
+    fun `the delivery leaves from the address it was configured with`() {
+        val world = World()
+        world.photograph()
+        world.closeSitting()
+        world.deliver()
+
+        val email = world.mailer.sent.single()
+
+        assertEquals("events@yellowtrackstudios.com", email.fromAddress)
+        assertEquals("Harbourline Photography", email.fromName)
+    }
+
     // -- The gallery --------------------------------------------------------------------------
 
     @Test
