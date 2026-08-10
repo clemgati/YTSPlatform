@@ -7,6 +7,8 @@ import com.yellowtrack.platform.core.data.event.EventsApi
 import com.yellowtrack.platform.core.data.event.IngestPlatform
 import com.yellowtrack.platform.core.data.event.IngestService
 import com.yellowtrack.platform.core.model.event.EventSummary
+import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.core.ui.state.UiState
 import kotlinx.coroutines.CancellationException
@@ -84,7 +86,14 @@ internal class EventsViewModel(
             val events = api.events().map { it.toRow() }
             // The open event is re-read too, so its station list is not left describing the
             // room as it was ten minutes ago.
-            val reopened = open?.let { OpenEvent(it.id, it.name, api.stations(it.id).map(StationSummary::toRow)) }
+            val reopened =
+                open?.let {
+                    it.copy(
+                        stations = api.stations(it.id).map(StationSummary::toRow),
+                        registrations = api.registrations(it.id).map(RegistrationSummary::toRow),
+                        sittings = api.sittings(it.id).map(SittingSummary::toRow),
+                    )
+                }
 
             state.update {
                 it.copy(
@@ -120,12 +129,12 @@ internal class EventsViewModel(
                 ?.firstOrNull { it.id == eventId } ?: return
 
         act {
-            val stations = api.stations(eventId).map(StationSummary::toRow)
-
             state.update { current ->
                 val content = current.content.dataOrNull() ?: return@update current
-                current.copy(content = UiState.Success(content.copy(open = OpenEvent(row.id, row.name, stations))))
+                current.copy(content = UiState.Success(content.copy(open = OpenEvent(row.id, row.name, emptyList()))))
             }
+
+            reloadEvent(eventId)
         }
     }
 
@@ -163,7 +172,7 @@ internal class EventsViewModel(
 
         act {
             api.openStation(eventId, name.trim(), sourceKey.trim())
-            reloadStations(eventId)
+            reloadEvent(eventId)
         }
     }
 
@@ -185,7 +194,7 @@ internal class EventsViewModel(
 
         act {
             api.closeStation(eventId, stationId)
-            reloadStations(eventId)
+            reloadEvent(eventId)
         }
     }
 
@@ -230,6 +239,52 @@ internal class EventsViewModel(
      */
     internal fun isWatchingForTest(sourceKey: String): Boolean = ingest.isWatching(sourceKey)
 
+    /**
+     * Seats somebody at a station.
+     *
+     * The most consequential action on this screen: from here every photograph off that
+     * camera belongs to this person until somebody advances again, and a mistap sends one
+     * guest's photographs to another. It reloads afterwards rather than assuming it worked,
+     * so what the screen shows under a camera is what the server believes.
+     */
+    fun seat(
+        eventId: String,
+        stationId: String,
+        registrationId: String,
+    ) {
+        act {
+            api.advance(eventId, stationId, registrationId)
+            reloadEvent(eventId)
+        }
+    }
+
+    /** Hands a sitting to the person in it. */
+    fun deliver(
+        eventId: String,
+        slotId: String,
+    ) {
+        act {
+            val delivered = api.deliver(eventId, slotId)
+
+            state.update {
+                it.copy(
+                    note =
+                        if (delivered.sentNow) {
+                            "Sent ${delivered.photographs} photograph(s) to ${delivered.email}."
+                        } else {
+                            "${delivered.email} already had those."
+                        },
+                )
+            }
+
+            reloadEvent(eventId)
+        }
+    }
+
+    fun dismissNote() {
+        state.update { it.copy(note = null) }
+    }
+
     fun dismissProblem() {
         state.update { it.copy(problem = null) }
     }
@@ -260,14 +315,31 @@ internal class EventsViewModel(
         }
     }
 
-    private suspend fun reloadStations(eventId: String) {
+    /**
+     * Stations, sign-ups and sittings together.
+     *
+     * One reload rather than three, because they are read as one thing: who is at which
+     * camera, and what is waiting to be sent. Refreshing them separately would show a station
+     * whose sitting had not caught up — which on this screen means the wrong name under a
+     * camera, in front of the person it is wrong about.
+     */
+    private suspend fun reloadEvent(eventId: String) {
         val stations = api.stations(eventId).map(StationSummary::toRow)
+        val registrations = api.registrations(eventId).map(RegistrationSummary::toRow)
+        val sittings = api.sittings(eventId).map(SittingSummary::toRow)
 
         state.update { current ->
             val content = current.content.dataOrNull() ?: return@update current
             val open = content.open?.takeIf { it.id == eventId } ?: return@update current
 
-            current.copy(content = UiState.Success(content.copy(open = open.copy(stations = stations))))
+            current.copy(
+                content =
+                    UiState.Success(
+                        content.copy(
+                            open = open.copy(stations = stations, registrations = registrations, sittings = sittings),
+                        ),
+                    ),
+            )
         }
     }
 
@@ -288,3 +360,17 @@ internal class EventsViewModel(
 private fun EventSummary.toRow() = EventRow(id, name, startsAt, openStations, photographs)
 
 private fun StationSummary.toRow() = StationRow(id, name, sourceKey, openedAt, closedAt)
+
+private fun RegistrationSummary.toRow() = PersonRow(id, email, name)
+
+private fun SittingSummary.toRow() =
+    SittingRow(
+        id = id,
+        registrationId = registrationId,
+        email = email,
+        name = name,
+        stationName = stationName,
+        closedAt = closedAt,
+        deliveredAt = deliveredAt,
+        photographs = photographs,
+    )

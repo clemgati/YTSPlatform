@@ -11,7 +11,10 @@ import com.yellowtrack.platform.core.data.event.UploadLog
 import com.yellowtrack.platform.core.data.event.UploadOutcome
 import com.yellowtrack.platform.core.data.event.WatchedFile
 import com.yellowtrack.platform.core.data.event.WatchedFolder
+import com.yellowtrack.platform.core.model.event.DeliveredResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
+import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.events.presentation.EventsContent
@@ -329,6 +332,429 @@ class EventsViewModelTest {
             )
         }
 
+    // -- Seating somebody, and sending them their photographs ---------------------------------
+
+    /**
+     * Opening an event loads who is signed up and what has been shot.
+     *
+     * All three lists together, because they are read as one thing — who is at which camera,
+     * and what is owed a delivery.
+     */
+    @Test
+    fun `opening an event loads its people and sittings`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            val open = assertNotNull(viewModel.content().open)
+            assertEquals(listOf("first@example.test", "second@example.test"), open.registrations.map { it.email })
+            assertTrue(open.sittings.isEmpty())
+        }
+
+    /**
+     * Seating somebody is what makes photographs theirs.
+     *
+     * From that moment every frame off the camera belongs to this person, so the screen must
+     * show what the server believes rather than what it hoped — hence the reload.
+     */
+    @Test
+    fun `seating somebody puts them under the camera`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            val person =
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+            viewModel.seat("event-1", "station-1", person.id)
+            testScheduler.advanceUntilIdle()
+
+            val open = viewModel.content().open!!
+            assertEquals(1, api.advanced)
+            assertEquals(person.email, open.seated["Bay 1"]?.email, "nobody is shown under the camera")
+        }
+
+    /** Advancing closes the sitting before it, so only one person is ever seated. */
+    @Test
+    fun `seating the next person closes the one before`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            val people = viewModel.content().open!!.registrations
+            viewModel.seat("event-1", "station-1", people[0].id)
+            testScheduler.advanceUntilIdle()
+            viewModel.seat("event-1", "station-1", people[1].id)
+            testScheduler.advanceUntilIdle()
+
+            val open = viewModel.content().open!!
+            assertEquals(2, open.sittings.size)
+            assertEquals(1, open.sittings.count { it.isOpen }, "more than one person is seated")
+            assertEquals(people[1].email, open.seated["Bay 1"]?.email)
+        }
+
+    /**
+     * A refusal from advancing leaves the screen usable.
+     *
+     * The server refuses a closed station and somebody from another event, and both arrive
+     * while a photographer has a queue in front of them.
+     */
+    @Test
+    fun `a refused seating says so and leaves the screen`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            api.advanceFails = EventActionFailed("That station is closed. Open it again first.")
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.content is UiState.Success, "the screen was replaced")
+            assertTrue(
+                "closed" in
+                    viewModel.uiState.value.problem
+                        .orEmpty(),
+            )
+        }
+
+    /**
+     * Nobody is under the camera once the station closes.
+     *
+     * Written against a station whose only sittings are finished, because the earlier test
+     * could not tell "the open one" from "the last one" — with one closed and one open
+     * sitting, both readings give the same answer, and a mutation dropping the open check
+     * survived.
+     */
+    @Test
+    fun `closing a station leaves nobody seated`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+
+            viewModel.closeStation("event-1", "station-1")
+            testScheduler.advanceUntilIdle()
+
+            val open = viewModel.content().open!!
+            assertEquals(1, open.sittings.size, "the sitting should still be listed")
+            assertNull(open.seated["Bay 1"], "somebody is still shown under a closed camera")
+        }
+
+    // -- Delivery ----------------------------------------------------------------------------
+
+    /**
+     * A sitting cannot be sent while it is open, and the screen says why rather than only
+     * disabling something.
+     */
+    @Test
+    fun `an open sitting is not offered for delivery`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+
+            // With photographs in it, so being open is the only thing refusing it. Without
+            // them the emptiness check answers first and this proves nothing — which is how
+            // a mutation dropping the open check survived.
+            api.photographIn("event-1", 4)
+            viewModel.refresh()
+            testScheduler.advanceUntilIdle()
+
+            val sitting =
+                viewModel
+                    .content()
+                    .open!!
+                    .sittings
+                    .single()
+
+            assertEquals(4, sitting.photographs)
+            assertFalse(sitting.canDeliver, "an open sitting was offered for delivery")
+            assertEquals("Still open", sitting.blockedBecause)
+            assertTrue(
+                viewModel
+                    .content()
+                    .open!!
+                    .awaitingDelivery
+                    .isEmpty(),
+            )
+        }
+
+    /** A closed sitting with nothing in it is not work either, and says so differently. */
+    @Test
+    fun `a closed sitting with no photographs says what is missing`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+            viewModel.closeStation("event-1", "station-1")
+            testScheduler.advanceUntilIdle()
+
+            val sitting =
+                viewModel
+                    .content()
+                    .open!!
+                    .sittings
+                    .single()
+
+            assertFalse(sitting.canDeliver)
+            assertEquals("No photographs", sitting.blockedBecause)
+        }
+
+    /**
+     * The job after an event: closed, holding photographs, not yet sent.
+     *
+     * A sitting nobody sends is a person who was photographed and got nothing, and this list
+     * is the only place that is visible.
+     */
+    @Test
+    fun `a closed sitting with photographs is waiting to be sent`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+            api.photographIn("event-1", 3)
+            viewModel.closeStation("event-1", "station-1")
+            testScheduler.advanceUntilIdle()
+
+            val waiting = viewModel.content().open!!.awaitingDelivery
+
+            assertEquals(1, waiting.size)
+            assertEquals(3, waiting.single().photographs)
+            assertNull(waiting.single().blockedBecause)
+        }
+
+    @Test
+    fun `sending a sitting marks it sent and says so`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+            api.photographIn("event-1", 2)
+            viewModel.closeStation("event-1", "station-1")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.deliver(
+                "event-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .awaitingDelivery
+                    .single()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(1, api.delivered)
+            assertTrue(
+                viewModel
+                    .content()
+                    .open!!
+                    .sittings
+                    .single()
+                    .isDelivered,
+            )
+            assertTrue(
+                viewModel
+                    .content()
+                    .open!!
+                    .awaitingDelivery
+                    .isEmpty(),
+                "it is still shown as work",
+            )
+            assertTrue(
+                "first@example.test" in
+                    viewModel.uiState.value.note
+                        .orEmpty(),
+            )
+        }
+
+    /** Sending twice mails once, and the second time says so rather than claiming a send. */
+    @Test
+    fun `sending an already sent sitting does not claim to have sent it`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+            api.photographIn("event-1", 1)
+            viewModel.closeStation("event-1", "station-1")
+            testScheduler.advanceUntilIdle()
+            val slot =
+                viewModel
+                    .content()
+                    .open!!
+                    .awaitingDelivery
+                    .single()
+                    .id
+
+            viewModel.deliver("event-1", slot)
+            testScheduler.advanceUntilIdle()
+            viewModel.deliver("event-1", slot)
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(1, api.delivered, "it was sent twice")
+            assertTrue(
+                "already had" in
+                    viewModel.uiState.value.note
+                        .orEmpty(),
+                viewModel.uiState.value.note
+                    .orEmpty(),
+            )
+        }
+
+    /** A server that cannot send mail must not leave the studio thinking it did. */
+    @Test
+    fun `a failed delivery says so and does not mark it sent`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+            api.photographIn("event-1", 1)
+            viewModel.closeStation("event-1", "station-1")
+            testScheduler.advanceUntilIdle()
+
+            api.deliverFails = EventActionFailed("This server cannot send mail. Nothing was sent.")
+            viewModel.deliver(
+                "event-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .awaitingDelivery
+                    .single()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(
+                "cannot send mail" in
+                    viewModel.uiState.value.problem
+                        .orEmpty(),
+            )
+            assertNull(viewModel.uiState.value.note)
+            assertFalse(
+                viewModel
+                    .content()
+                    .open!!
+                    .sittings
+                    .single()
+                    .isDelivered,
+            )
+        }
+
     // -- Watching a folder -------------------------------------------------------------------
 
     @Test
@@ -514,6 +940,21 @@ class EventsViewModelTest {
         ): UploadOutcome = UploadOutcome.Stored("photo")
     }
 
+    private fun eventWithPeople(): FakeApi {
+        val api =
+            FakeApi(
+                events = listOf(summary("event-1", "Headshot day")),
+                stations = mapOf("event-1" to listOf(station("station-1", "Bay 1", "Camera A"))),
+            )
+        api.registrationsByEvent["event-1"] =
+            mutableListOf(
+                RegistrationSummary("reg-1", "first@example.test", "Ada Okafor", 1_000),
+                RegistrationSummary("reg-2", "second@example.test", null, 900),
+            )
+
+        return api
+    }
+
     private fun openedEvent() =
         FakeApi(
             events = listOf(summary("event-1", "Headshot day")),
@@ -591,6 +1032,89 @@ class EventsViewModelTest {
             val list = stationsByEvent[eventId] ?: return
             val index = list.indexOfFirst { it.id == stationId }
             if (index >= 0) list[index] = list[index].copy(closedAt = 3_000)
+            // An index loop rather than the Java 8 list API, which needs an opt-in on
+            // Kotlin/Native — where these tests also run.
+            sittingsByEvent[eventId]?.let { list ->
+                list.indices.forEach { i -> if (list[i].closedAt == null) list[i] = list[i].copy(closedAt = 3_000) }
+            }
+        }
+
+        // -- Sittings and the people in them --------------------------------------------
+
+        val registrationsByEvent = mutableMapOf<String, MutableList<RegistrationSummary>>()
+        val sittingsByEvent = mutableMapOf<String, MutableList<SittingSummary>>()
+        var advanceFails: Throwable? = null
+        var deliverFails: Throwable? = null
+        var delivered = 0
+        var advanced = 0
+
+        override suspend fun registrations(eventId: String): List<RegistrationSummary> =
+            registrationsByEvent[eventId].orEmpty()
+
+        override suspend fun advance(
+            eventId: String,
+            stationId: String,
+            registrationId: String,
+        ): String {
+            advanceFails?.let { throw it }
+            advanced++
+            val id = "sitting-$advanced"
+            val person = registrationsByEvent[eventId].orEmpty().first { it.id == registrationId }
+            val station = stationsByEvent[eventId].orEmpty().first { it.id == stationId }
+
+            // Advancing closes whatever was open, as the server does.
+            val existing = sittingsByEvent.getOrPut(eventId) { mutableListOf() }
+            existing.indices.forEach { i ->
+                if (existing[i].closedAt == null) existing[i] = existing[i].copy(closedAt = 2_500)
+            }
+
+            sittingsByEvent.getValue(eventId) +=
+                SittingSummary(
+                    id = id,
+                    registrationId = registrationId,
+                    email = person.email,
+                    name = person.name,
+                    stationName = station.name,
+                    openedAt = 2_000,
+                    closedAt = null,
+                    deliveredAt = null,
+                    photographs = 0,
+                )
+
+            return id
+        }
+
+        override suspend fun sittings(eventId: String): List<SittingSummary> = sittingsByEvent[eventId].orEmpty()
+
+        /** Photographs land in whichever sitting is open, as the server routes them. */
+        fun photographIn(
+            eventId: String,
+            count: Int,
+        ) {
+            val list = sittingsByEvent.getValue(eventId)
+            val index = list.indexOfFirst { it.closedAt == null }
+            if (index >= 0) list[index] = list[index].copy(photographs = list[index].photographs + count)
+        }
+
+        override suspend fun deliver(
+            eventId: String,
+            slotId: String,
+        ): DeliveredResponse {
+            deliverFails?.let { throw it }
+
+            val list = sittingsByEvent.getValue(eventId)
+            val index = list.indexOfFirst { it.id == slotId }
+            val already = list[index].deliveredAt != null
+            if (!already) {
+                delivered++
+                list[index] = list[index].copy(deliveredAt = 4_000)
+            }
+
+            return DeliveredResponse(
+                email = list[index].email,
+                photographs = list[index].photographs,
+                sentNow = !already,
+            )
         }
     }
 }

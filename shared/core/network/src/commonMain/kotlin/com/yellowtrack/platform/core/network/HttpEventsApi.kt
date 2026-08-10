@@ -3,10 +3,14 @@ package com.yellowtrack.platform.core.network
 import com.yellowtrack.platform.core.data.event.EventActionFailed
 import com.yellowtrack.platform.core.data.event.EventsApi
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.event.AdvanceStationRequest
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
+import com.yellowtrack.platform.core.model.event.DeliveredResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.OpenStationRequest
+import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -74,6 +78,30 @@ class HttpEventsApi(
 
         if (!response.isSuccess()) throw EventActionFailed(response.reason())
     }
+
+    override suspend fun registrations(eventId: String): List<RegistrationSummary> =
+        request { get("$baseUrl/events/$eventId/registrations") { authorised() } }
+
+    override suspend fun advance(
+        eventId: String,
+        stationId: String,
+        registrationId: String,
+    ): String =
+        request<CreatedResponse> {
+            post("$baseUrl/events/$eventId/stations/$stationId/advance") {
+                authorised()
+                contentType(ContentType.Application.Json)
+                setBody(AdvanceStationRequest(registrationId))
+            }
+        }.id
+
+    override suspend fun sittings(eventId: String): List<SittingSummary> =
+        request { get("$baseUrl/events/$eventId/sittings") { authorised() } }
+
+    override suspend fun deliver(
+        eventId: String,
+        slotId: String,
+    ): DeliveredResponse = request { post("$baseUrl/events/$eventId/sittings/$slotId/deliver") { authorised() } }
 
     // -- Plumbing ---------------------------------------------------------------------------
 
