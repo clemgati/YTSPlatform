@@ -177,9 +177,14 @@ def main():
     step(9, "A photograph arrives from the watched folder")
     note("The first real use of the instance role's PutObject. A 503 here is S3 refusing.")
     captured = int(datetime.now(timezone.utc).timestamp() * 1000)
+    # clientNow alongside capturedAt, read as late as possible. Both come from this
+    # machine's clock; the server subtracts one from the other to cancel its error. The
+    # first live run of this script lost its photograph to the gallery over 39ms of skew.
+    client_now = int(datetime.now(timezone.utc).timestamp() * 1000)
     _, stored = call(
         base, "POST",
-        f"/events/{event}/photographs?source=Camera%20{stamp}&capturedAt={captured}",
+        f"/events/{event}/photographs?source=Camera%20{stamp}"
+        f"&capturedAt={captured}&clientNow={client_now}",
         token=token, raw=PIXEL, content_type="image/jpeg", expect=[201],
     )
     if stored.get("registrationId") != registration:

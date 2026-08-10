@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.core.network
 
+import com.yellowtrack.platform.core.common.time.AppClock
 import com.yellowtrack.platform.core.data.event.PhotographUploader
 import com.yellowtrack.platform.core.data.event.UploadOutcome
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
@@ -28,6 +29,7 @@ class HttpPhotographUploader(
     private val client: HttpClient,
     private val baseUrl: String,
     private val credentials: SyncCredentials,
+    private val clock: AppClock = AppClock.System,
 ) : PhotographUploader {
     override suspend fun upload(
         eventId: String,
@@ -47,6 +49,11 @@ class HttpPhotographUploader(
                     bearerAuth(token)
                     parameter("source", sourceKey)
                     parameter("capturedAt", capturedAt)
+                    // This machine's clock, alongside the time it claims the shutter fired.
+                    // The server subtracts one from the other to cancel however wrong this
+                    // laptop is — see the upload route. Read as late as possible, so the
+                    // only error left is one-way network delay.
+                    parameter("clientNow", clock.now().toEpochMilliseconds())
                     this.contentType(ContentType.parse(contentType))
                     setBody(bytes)
                 }
