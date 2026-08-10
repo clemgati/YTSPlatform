@@ -43,6 +43,13 @@
             fail("We could not reach the server. Check your connection and try again.");
         });
 
+    function refuse(message) {
+        problem.textContent = message;
+        problem.hidden = false;
+        submit.disabled = false;
+        submit.textContent = "Send me my photographs";
+    }
+
     form.addEventListener("submit", function (submission) {
         submission.preventDefault();
 
@@ -69,18 +76,25 @@
                     return;
                 }
 
-                return response.json().then(function (body) {
-                    problem.textContent = (body && body.error) || "That could not be sent.";
-                    problem.hidden = false;
-                    submit.disabled = false;
-                    submit.textContent = "Send me my photographs";
+                // A refusal may carry no body at all — a proxy or a CORS rejection answers
+                // with nothing. Reading it as JSON then throws, and the old code let that
+                // fall into the network handler below, so a 403 was reported as "we could
+                // not reach the server". It took a packet capture to find out otherwise.
+                return response.text().then(function (text) {
+                    var message = "That could not be sent.";
+                    try {
+                        var body = JSON.parse(text);
+                        if (body && body.error) message = body.error;
+                    } catch (ignored) {
+                        // Not JSON. Say what happened rather than inventing a cause.
+                        message = "The server refused that (" + response.status + "). Please tell the photographer.";
+                    }
+                    refuse(message);
                 });
             })
             .catch(function () {
-                problem.textContent = "We could not reach the server. Check your connection and try again.";
-                problem.hidden = false;
-                submit.disabled = false;
-                submit.textContent = "Send me my photographs";
+                // Only a request that never got an answer reaches here now.
+                refuse("We could not reach the server. Check your connection and try again.");
             });
     });
 })();
