@@ -51,6 +51,8 @@ internal fun EventsScreen(
     onStopWatching: (sourceKey: String) -> Unit,
     onSeat: (eventId: String, stationId: String, registrationId: String) -> Unit,
     onDeliver: (eventId: String, slotId: String) -> Unit,
+    onPrintSignUpCode: (eventId: String) -> Unit,
+    onWithdrawSignUpCode: (eventId: String) -> Unit,
     onDismissProblem: () -> Unit,
     onDismissNote: () -> Unit,
     modifier: Modifier = Modifier,
@@ -109,6 +111,8 @@ internal fun EventsScreen(
                         onStopWatching = onStopWatching,
                         onSeat = onSeat,
                         onDeliver = onDeliver,
+                        onPrintSignUpCode = onPrintSignUpCode,
+                        onWithdrawSignUpCode = onWithdrawSignUpCode,
                     )
             }
         }
@@ -193,6 +197,8 @@ private fun OpenEventDetail(
     onStopWatching: (sourceKey: String) -> Unit,
     onSeat: (eventId: String, stationId: String, registrationId: String) -> Unit,
     onDeliver: (eventId: String, slotId: String) -> Unit,
+    onPrintSignUpCode: (eventId: String) -> Unit,
+    onWithdrawSignUpCode: (eventId: String) -> Unit,
 ) {
     var stationName by remember(event.id) { mutableStateOf("") }
     var sourceKey by remember(event.id) { mutableStateOf("") }
@@ -204,6 +210,50 @@ private fun OpenEventDetail(
     ) {
         Text(event.name, style = YTTheme.typography.headlineSmall)
         YTTextButton(text = "All events", onClick = onBack)
+    }
+
+    /*
+     * First, because it is the first thing an event needs.
+     *
+     * Nothing else on this screen matters until somebody can sign up, and until this was
+     * built the only way to obtain a sign-up link was to call the API by hand — which is
+     * exactly what the walkthrough script does, and why the gap survived a working
+     * end-to-end test.
+     */
+    YTSectionCard(title = "Sign-up code") {
+        Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
+            Text(
+                "Print this and put it where people can see it. Scanning it is how somebody " +
+                    "asks for their photographs.",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+
+            event.inviteUrl?.let { url ->
+                // Shown as well as printed: a code photographs badly in some lighting, and
+                // somebody who can read the link can still sign up.
+                Text(url, style = YTTheme.typography.bodySmall)
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
+                YTButton(
+                    text = "Save the code…",
+                    enabled = !isBusy,
+                    onClick = { onPrintSignUpCode(event.id) },
+                )
+                YTTextButton(
+                    text = "Withdraw it",
+                    onClick = { onWithdrawSignUpCode(event.id) },
+                )
+            }
+
+            Text(
+                "Withdrawing stops the code working — the only way to close a sign-up once " +
+                    "something is printed. The next one you save is a different code.",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
     }
 
     val alreadyClaimed = sourceKey.trim() in event.claimedSources

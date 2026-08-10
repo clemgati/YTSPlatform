@@ -11,7 +11,11 @@ import com.yellowtrack.platform.core.data.event.UploadLog
 import com.yellowtrack.platform.core.data.event.UploadOutcome
 import com.yellowtrack.platform.core.data.event.WatchedFile
 import com.yellowtrack.platform.core.data.event.WatchedFolder
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentSink
+import com.yellowtrack.platform.core.export.SavedDocument
 import com.yellowtrack.platform.core.model.event.DeliveredResponse
+import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SittingSummary
@@ -347,6 +351,117 @@ class EventsViewModelTest {
                     .stations
                     .none { it.isOpen },
                 "the station still reads as open",
+            )
+        }
+
+    // -- The sign-up code, which is how anybody gets in at all --------------------------------
+
+    /**
+     * Saving the code is one action, not two.
+     *
+     * Until this existed the only way to obtain a sign-up link was to call the API by hand —
+     * which is exactly what the walkthrough script does, and why an end-to-end test passed
+     * while the studio had no way to start an event at all.
+     */
+    @Test
+    fun `saving the sign-up code issues one and writes a printable file`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val sink = RecordingSink()
+            val viewModel = viewModel(api, sink = sink)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.printSignUpCode("event-1")
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(1, api.inviteIssued)
+            assertEquals(1, api.cardRequested)
+
+            val document = sink.saved.single()
+            assertEquals("sign-up-code.html", document.fileName, "it must be printable from a browser")
+            assertTrue("printable card" in document.content)
+            assertTrue(
+                "Downloads" in
+                    viewModel.uiState.value.note
+                        .orEmpty(),
+                viewModel.uiState.value.note
+                    .orEmpty(),
+            )
+        }
+
+    /** The link is shown as well as printed — a code photographs badly in some lighting. */
+    @Test
+    fun `saving the code shows the link on screen too`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            assertNull(viewModel.content().open!!.inviteUrl, "no code should exist before it is asked for")
+
+            viewModel.printSignUpCode("event-1")
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(
+                viewModel
+                    .content()
+                    .open!!
+                    .inviteUrl
+                    .orEmpty()
+                    .contains("/join/"),
+                "the link is not on screen: ${viewModel.content().open!!.inviteUrl}",
+            )
+        }
+
+    /**
+     * Withdrawing is the only way to close a sign-up once something is printed.
+     *
+     * The link leaves the screen with it, because a link still shown is a link somebody reads
+     * out to a guest who then cannot sign up.
+     */
+    @Test
+    fun `withdrawing the code removes it from the screen`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.printSignUpCode("event-1")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.withdrawSignUpCode("event-1")
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(1, api.revoked)
+            assertNull(viewModel.content().open!!.inviteUrl, "a withdrawn code is still shown")
+        }
+
+    /** A failure while saving must not claim a file was written. */
+    @Test
+    fun `a code that could not be saved says so`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            api.inviteFails = EventActionFailed("There is no such event.")
+            val sink = RecordingSink()
+            val viewModel = viewModel(api, sink = sink)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            viewModel.printSignUpCode("event-1")
+            testScheduler.advanceUntilIdle()
+
+            assertTrue(sink.saved.isEmpty(), "a file was written for a code that was never issued")
+            assertNull(viewModel.uiState.value.note)
+            assertTrue(
+                "no such event" in
+                    viewModel.uiState.value.problem
+                        .orEmpty()
+                        .lowercase(),
             )
         }
 
@@ -894,6 +1009,7 @@ class EventsViewModelTest {
     private fun TestScope.viewModel(
         api: EventsApi,
         platform: IngestPlatform = FakeIngestPlatform(),
+        sink: DocumentSink = RecordingSink(),
     ) = EventsViewModel(
         api = api,
         ingest =
@@ -904,11 +1020,23 @@ class EventsViewModelTest {
                 clock = AppClock { Instant.fromEpochMilliseconds(testScheduler.currentTime) },
             ),
         platform = platform,
+        sink = sink,
     ).also { viewModel ->
         // `uiState` is shared `WhileSubscribed`, so with nobody collecting it never leaves its
         // initial value and every assertion below would read `Loading`. Compose subscribes for
         // as long as the screen is on show; this is that, for as long as the test runs.
         backgroundScope.launch { viewModel.uiState.collect {} }
+    }
+
+    /** Records what would have been written, and where it says it went. */
+    private class RecordingSink : DocumentSink {
+        val saved = mutableListOf<Document>()
+
+        override suspend fun save(document: Document): SavedDocument {
+            saved += document
+
+            return SavedDocument(fileName = document.fileName, location = "~/Downloads/${document.fileName}")
+        }
     }
 
     private class FakeIngestPlatform(
@@ -1065,6 +1193,34 @@ class EventsViewModelTest {
         var deliverFails: Throwable? = null
         var delivered = 0
         var advanced = 0
+
+        // -- The sign-up code ------------------------------------------------------------
+
+        var inviteIssued = 0
+        var revoked = 0
+        var cardRequested = 0
+        private var token = "the-token"
+
+        var inviteFails: Throwable? = null
+
+        override suspend fun invite(eventId: String): EventInviteResponse {
+            inviteFails?.let { throw it }
+            inviteIssued++
+
+            return EventInviteResponse(token = token, url = "https://photos.example.test/join/$token")
+        }
+
+        override suspend fun inviteCard(eventId: String): String {
+            cardRequested++
+
+            return "<html><body>a printable card for $eventId</body></html>"
+        }
+
+        override suspend fun revokeInvite(eventId: String) {
+            revoked++
+            // Reissuing gives a different code, which is what kills the printed one.
+            token = "a-different-token"
+        }
 
         override suspend fun registrations(eventId: String): List<RegistrationSummary> =
             registrationsByEvent[eventId].orEmpty()

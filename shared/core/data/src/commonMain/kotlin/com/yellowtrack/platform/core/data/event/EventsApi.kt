@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.core.data.event
 
 import com.yellowtrack.platform.core.model.event.DeliveredResponse
+import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SittingSummary
@@ -52,6 +53,32 @@ interface EventsApi {
         eventId: String,
         stationId: String,
     )
+
+    /**
+     * The event's sign-up code, issued on first ask and unchanged afterwards.
+     *
+     * A second code would silently orphan whichever banner was printed from the first, so
+     * this is idempotent and the studio never has to think about it.
+     */
+    suspend fun invite(eventId: String): EventInviteResponse
+
+    /**
+     * The code as a page a studio can print and put on a table.
+     *
+     * Returned as HTML rather than an image because that is what somebody prints, and
+     * because the printed thing needs the event's name and the link in text beside the code
+     * — a code photographs badly in some lighting, and a person who can read a URL can still
+     * sign up.
+     */
+    suspend fun inviteCard(eventId: String): String
+
+    /**
+     * Stops honouring the code.
+     *
+     * A banner cannot be recalled, so this is the only way to close a sign-up. Issuing again
+     * afterwards produces a different code, which is what leaves the old banner dead.
+     */
+    suspend fun revokeInvite(eventId: String)
 
     /** Everybody who has signed up, so a photographer can pick the next name. */
     suspend fun registrations(eventId: String): List<RegistrationSummary>

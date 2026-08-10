@@ -20,6 +20,9 @@ application {
 dependencies {
     implementation(project(":shared:core:model"))
 
+    // Encoding only. The SVG is rendered here, so nothing pulls in an image library.
+    implementation(libs.zxing.core)
+
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.contentNegotiation)
