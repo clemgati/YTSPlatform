@@ -361,7 +361,21 @@ here — every one of them is a laptop default.
 | `SES_TOPIC_ARN` | `arn:aws:sns:eu-west-1:123456789012:yellowtrack-ses` | The SNS topic SES publishes bounces to. **Unset means `/ses/notifications` refuses everything** |
 | `STORAGE_BUCKET` | `yellowtrack-photos` | Where photographs go — ADR 0013. Unset means this deployment cannot store any |
 | `STORAGE_REGION` | `us-west-1` | Defaults to the instance's region. A bucket elsewhere works and costs more in transfer |
+| `PHOTOS_URL` | `https://yellowtrackphotos.com` | The address printed on a QR code and mailed to a guest. Defaults to that; set it if the public site is anywhere else, or every banner points at a domain you do not serve |
 | `PORT` | `8080` | Bound to loopback; Apache is the only thing that reaches it |
+
+### The public site
+
+`/join/{token}` and `/gallery/{token}` are served by this same process as plain HTML — see
+`PublicSite.kt` for why they are not part of the Compose build. They are the two addresses a
+member of the public ever sees, and the JSON behind them sits under `/api/`.
+
+Point the public host at the same backend Apache already proxies. Nothing else is needed:
+the pages are same-origin with their API, so `ALLOWED_ORIGINS` does not come into it.
+
+`PHOTOS_URL` is what goes on the banner and into the email. It is not checked against
+anything, so a value that does not resolve produces QR codes that fail silently for
+everybody who scans them — the one setting here whose mistake is only visible to guests.
 
 `MAIL_USERNAME` catches people out: SES SMTP credentials are generated separately in the
 console and are not your IAM access key, which fails authentication in a way that reads
