@@ -361,8 +361,28 @@ here — every one of them is a laptop default.
 | `SES_TOPIC_ARN` | `arn:aws:sns:eu-west-1:123456789012:yellowtrack-ses` | The SNS topic SES publishes bounces to. **Unset means `/ses/notifications` refuses everything** |
 | `STORAGE_BUCKET` | `yellowtrack-photos` | Where photographs go — ADR 0013. Unset means this deployment cannot store any |
 | `STORAGE_REGION` | `us-west-1` | Defaults to the instance's region. A bucket elsewhere works and costs more in transfer |
+| `EVENTS_FROM` | `photos@yellowtrackphotos.com` | Sends a guest their event photographs. Must be on a domain verified in SES. Falls back to `DOCUMENT_FROM`, which works and puts a different domain in the sender than in the link |
 | `PHOTOS_URL` | `https://yellowtrackphotos.com` | The address printed on a QR code and mailed to a guest. Defaults to that; set it if the public site is anywhere else, or every banner points at a domain you do not serve |
 | `PORT` | `8080` | Bound to loopback; Apache is the only thing that reaches it |
+
+### Event mail goes to strangers, and lands where strangers' mail lands
+
+The first delivery this product ever sent landed in spam with **SPF, DKIM and DMARC all
+passing**. Authentication was never the problem, and checking it first is still right —
+Gmail's *Show original* prints all three, which turns a guess into a measurement.
+
+What was left was shape and reputation. The message was short, from `yellowtrackstudios.com`,
+and its only call to action was a link to `yellowtrackphotos.com`, sent to somebody who had
+corresponded with neither. `EVENTS_FROM` fixes the domain mismatch; a fuller body and a
+`List-Unsubscribe` header fix the shape. Neither fixes reputation, which is volume over time.
+
+So verify `yellowtrackphotos.com` in SES with DKIM, set `EVENTS_FROM` on it, and register the
+domain with Google Postmaster Tools — otherwise the only reputation signal available is
+somebody at an event saying they did not get their photographs.
+
+The sign-up page tells guests to check spam. That is not defeatism: at an event, the
+difference between a guest finding their photographs and concluding the studio never sent
+them is one sentence.
 
 ### The public site
 
