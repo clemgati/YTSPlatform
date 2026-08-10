@@ -1,9 +1,18 @@
 package com.yellowtrack.platform.server
 
+import com.yellowtrack.platform.core.model.auth.SessionResponse
+import com.yellowtrack.platform.core.model.auth.SignUpRequest
+import com.yellowtrack.platform.core.model.event.CreateEventRequest
+import com.yellowtrack.platform.core.model.event.CreatedResponse
 import io.ktor.client.HttpClient
+import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
@@ -93,6 +102,86 @@ class PublicSiteTest {
             val visible = client.get("/join/any-token").bodyAsText().replace(Regex("(?s)<!--.*?-->"), "")
 
             assertTrue("spam" in visible.lowercase(), "the page does not mention spam")
+        }
+
+    // -- The front page ------------------------------------------------------------------------
+
+    /**
+     * Typing the domain must not be an error.
+     *
+     * It is printed on banners and it is the sender of every delivery email, so it is typed
+     * by people holding no link at all. It answered 403 from the vhost allowlist until this
+     * page existed, which reads as broken rather than as "you need your own link".
+     */
+    @Test
+    fun `the root serves a page rather than an error`() =
+        withServer { client ->
+            val response = client.get("/")
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            assertTrue(response.headers["Content-Type"].orEmpty().startsWith("text/html"), "not html")
+            assertTrue("Yellow Track Photos" in response.bodyAsText())
+        }
+
+    /** It tells somebody with no link what to do, which is the whole reason it exists. */
+    @Test
+    fun `the front page says how photographs are reached`() =
+        withServer { client ->
+            val body = client.get("/").bodyAsText().lowercase()
+
+            assertTrue("link" in body, "it does not mention a link")
+            assertTrue("spam" in body, "it does not say where a delivery often lands")
+        }
+
+    /**
+     * And it knows nothing.
+     *
+     * Served to anybody who asks, with no token in its address, so it must name no event, no
+     * studio and no person — the same discipline as the sign-up page, applied to a page that
+     * has no context at all.
+     */
+    @Test
+    fun `the front page names no event and no person`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            client.invite(session, event)
+
+            val body = client.get("/").bodyAsText()
+
+            assertFalse("Harbour Awards" in body, "an event was named on the public front page")
+            assertFalse(event in body, "an event identifier reached the front page")
+        }
+
+    /**
+     * Unlike the other two, this one wants to be found.
+     *
+     * The `noindex` on the token pages exists because their addresses are credentials. This
+     * page has no address to protect, and a domain that sends mail while serving nothing
+     * indexable is a domain receivers trust less.
+     */
+    @Test
+    fun `the front page may be indexed and cached`() =
+        withServer { client ->
+            val response = client.get("/")
+
+            assertEquals(null, response.headers["X-Robots-Tag"], "the front page asked not to be indexed")
+            assertFalse(
+                "no-store" in response.headers["Cache-Control"].orEmpty(),
+                "the front page holds nothing private and need not be uncacheable",
+            )
+        }
+
+    /** The token pages keep their protections, which this must not have loosened. */
+    @Test
+    fun `the token pages are still not indexed or cached`() =
+        withServer { client ->
+            listOf("/join/any-token", "/gallery/any-token").forEach { path ->
+                val response = client.get(path)
+
+                assertTrue("noindex" in response.headers["X-Robots-Tag"].orEmpty(), "$path may be indexed")
+                assertTrue("no-store" in response.headers["Cache-Control"].orEmpty(), "$path is cacheable")
+            }
         }
 
     // -- What a page holding a private link must not do ---------------------------------------
@@ -218,6 +307,46 @@ class PublicSiteTest {
                 assertFalse(inlineScript.containsMatchIn(body), "$path has an inline script")
             }
         }
+
+    private suspend fun HttpClient.signUp(): SessionResponse {
+        val email = "site-${counter++}-${System.nanoTime()}@harbourline.test"
+        val response =
+            post("/auth/sign-up") {
+                contentType(ContentType.Application.Json)
+                setBody(
+                    apiJson.encodeToString(
+                        SignUpRequest(email, "a long enough password", "Ada Okafor", "Harbourline Photography"),
+                    ),
+                )
+            }
+        assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
+
+        return apiJson.decodeFromString(response.bodyAsText())
+    }
+
+    private suspend fun HttpClient.createEvent(
+        session: SessionResponse,
+        name: String,
+    ): String {
+        val response =
+            post("/events") {
+                bearerAuth(session.token)
+                contentType(ContentType.Application.Json)
+                setBody(apiJson.encodeToString(CreateEventRequest(name)))
+            }
+        assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
+
+        return apiJson.decodeFromString<CreatedResponse>(response.bodyAsText()).id
+    }
+
+    private suspend fun HttpClient.invite(
+        session: SessionResponse,
+        eventId: String,
+    ) = post("/events/$eventId/invite") { bearerAuth(session.token) }
+
+    private companion object {
+        private var counter = 0
+    }
 
     private fun withServer(block: suspend ApplicationTestBuilder.(HttpClient) -> Unit) =
         testApplication {
