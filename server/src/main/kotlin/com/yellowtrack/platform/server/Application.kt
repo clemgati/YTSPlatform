@@ -96,6 +96,15 @@ private val PURGE_INTERVAL = 24.hours
 fun Application.module(
     database: Database,
     deployment: Deployment = Deployment(allowedOrigins = emptyList()),
+    /**
+     * Where photographs go, when something other than the environment should decide.
+     *
+     * Only the tests pass this, and they need it: without a bucket the upload route answers
+     * 503 before it ever reaches routing, so everything past that point — which slot a
+     * photograph belongs to, and the clock correction that decides it — was unreachable in
+     * process and could only be checked by uploading to real S3.
+     */
+    objects: ObjectStore? = null,
 ) {
     val accounts = Accounts(database)
 
@@ -142,7 +151,8 @@ fun Application.module(
     if (storage == null) {
         log.info("STORAGE_BUCKET is not set: this deployment cannot store photographs.")
     }
-    val objects = storage?.let { S3ObjectStore(it) } ?: ObjectStore.Unconfigured
+    @Suppress("NAME_SHADOWING")
+    val objects = objects ?: storage?.let { S3ObjectStore(it) } ?: ObjectStore.Unconfigured
 
     val deletion = AccountDeletion(database, AccountDeletion.retentionFromEnvironment(), objects = objects)
 

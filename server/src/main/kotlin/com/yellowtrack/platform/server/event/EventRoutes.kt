@@ -315,6 +315,31 @@ fun Route.eventRoutes(
                 val sourceKey = call.request.queryParameters["source"]
                 val capturedAt = call.request.queryParameters["capturedAt"]?.toLongOrNull()
 
+                /*
+                 * The client's own clock, so its error can be cancelled.
+                 *
+                 * `capturedAt` is a file's modification time from a photographer's laptop.
+                 * The slot boundaries it is compared against come from this server's clock,
+                 * and nothing synchronises the two. The first live run of the walkthrough
+                 * lost a photograph to the event's gallery over **39 milliseconds** of skew
+                 * — silently, because routing to the gallery is the correct answer when no
+                 * slot is open.
+                 *
+                 * Both directions fail, and they fail differently. A laptop behind the
+                 * server drops the opening photographs of a sitting into the gallery, which
+                 * is recoverable. A laptop ahead of it matches photographs taken during the
+                 * *previous* sitting to the current slot, which delivers one person's
+                 * photographs to another — the thing ADR 0013 exists to prevent, arriving
+                 * through a clock rather than a mistap.
+                 *
+                 * Correcting the clock rather than widening the slot is deliberate. A grace
+                 * window at the start of a slot would have admitted exactly the photographs
+                 * taken while the previous person was still in front of the camera.
+                 *
+                 * Optional: a client that does not send it is treated as it was before.
+                 */
+                val clientNow = call.request.queryParameters["clientNow"]?.toLongOrNull()
+
                 if (eventId == null || sourceKey.isNullOrBlank() || capturedAt == null) {
                     call.respond(
                         HttpStatusCode.BadRequest,
@@ -348,7 +373,14 @@ fun Route.eventRoutes(
                             return@post
                         }
 
-                val routed = events.recordPhotograph(studioId, eventId, sourceKey, storedObjectId, capturedAt)
+                // Residual error is one-way network delay, which lands the corrected time a
+                // few tens of milliseconds *late* — the conservative direction, since a
+                // photograph pushed past a slot's end finds no slot and goes to the gallery
+                // rather than to the wrong person.
+                val correctedCapturedAt = correctForClientClock(capturedAt, clientNow, System.currentTimeMillis())
+
+                val routed =
+                    events.recordPhotograph(studioId, eventId, sourceKey, storedObjectId, correctedCapturedAt)
 
                 call.respond(
                     HttpStatusCode.Created,
@@ -365,3 +397,23 @@ fun Route.eventRoutes(
 private fun ApplicationCall.studioId(): String = principal<SessionPrincipal>()!!.session.studioId
 
 private suspend fun ApplicationCall.missingEvent() = respond(HttpStatusCode.BadRequest, ErrorResponse("which event?"))
+
+/**
+ * `capturedAt` as this server's clock would have recorded it.
+ *
+ * A file's modification time comes from a photographer's laptop; the slot boundaries it is
+ * compared against come from here. `clientNow` is read from that same laptop clock as the
+ * request is sent, so the difference between it and this server's clock is exactly the error
+ * — whatever it is, and without either machine needing to be right.
+ *
+ * Residual error is one-way network delay, which lands the result a few tens of milliseconds
+ * late. That is the conservative direction: a photograph pushed past the end of a slot finds
+ * no slot and goes to the gallery, rather than into the next person's sitting.
+ *
+ * Null [clientNow] means an older client, which is left exactly as it was.
+ */
+internal fun correctForClientClock(
+    capturedAt: Long,
+    clientNow: Long?,
+    serverNow: Long,
+): Long = clientNow?.let { capturedAt + (serverNow - it) } ?: capturedAt
