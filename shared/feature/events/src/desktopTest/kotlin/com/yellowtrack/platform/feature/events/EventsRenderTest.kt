@@ -16,6 +16,8 @@ import com.yellowtrack.platform.feature.events.presentation.EventsContent
 import com.yellowtrack.platform.feature.events.presentation.EventsScreen
 import com.yellowtrack.platform.feature.events.presentation.EventsUiState
 import com.yellowtrack.platform.feature.events.presentation.OpenEvent
+import com.yellowtrack.platform.feature.events.presentation.PersonRow
+import com.yellowtrack.platform.feature.events.presentation.SittingRow
 import com.yellowtrack.platform.feature.events.presentation.StationRow
 import java.io.File
 import kotlin.test.Test
@@ -78,6 +80,44 @@ class EventsRenderTest {
                                             StationRow("s1", "Bay 1", "Camera A", openedAt = 1_000, closedAt = null),
                                             StationRow("s2", "Bay 2", "Camera B", openedAt = 900, closedAt = 950),
                                         ),
+                                    registrations =
+                                        listOf(
+                                            PersonRow("r1", "ada@example.test", "Ada Okafor"),
+                                            PersonRow("r2", "grace@example.test", "Grace Hopper"),
+                                        ),
+                                    sittings =
+                                        listOf(
+                                            SittingRow(
+                                                id = "sit-1",
+                                                registrationId = "r1",
+                                                email = "ada@example.test",
+                                                name = "Ada Okafor",
+                                                stationName = "Bay 1",
+                                                closedAt = null,
+                                                deliveredAt = null,
+                                                photographs = 6,
+                                            ),
+                                            SittingRow(
+                                                id = "sit-2",
+                                                registrationId = "r2",
+                                                email = "grace@example.test",
+                                                name = "Grace Hopper",
+                                                stationName = "Bay 2",
+                                                closedAt = 950,
+                                                deliveredAt = null,
+                                                photographs = 4,
+                                            ),
+                                            SittingRow(
+                                                id = "sit-3",
+                                                registrationId = "r3",
+                                                email = "katherine@example.test",
+                                                name = "Katherine Johnson",
+                                                stationName = "Bay 2",
+                                                closedAt = 900,
+                                                deliveredAt = 940,
+                                                photographs = 3,
+                                            ),
+                                        ),
                                 ),
                         ),
                     ),
@@ -108,7 +148,7 @@ class EventsRenderTest {
         val target = File(outputDir, "$name.png")
 
         val scene =
-            ImageComposeScene(width = 1_280, height = 1_600, density = Density(2f)) {
+            ImageComposeScene(width = 1_280, height = 2_000, density = Density(2f)) {
                 YellowTrackTheme {
                     Surface(modifier = Modifier.fillMaxSize(), color = YTTheme.colors.background) {
                         EventsScreen(
@@ -121,6 +161,9 @@ class EventsRenderTest {
                             onCloseStation = { _, _ -> },
                             onWatchFolder = { _, _ -> },
                             onStopWatching = {},
+                            onSeat = { _, _, _ -> },
+                            onDeliver = { _, _ -> },
+                            onDismissNote = {},
                             onDismissProblem = {},
                         )
                     }

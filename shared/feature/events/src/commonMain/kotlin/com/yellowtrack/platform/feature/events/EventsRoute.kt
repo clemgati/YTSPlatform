@@ -23,6 +23,9 @@ fun EventsRoute(modifier: Modifier = Modifier) {
         onCloseStation = viewModel::closeStation,
         onWatchFolder = viewModel::watchFolder,
         onStopWatching = viewModel::stopWatching,
+        onSeat = viewModel::seat,
+        onDeliver = viewModel::deliver,
+        onDismissNote = viewModel::dismissNote,
         onDismissProblem = viewModel::dismissProblem,
         modifier = modifier,
     )

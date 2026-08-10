@@ -50,7 +50,10 @@ internal fun EventsScreen(
     onCloseStation: (eventId: String, stationId: String) -> Unit,
     onWatchFolder: (eventId: String, sourceKey: String) -> Unit,
     onStopWatching: (sourceKey: String) -> Unit,
+    onSeat: (eventId: String, stationId: String, registrationId: String) -> Unit,
+    onDeliver: (eventId: String, slotId: String) -> Unit,
     onDismissProblem: () -> Unit,
+    onDismissNote: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     StatefulContent(
@@ -75,6 +78,19 @@ internal fun EventsScreen(
         ) {
             // Over the screen rather than instead of it: the remedy for "already open on
             // Camera A" is the station list underneath this.
+            uiState.note?.let { note ->
+                YTCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(note, style = YTTheme.typography.bodyMedium)
+                        YTTextButton(text = "Dismiss", onClick = onDismissNote)
+                    }
+                }
+            }
+
             uiState.problem?.let { problem ->
                 YTCard {
                     Column(
@@ -99,6 +115,8 @@ internal fun EventsScreen(
                         onCloseStation = onCloseStation,
                         onWatchFolder = onWatchFolder,
                         onStopWatching = onStopWatching,
+                        onSeat = onSeat,
+                        onDeliver = onDeliver,
                     )
             }
         }
@@ -172,6 +190,8 @@ private fun OpenEventDetail(
     onCloseStation: (eventId: String, stationId: String) -> Unit,
     onWatchFolder: (eventId: String, sourceKey: String) -> Unit,
     onStopWatching: (sourceKey: String) -> Unit,
+    onSeat: (eventId: String, stationId: String, registrationId: String) -> Unit,
+    onDeliver: (eventId: String, slotId: String) -> Unit,
 ) {
     var stationName by remember(event.id) { mutableStateOf("") }
     var sourceKey by remember(event.id) { mutableStateOf("") }
@@ -254,12 +274,172 @@ private fun OpenEventDetail(
                 }
             }
 
+            if (station.isOpen) {
+                Seated(
+                    seated = event.seated[station.name],
+                    people = event.registrations,
+                    isBusy = isBusy,
+                    onSeat = { onSeat(event.id, station.id, it) },
+                )
+            }
+
             if (station.isOpen && canWatchFolders) {
                 Ingest(
                     status = ingest[station.sourceKey],
                     onWatch = { onWatchFolder(event.id, station.sourceKey) },
                     onStop = { onStopWatching(station.sourceKey) },
                 )
+            }
+        }
+    }
+
+    // After the stations, deliberately. Mid-event the live camera is what a photographer
+    // looks at; the backlog is what somebody works down once the queue has gone.
+    Sittings(event = event, isBusy = isBusy, onDeliver = onDeliver)
+}
+
+/**
+ * Who is in front of this camera, and how to change it.
+ *
+ * The name and the address both, because a mistap here sends one guest's photographs to
+ * another and "Ada" is not enough to tell two Adas apart. The list is filtered rather than
+ * scrolled: an event has hundreds of sign-ups and a photographer has somebody standing in
+ * front of them.
+ */
+@Composable
+private fun Seated(
+    seated: SittingRow?,
+    people: List<PersonRow>,
+    isBusy: Boolean,
+    onSeat: (String) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var choosing by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    seated?.let { "Now: ${it.label}" } ?: "Nobody seated — photographs go to the gallery",
+                    style = YTTheme.typography.bodyMedium,
+                )
+                seated?.takeIf { it.name != null }?.let {
+                    Text(it.email, style = YTTheme.typography.bodySmall, color = YTTheme.colors.onSurfaceVariant)
+                }
+            }
+
+            YTTextButton(
+                text = if (choosing) "Cancel" else "Next person",
+                onClick = { choosing = !choosing },
+            )
+        }
+
+        if (choosing) {
+            YTTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = "Find somebody",
+                placeholder = "name or email",
+            )
+
+            val matches =
+                people
+                    .filter {
+                        query.isBlank() ||
+                            query.trim().lowercase() in "${it.name.orEmpty()} ${it.email}".lowercase()
+                    }.take(SEARCH_RESULTS)
+
+            if (matches.isEmpty()) {
+                Text(
+                    "Nobody matches. They may not have scanned the code yet.",
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
+
+            matches.forEach { person ->
+                YTCard(
+                    modifier =
+                        Modifier.fillMaxWidth().clickable(enabled = !isBusy) {
+                            onSeat(person.id)
+                            choosing = false
+                            query = ""
+                        },
+                ) {
+                    Column {
+                        Text(person.label, style = YTTheme.typography.bodyMedium)
+                        // Always, even when a name is shown. Two people called Ada is not an
+                        // edge case at a conference, and the address is what distinguishes
+                        // them — and what the photographs will be sent to.
+                        Text(
+                            person.email,
+                            style = YTTheme.typography.bodySmall,
+                            color = YTTheme.colors.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The sittings, and the ones still owed a delivery.
+ *
+ * Ordered so the work is at the top: closed, holding photographs, not yet sent. A sitting
+ * nobody sends is a person who was photographed and got nothing, and the only place that is
+ * visible is here.
+ */
+@Composable
+private fun Sittings(
+    event: OpenEvent,
+    isBusy: Boolean,
+    onDeliver: (eventId: String, slotId: String) -> Unit,
+) {
+    if (event.sittings.isEmpty()) return
+
+    val waiting = event.awaitingDelivery
+
+    YTSectionCard(
+        title =
+            if (waiting.isEmpty()) {
+                "Sittings"
+            } else {
+                "Sittings — ${waiting.size} to send"
+            },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
+            (waiting + (event.sittings - waiting.toSet())).forEach { sitting ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(sitting.label, style = YTTheme.typography.bodyMedium)
+                        Text(
+                            "${sitting.stationName} · ${photographs(sitting.photographs)}" +
+                                (sitting.blockedBecause?.let { " · $it" } ?: ""),
+                            style = YTTheme.typography.bodySmall,
+                            color = YTTheme.colors.onSurfaceVariant,
+                        )
+                    }
+
+                    when {
+                        sitting.isDelivered -> YTBadge(text = "Sent")
+                        sitting.canDeliver ->
+                            YTButton(
+                                text = "Send",
+                                enabled = !isBusy,
+                                onClick = { onDeliver(event.id, sitting.id) },
+                            )
+                        else -> Unit
+                    }
+                }
             }
         }
     }
@@ -344,3 +524,9 @@ private fun Problem(message: String) {
         Text(message, style = YTTheme.typography.bodyMedium, color = YTTheme.colors.error)
     }
 }
+
+/** Enough to choose from without turning the screen into a directory. */
+private const val SEARCH_RESULTS = 6
+
+/** "1 photograph", "4 photographs" — a screen a person reads, not a log line. */
+private fun photographs(count: Int): String = if (count == 1) "1 photograph" else "$count photographs"
