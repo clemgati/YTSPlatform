@@ -97,12 +97,16 @@ internal class EventsViewModel(
 
             state.update {
                 it.copy(
-                    content =
-                        if (events.isEmpty() && reopened == null) {
-                            UiState.Empty
-                        } else {
-                            UiState.Success(EventsContent(events, reopened))
-                        },
+                    // Never Empty, deliberately.
+                    //
+                    // `UiState.Empty` renders a message and nothing else, and the only way to
+                    // create an event lives on the success screen — so a studio with no
+                    // events, which is every new studio, was shown "No events yet" and no way
+                    // to add one. A test asserted that state and called it correct.
+                    //
+                    // An empty list is a normal screen with nothing on it, not a different
+                    // kind of screen.
+                    content = UiState.Success(EventsContent(events, reopened)),
                 )
             }
         } catch (cancellation: CancellationException) {
