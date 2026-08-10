@@ -204,12 +204,32 @@ fun Application.module(
         json(apiJson)
     }
 
-    // Only installed when there is something to allow. The native clients send no Origin
-    // and need none of this; the browser build cannot work without its own origin listed,
-    // and listing none is safer than listing all.
+    /*
+     * Only installed when there is something to allow. The native clients send no Origin and
+     * need none of this; the browser build cannot work without its own origin listed, and
+     * listing none is safer than listing all.
+     *
+     * The public site's own origin, which is not optional and was not there.
+     *
+     * A browser sends `Origin` on every POST, including a same-origin one. So the sign-up
+     * page — served by this application, from this application — had its own form submission
+     * refused as cross-origin, and every guest saw a failure. Nothing caught it: curl sends
+     * no `Origin`, so `walk-event.py` and every probe in this repository passed.
+     *
+     * Ktor's same-origin detection does not rescue it either. Apache terminates TLS, so the
+     * request arrives as plain HTTP on a loopback socket while `Origin` says `https://…` —
+     * the schemes disagree and the check fails.
+     *
+     * Derived from PHOTOS_URL rather than added to ALLOWED_ORIGINS by hand, because this
+     * application serves those pages and therefore already knows where they live. A
+     * deployment cannot forget it.
+     */
+    val photosOrigin = (System.getenv("PHOTOS_URL")?.trimEnd('/') ?: "https://yellowtrackphotos.com")
+    val corsOrigins = (deployment.allowedOrigins + photosOrigin).distinct()
+
     if (deployment.allowedOrigins.isNotEmpty()) {
         install(CORS) {
-            deployment.allowedOrigins.forEach { origin ->
+            corsOrigins.forEach { origin ->
                 val withoutScheme = origin.substringAfter("://")
                 allowHost(withoutScheme, schemes = listOf(origin.substringBefore("://")))
             }

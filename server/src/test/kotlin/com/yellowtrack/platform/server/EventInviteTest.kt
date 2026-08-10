@@ -11,10 +11,12 @@ import com.yellowtrack.platform.server.event.EventInvites
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
@@ -242,6 +244,71 @@ class EventInviteTest {
             assertEquals(HttpStatusCode.NotFound, client.join("not-a-real-token", "guest@example.test").status)
         }
 
+    // -- As a browser actually sends it ----------------------------------------------------------
+
+    /**
+     * A browser sends `Origin` on every POST, including a same-origin one.
+     *
+     * This is the request the sign-up page makes, and it was refused in production with a
+     * bare 403: `ALLOWED_ORIGINS` was set for the web build, which installs CORS, and the
+     * photographs host was not in it — so the page served by this application had its own
+     * form submission rejected as cross-origin.
+     *
+     * Nothing caught it. curl sends no `Origin`, so `walk-event.py` and every probe in this
+     * repository exercised a request no browser makes.
+     */
+    @Test
+    fun `a sign-up from the public site's own origin is accepted`() =
+        withCors { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val response =
+                client.post("/api/join/${invite.token}") {
+                    header(HttpHeaders.Origin, "https://yellowtrackphotos.com")
+                    contentType(ContentType.Application.Json)
+                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test", null)))
+                }
+
+            assertEquals(HttpStatusCode.NoContent, response.status, response.bodyAsText())
+            assertEquals(1, registrationCount(event))
+        }
+
+    /** And reading the event's name, which the page does first. */
+    @Test
+    fun `reading an event from the public site's own origin is accepted`() =
+        withCors { client ->
+            val session = client.signUp()
+            val invite = client.invite(session, client.createEvent(session, "Harbour Awards 2026"))
+
+            val response =
+                client.get("/api/join/${invite.token}") {
+                    header(HttpHeaders.Origin, "https://yellowtrackphotos.com")
+                }
+
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        }
+
+    /** Somebody else's page must still not post to it. */
+    @Test
+    fun `a sign-up from an unrelated origin is refused`() =
+        withCors { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val response =
+                client.post("/api/join/${invite.token}") {
+                    header(HttpHeaders.Origin, "https://not-us.example.test")
+                    contentType(ContentType.Application.Json)
+                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test", null)))
+                }
+
+            assertEquals(HttpStatusCode.Forbidden, response.status, response.bodyAsText())
+            assertEquals(0, registrationCount(event), "a stranger's page signed somebody up")
+        }
+
     // -- Not a way to fill somebody's database ------------------------------------------------
 
     /**
@@ -360,6 +427,20 @@ class EventInviteTest {
         }
 
     // -- Plumbing -----------------------------------------------------------------------------
+
+    /**
+     * A deployment that has declared origins, which is what installs CORS at all.
+     *
+     * The photographs host is deliberately *not* among them: the point is that the server
+     * adds its own public site regardless, so a deployment cannot forget it.
+     */
+    private fun withCors(block: suspend ApplicationTestBuilder.(HttpClient) -> Unit) =
+        testApplication {
+            application {
+                module(TestDatabase.database, Deployment(allowedOrigins = listOf("https://app.example.test")))
+            }
+            block(client)
+        }
 
     private fun withServer(block: suspend ApplicationTestBuilder.(HttpClient) -> Unit) =
         testApplication {

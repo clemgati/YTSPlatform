@@ -29,7 +29,12 @@
                     + "finished, try again shortly.");
                 return null;
             }
-            if (!response.ok) throw new Error("unavailable");
+            // A refusal with no body would otherwise throw here and be reported below as a
+            // connection failure — the mistake that hid a 403 on the sign-up page for a day.
+            if (!response.ok) {
+                fail("The server refused that (" + response.status + "). Please tell the photographer.");
+                return null;
+            }
             return response.json();
         })
         .then(function (gallery) {

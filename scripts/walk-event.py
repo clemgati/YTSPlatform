@@ -54,6 +54,11 @@ def call(base, method, path, token=None, body=None, raw=None, content_type=None,
     request = urllib.request.Request(url, data=data, method=method)
     if token:
         request.add_header("Authorization", "Bearer " + token)
+    # The public endpoints are called by a browser, and a browser sends `Origin` on every
+    # POST — including a same-origin one. Omitting it is why this script passed while the
+    # sign-up page was refused with a bare 403 in production.
+    if path.startswith("/api/"):
+        request.add_header("Origin", base.rstrip("/"))
     if data is not None:
         request.add_header("Content-Type", content_type or "application/json")
 
