@@ -34,6 +34,18 @@ data class SweepReport(
     /** Failed for a reason that may pass. Still queued. */
     val deferred: Int = 0,
     /**
+     * Files ignored for being something an attendee's phone cannot open, by extension.
+     *
+     * Raw, almost always. Skipping it is deliberate — 36MB per frame that renders as nothing
+     * on a phone — but skipping it *silently* is how a photographer shooting raw-only spends
+     * an event watching "0 sent" with no reason given, which is exactly what happened the
+     * first time somebody pointed this at a real capture folder.
+     *
+     * Counted per extension rather than listed: a name says nothing a photographer can act
+     * on, and "7 arw" says the camera is not writing JPEGs.
+     */
+    val ignored: Map<String, Int> = emptyMap(),
+    /**
      * Files that have failed repeatedly and are no longer plausibly "about to work".
      *
      * The same reason `SyncReport.stuck` exists. A watcher that keeps saying "0 sent, 40
@@ -44,7 +56,7 @@ data class SweepReport(
 ) {
     /** Nothing to report and nothing outstanding. */
     val isQuiet: Boolean
-        get() = sent == 0 && waiting == 0 && refused.isEmpty() && deferred == 0
+        get() = sent == 0 && waiting == 0 && refused.isEmpty() && deferred == 0 && ignored.isEmpty()
 }
 
 /**
@@ -119,9 +131,19 @@ class FolderWatch(
         var waiting = 0
         var deferred = 0
         val refused = mutableListOf<RefusedPhotograph>()
+        val ignored = mutableMapOf<String, Int>()
 
         for (file in listing.sortedBy { it.modifiedAt }) {
-            if (file.path in handled || !isDeliverable(file.path)) continue
+            if (file.path in handled) continue
+
+            if (!isDeliverable(file.path)) {
+                // Counted rather than passed over in silence. A folder of raw and a folder of
+                // nothing look identical from a count of what was sent.
+                extensionOf(file.path).takeIf { it.isNotBlank() && !isIncidental(file.path) }?.let {
+                    ignored[it] = (ignored[it] ?: 0) + 1
+                }
+                continue
+            }
 
             // Zero bytes is a file the camera has created and not yet written to. Not
             // "waiting on settling" — there is nothing there to settle — but counted as
@@ -215,6 +237,7 @@ class FolderWatch(
             waiting = waiting,
             refused = refused,
             deferred = deferred,
+            ignored = ignored,
             stuck = failures.filterValues { it >= attemptsBeforeStuck }.keys.sorted(),
         )
     }
@@ -233,15 +256,20 @@ class FolderWatch(
 
         fun extensionOf(path: String): String = path.substringAfterLast('.', "").lowercase()
 
-        fun isDeliverable(path: String): Boolean {
+        fun isDeliverable(path: String): Boolean = !isIncidental(path) && extensionOf(path) in DELIVERABLE
+
+        /**
+         * Files that are nobody's photograph and are not worth reporting as skipped.
+         *
+         * Dot-files are the editor's and the file system's, never the camera's, and a leading
+         * underscore is what several capture tools name their in-progress writes. Counting
+         * these as "ignored" would bury the one line that matters — that the camera is
+         * writing raw.
+         */
+        fun isIncidental(path: String): Boolean {
             val name = path.substringAfterLast('/').substringAfterLast('\\')
 
-            // Dot-files are the editor's and the file system's, never the camera's, and a
-            // leading underscore is what several capture tools name their in-progress
-            // writes.
-            if (name.startsWith(".") || name.startsWith("_")) return false
-
-            return extensionOf(name) in DELIVERABLE
+            return name.startsWith(".") || name.startsWith("_")
         }
 
         fun contentTypeOf(path: String): String =

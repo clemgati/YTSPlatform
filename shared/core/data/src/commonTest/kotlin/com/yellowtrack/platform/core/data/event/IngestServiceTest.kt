@@ -170,6 +170,32 @@ class IngestServiceTest {
         }
 
     /**
+     * A folder of raw is something a studio must be told about.
+     *
+     * The failure as it happened: seven frames tethered into a folder, nothing sent, and a
+     * screen that offered no reason. The count reaches the status so the screen can say the
+     * camera is writing the wrong format, and `needsAttention` includes it so it is not
+     * merely available to anybody who thinks to look.
+     */
+    @Test
+    fun `files that cannot be delivered reach the status and ask for attention`() =
+        runTest {
+            val world = World(this)
+            val service = world.service()
+            service.watch("event-1", "Camera A", folder())
+
+            world.folder.put("DSC01616-220.ARW", size = 36_000_000, modifiedAt = 1_000)
+            world.folder.put("DSC01617-221.ARW", size = 36_000_000, modifiedAt = 1_001)
+            advanceTimeBy(9.seconds)
+            runCurrent()
+
+            val status = assertNotNull(service.status.value["Camera A"])
+            assertEquals(0, status.sent)
+            assertEquals(mapOf("arw" to 2), status.ignored, "the screen has no way to explain the zero")
+            assertTrue(status.needsAttention, "a folder nothing can be sent from is not fine")
+        }
+
+    /**
      * Stopping keeps the record.
      *
      * A photographer closing a station still wants to see that it sent 214 and that two were

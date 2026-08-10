@@ -545,6 +545,18 @@ private fun Ingest(
         // scroll past.
         status.lastSweepFailed?.let { Problem("That folder could not be read: $it") }
 
+        // The line that would have saved an afternoon. A folder of raw and an empty folder
+        // produce the same "0 sent", and only this distinguishes them.
+        if (status.ignored.isNotEmpty()) {
+            val kinds = status.ignored.entries.sortedByDescending { it.value }
+            val summary = kinds.joinToString(", ") { "${it.value} ${it.key.uppercase()}" }
+
+            Problem(
+                "$summary in that folder cannot be sent — a phone cannot open them. " +
+                    "Set the camera to write JPEG as well as raw.",
+            )
+        }
+
         if (status.refused.isNotEmpty()) {
             Problem(
                 "${status.refused.size} refused and will not be sent: ${status.refused.take(

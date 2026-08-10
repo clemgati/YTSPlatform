@@ -4,6 +4,7 @@ import com.yellowtrack.platform.core.common.time.AppClock
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -136,6 +137,75 @@ class FolderWatchTest {
             watch.sweep()
 
             assertEquals(listOf("DSC_0001.JPG"), world.uploader.uploads.map { it.fileName })
+        }
+
+    /**
+     * A folder of raw and an empty folder must not look the same.
+     *
+     * This is the failure as it actually happened: a photographer tethered into a folder
+     * called `01_RAW`, took seven frames, and the screen said nothing had been sent. Skipping
+     * raw is right — 36MB per frame that a phone renders as nothing — but skipping it in
+     * silence leaves no way to tell "your camera is writing the wrong format" from "your
+     * folder is empty".
+     */
+    @Test
+    fun `raw files are reported rather than silently skipped`() =
+        runTest {
+            val world = World()
+            val watch = world.watch()
+            // The seven frames, named as the camera named them.
+            (1616..1622).forEach { n ->
+                world.folder.put("DSC0$n-${n - 1396}.ARW", size = 36_000_000, modifiedAt = 1_000L + n)
+            }
+
+            watch.sweep()
+            world.advance(3_000)
+            val report = watch.sweep()
+
+            assertEquals(0, report.sent)
+            assertEquals(mapOf("arw" to 7), report.ignored, "the raw files were skipped without a word")
+            assertFalse(report.isQuiet, "a folder that cannot be delivered is not a quiet folder")
+        }
+
+    /** Several kinds at once, so a mixed folder explains itself. */
+    @Test
+    fun `each ignored kind is counted separately`() =
+        runTest {
+            val world = World()
+            val watch = world.watch()
+            world.folder.put("DSC_0001.CR3", size = 60_000_000, modifiedAt = 1_000)
+            world.folder.put("DSC_0002.CR3", size = 60_000_000, modifiedAt = 1_001)
+            world.folder.put("DSC_0003.NEF", size = 50_000_000, modifiedAt = 1_002)
+            world.folder.put("DSC_0004.JPG", size = 4_000_000, modifiedAt = 1_003)
+
+            watch.sweep()
+            world.advance(3_000)
+            val report = watch.sweep()
+
+            assertEquals(1, report.sent, "the jpeg should still have gone")
+            assertEquals(mapOf("cr3" to 2, "nef" to 1), report.ignored)
+        }
+
+    /**
+     * The file system's own clutter is not a photograph anybody is missing.
+     *
+     * Counting `.DS_Store` as ignored would bury the one line that matters — that the camera
+     * is writing raw — under noise nobody can act on.
+     */
+    @Test
+    fun `incidental files are not reported as ignored photographs`() =
+        runTest {
+            val world = World()
+            val watch = world.watch()
+            world.folder.put(".DS_Store", size = 6_000, modifiedAt = 1_000)
+            world.folder.put("_tmp_0001.dat", size = 1_000, modifiedAt = 1_001)
+            world.folder.put("DSC_0001.ARW", size = 36_000_000, modifiedAt = 1_002)
+
+            watch.sweep()
+            world.advance(3_000)
+            val report = watch.sweep()
+
+            assertEquals(mapOf("arw" to 1), report.ignored, "clutter was reported as a missing photograph")
         }
 
     /** An empty file is a file the camera has created and not yet written to. */
