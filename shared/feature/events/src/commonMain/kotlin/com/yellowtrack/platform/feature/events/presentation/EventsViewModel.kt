@@ -146,6 +146,31 @@ internal class EventsViewModel(
         }
     }
 
+    /**
+     * One quiet refresh of whatever event is open.
+     *
+     * Driven by the screen rather than by a loop in here, and that is deliberate rather than
+     * convenient: the refresh should run while somebody is *looking*, which is a property of
+     * the screen and not of this object. A loop in a view model also never goes idle, which
+     * makes every test that waits for quiet hang — as this one did, once.
+     *
+     * Quiet on purpose. No busy flag, so nothing is disabled every couple of seconds, and no
+     * error banner, because a refresh failing is not something a photographer with a queue in
+     * front of them can act on. A real failure surfaces the moment they touch anything.
+     */
+    fun refreshOpenEvent() {
+        val open =
+            state.value.content
+                .dataOrNull()
+                ?.open ?: return
+
+        // Skipped while an action is in flight: that action reloads when it finishes, and two
+        // reloads racing would leave one of them stale on screen.
+        if (state.value.isBusy) return
+
+        viewModelScope.launch { runCatching { reloadEvent(open.id) } }
+    }
+
     fun closeEvent() {
         state.update { current ->
             val content = current.content.dataOrNull() ?: return@update current
@@ -420,6 +445,14 @@ internal class EventsViewModel(
 
     private companion object {
         const val FALLBACK = "That could not be done just now."
+
+        /**
+         * Often enough that a queue moves, rarely enough to be invisible.
+         *
+         * Matched to the ingest sweep, so the photograph count and the folder it comes from
+         * change at the same pace rather than disagreeing for a few seconds at a time.
+         */
+        const val REFRESH_INTERVAL_MILLIS = 2_000L
         const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
