@@ -31,3 +31,20 @@ data class EventInviteResponse(
      */
     val url: String,
 )
+
+/** What a delivery did, as the studio's screen reads it. */
+@Serializable
+data class DeliveredResponse(
+    val email: String,
+    val photographs: Int,
+    /** False when the sitting had already been handed over and nothing was sent again. */
+    val sentNow: Boolean,
+)
+
+/** Somebody's own photographs. */
+@Serializable
+data class GalleryResponse(
+    val eventName: String,
+    /** Temporary URLs, oldest first. They expire; the gallery link does not. */
+    val photographs: List<String>,
+)

@@ -3,6 +3,7 @@ package com.yellowtrack.platform.server.event
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
+import com.yellowtrack.platform.core.model.event.DeliveredResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.OpenStationRequest
 import com.yellowtrack.platform.core.model.event.PhotographAccepted
@@ -40,6 +41,8 @@ fun Route.eventRoutes(
     events: Events,
     objects: StoredObjects,
     invites: EventInvites,
+    delivery: EventDelivery,
+    galleries: EventGalleries,
     /**
      * Where the public sign-up lives.
      *
@@ -67,6 +70,71 @@ fun Route.eventRoutes(
                     HttpStatusCode.Created,
                     CreatedResponse(events.createEvent(call.studioId(), request.name.trim(), request.startsAt)),
                 )
+            }
+
+            /**
+             * Hands a sitting to the person in it.
+             *
+             * A studio action rather than something closing a slot does by itself — ADR 0013,
+             * because a mis-advanced slot sends one person's headshot to another and somebody
+             * has to have looked.
+             */
+            post("/{eventId}/sittings/{slotId}/deliver") {
+                val slotId =
+                    call.parameters["slotId"]
+                        ?: return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("which sitting?"),
+                        )
+
+                val delivered =
+                    try {
+                        delivery.deliver(call.studioId(), slotId)
+                    } catch (refused: DeliveryRefused) {
+                        // The studio's own words back. Every one of these is something it can
+                        // act on: close the sitting, add an address, wait for a photograph.
+                        call.respond(
+                            when (refused) {
+                                DeliveryRefused.NoSuchSitting -> HttpStatusCode.NotFound
+                                DeliveryRefused.StillOpen,
+                                DeliveryRefused.NothingToSend,
+                                DeliveryRefused.NoStudioEmail,
+                                -> HttpStatusCode.Conflict
+                                DeliveryRefused.NotConfigured,
+                                DeliveryRefused.Failed,
+                                -> HttpStatusCode.ServiceUnavailable
+                            },
+                            ErrorResponse(refused.message ?: "That could not be sent."),
+                        )
+                        return@post
+                    }
+
+                call.respond(
+                    DeliveredResponse(
+                        email = delivered.email,
+                        photographs = delivered.photographs,
+                        sentNow = delivered.sentNow,
+                    ),
+                )
+            }
+
+            /**
+             * Stops honouring somebody's gallery link.
+             *
+             * The remedy when an attendee asks to be forgotten, or when the wrong sitting
+             * reached the wrong person — the link is in an inbox and cannot be recalled.
+             */
+            post("/{eventId}/registrations/{registrationId}/revoke-gallery") {
+                val registrationId =
+                    call.parameters["registrationId"]
+                        ?: return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("which registration?"),
+                        )
+
+                galleries.revoke(call.studioId(), registrationId)
+
+                call.respond(HttpStatusCode.NoContent)
             }
 
             /**
