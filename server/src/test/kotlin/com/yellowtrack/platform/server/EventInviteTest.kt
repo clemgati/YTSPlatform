@@ -6,6 +6,7 @@ import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.InvitedEventResponse
+import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.server.event.EventInvites
 import io.ktor.client.HttpClient
@@ -309,6 +310,65 @@ class EventInviteTest {
             assertEquals(0, registrationCount(event), "a stranger's page signed somebody up")
         }
 
+    // -- One address is one person -------------------------------------------------------------
+
+    /**
+     * A second scan with a different name is the same person, renamed.
+     *
+     * This cost an afternoon of hunting. Four people were signed up from two email addresses;
+     * every sign-up answered "You are signed up", and the studio's list kept showing the first
+     * two names. Nothing was broken — one address is one person — but the name was silently
+     * discarded, which reads as the software losing people.
+     */
+    @Test
+    fun `signing up again with a name replaces the one held`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "guest@example.test", "James")
+            client.join(invite.token, "guest@example.test", "Ralph")
+
+            val people = client.registrations(session, event)
+
+            assertEquals(1, people.size, "one address must remain one person")
+            assertEquals("Ralph", people.single().name, "the corrected name was discarded")
+        }
+
+    /**
+     * And a scan with no name leaves the held one alone.
+     *
+     * Absence is not a correction. Wiping a name because somebody was in a hurry the second
+     * time is the same mistake pointing the other way.
+     */
+    @Test
+    fun `signing up again without a name keeps the one held`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "guest@example.test", "James")
+            client.join(invite.token, "guest@example.test", null)
+
+            assertEquals("James", client.registrations(session, event).single().name)
+        }
+
+    /** Two addresses are two people, however similar the names. */
+    @Test
+    fun `two addresses remain two people`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "one@example.test", "James")
+            client.join(invite.token, "two@example.test", "James")
+
+            assertEquals(2, client.registrations(session, event).size)
+        }
+
     // -- Not a way to fill somebody's database ------------------------------------------------
 
     /**
@@ -495,6 +555,16 @@ class EventInviteTest {
                 ),
             )
         }
+    }
+
+    private suspend fun HttpClient.registrations(
+        session: SessionResponse,
+        eventId: String,
+    ): List<RegistrationSummary> {
+        val response = get("/events/$eventId/registrations") { bearerAuth(session.token) }
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+
+        return apiJson.decodeFromString(response.bodyAsText())
     }
 
     private suspend fun HttpClient.invite(

@@ -114,6 +114,20 @@ class Events(
      *
      * Idempotent on the address, because somebody who scans the QR code twice is one person
      * and two registrations would mean two half-galleries.
+     *
+     * A name given on a later scan replaces the one held, and that is worth spelling out
+     * because the opposite cost an afternoon. Somebody signed up four people from two email
+     * addresses, watched every sign-up answer "You are signed up", and saw the studio's list
+     * keep showing the first two names — which reads as the software losing people rather
+     * than as one address being one person.
+     *
+     * It is also the ordinary case for a guest: the first scan is hurried and the name is
+     * skipped or mistyped, and the second is the correction. Discarding it means the studio
+     * addresses somebody by a name they already tried to fix.
+     *
+     * A later scan that gives *no* name leaves the held one alone. Absence is not a
+     * correction, and wiping a name because somebody was in a hurry the second time would be
+     * the same mistake pointing the other way.
      */
     fun register(
         studioId: String,
@@ -122,7 +136,17 @@ class Events(
         name: String? = null,
     ): String =
         database.inStudio(studioId) { connection ->
-            existingRegistration(connection, eventId, email) ?: newId().also { id ->
+            existingRegistration(connection, eventId, email)?.also { id ->
+                name?.takeIf { it.isNotBlank() }?.let { updated ->
+                    connection
+                        .prepareStatement("UPDATE event_registration SET name = ? WHERE id = ?")
+                        .use { statement ->
+                            statement.setString(1, updated)
+                            statement.setString(2, id)
+                            statement.executeUpdate()
+                        }
+                }
+            } ?: newId().also { id ->
                 connection
                     .prepareStatement(
                         """
