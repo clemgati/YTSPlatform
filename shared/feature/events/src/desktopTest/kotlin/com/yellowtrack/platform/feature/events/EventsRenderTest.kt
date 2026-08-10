@@ -143,7 +143,10 @@ class EventsRenderTest {
                         "Camera A" to
                             IngestStatus(
                                 sourceKey = "Camera A",
-                                folderName = "Camera A",
+                                // A folder named differently from the camera, which is the
+                                // ordinary case and the one that confused somebody: the two
+                                // are different things.
+                                folderName = "01_RAW",
                                 sent = 214,
                                 waiting = 2,
                                 refused = listOf(RefusedPhotograph("DSC_0188.JPG", "that photograph was empty")),
