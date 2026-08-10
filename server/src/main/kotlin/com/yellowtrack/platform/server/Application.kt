@@ -10,6 +10,8 @@ import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.auth.authRoutes
 import com.yellowtrack.platform.server.document.DocumentMail
 import com.yellowtrack.platform.server.document.documentRoutes
+import com.yellowtrack.platform.server.event.EventDelivery
+import com.yellowtrack.platform.server.event.EventGalleries
 import com.yellowtrack.platform.server.event.EventInvites
 import com.yellowtrack.platform.server.event.Events
 import com.yellowtrack.platform.server.event.eventRoutes
@@ -147,6 +149,17 @@ fun Application.module(
     val events = Events(database)
     val storedObjects = StoredObjects(database, objects)
     val invites = EventInvites(database, events)
+    val galleries = EventGalleries(database, objects)
+
+    // Its own sender and its own reason to exist, like DocumentMail: this goes to somebody
+    // who has never heard of Yellow Track, about photographs of themselves.
+    val delivery =
+        EventDelivery(
+            database = database,
+            mailer = mailConfig?.let { MonitoredMailer(SmtpMail(it), mailHealth) },
+            fromAddress = documentFrom,
+            onSendFailure = { log.error("could not deliver a sitting", it) },
+        )
 
     // Deletion is a promise with a date on it, and a promise nothing ever runs is a way of
     // keeping data somebody asked to be rid of. In the server rather than a systemd timer
@@ -265,10 +278,10 @@ fun Application.module(
         // Unauthenticated by necessity — Amazon posts here with no token of ours. The
         // signature and the topic check are the authentication; see the route.
         sesNotificationRoutes(mailNotifications, sesTopicArn)
-        eventRoutes(events, storedObjects, invites)
+        eventRoutes(events, storedObjects, invites, delivery, galleries)
 
         // Public. No `authenticate` around it, deliberately and uniquely — see InviteRoutes.
-        inviteRoutes(invites)
+        inviteRoutes(invites, galleries)
         syncRoutes(Reconciler(database))
     }
 }

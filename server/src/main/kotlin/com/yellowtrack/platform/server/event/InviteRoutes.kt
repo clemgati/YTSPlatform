@@ -1,6 +1,7 @@
 package com.yellowtrack.platform.server.event
 
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.event.GalleryResponse
 import com.yellowtrack.platform.core.model.event.InvitedEventResponse
 import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import io.ktor.http.HttpStatusCode
@@ -31,7 +32,28 @@ import io.ktor.server.routing.route
  * **The event's name is all that comes back.** Not its photograph count, not its stations,
  * not the studio's other events.
  */
-fun Route.inviteRoutes(invites: EventInvites) {
+fun Route.inviteRoutes(
+    invites: EventInvites,
+    galleries: EventGalleries,
+) {
+    /**
+     * Somebody's own photographs, behind the token that was mailed to them.
+     *
+     * Unknown, withdrawn, and nothing-released-yet all answer identically. Telling them apart
+     * would let a stranger holding a forwarded link learn whether a particular person had
+     * been photographed.
+     */
+    get("/gallery/{token}") {
+        val gallery = call.parameters["token"]?.let { galleries.photographs(it) }
+
+        if (gallery == null) {
+            call.respond(HttpStatusCode.NotFound, ErrorResponse("These photographs are not available."))
+            return@get
+        }
+
+        call.respond(GalleryResponse(eventName = gallery.eventName, photographs = gallery.photographs))
+    }
+
     route("/join/{token}") {
         get {
             val token = call.parameters["token"]

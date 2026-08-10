@@ -93,10 +93,11 @@ class RowLevelSecurityTest {
     }
 
     /**
-     * Three now, and the third was argued for rather than arrived at.
+     * Four now. The third and fourth are the same argument, made once.
      *
-     * `event_invite` resolves a QR code's token to the studio it belongs to, and that lookup
-     * runs before anybody has said who they are — so a policy comparing `studio_id` against
+     * `event_invite` resolves a QR code's token to the studio it belongs to, and
+     * `event_gallery` does the same for the link in a delivery email. Both lookups run
+     * before anybody has said who they are — so a policy comparing `studio_id` against
      * `app.studio_id` would compare against NULL and return nothing, which is the same
      * position `auth_session` and `studio_member` are in.
      *
@@ -110,7 +111,7 @@ class RowLevelSecurityTest {
      * revoking — and both failed before they were written.
      */
     @Test
-    fun `the two tables outside the boundary are exactly the ones declared`() {
+    fun `the tables outside the boundary are exactly the ones declared`() {
         TestDatabase.connection().use { db ->
             val withoutPolicy =
                 columnOwners(db, "studio_id").filterNot { table ->
@@ -121,11 +122,11 @@ class RowLevelSecurityTest {
                 }
 
             assertEquals(
-                listOf("auth_session", "event_invite", "studio_member"),
+                listOf("auth_session", "event_gallery", "event_invite", "studio_member"),
                 withoutPolicy.sorted(),
                 "a table keyed to a studio and not covered by a policy is either a lookup that has " +
                     "to run before a studio is known — ADR 0009 decision 7 — or an accident. There " +
-                    "are only supposed to be three, and they are supposed to be these",
+                    "are only supposed to be four, and they are supposed to be these",
             )
         }
     }
@@ -373,7 +374,7 @@ class RowLevelSecurityTest {
      * would mean a new unguarded table could quietly excuse itself from both.
      */
     private fun scopedTables(db: Connection): List<String> =
-        columnOwners(db, "studio_id") - setOf("studio_member", "auth_session", "event_invite")
+        columnOwners(db, "studio_id") - setOf("studio_member", "auth_session", "event_invite", "event_gallery")
 
     private fun columnOwners(
         db: Connection,
