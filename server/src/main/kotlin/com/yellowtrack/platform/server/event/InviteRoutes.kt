@@ -15,6 +15,10 @@ import io.ktor.server.routing.route
 /**
  * The only routes in this application that anybody may call.
  *
+ * Under `/api/` because the friendly paths — the ones printed on a banner and mailed to a
+ * guest — serve the pages themselves. A person scanning a code lands on `/join/{token}` and
+ * gets HTML; the page then asks here for what to put in it.
+ *
  * Everything else is behind a bearer token belonging to a studio. These two are reached by
  * somebody who has just pointed a phone at a printed code, and who will never have an account
  * here (ADR 0013 decision 7).
@@ -43,7 +47,7 @@ fun Route.inviteRoutes(
      * would let a stranger holding a forwarded link learn whether a particular person had
      * been photographed.
      */
-    get("/gallery/{token}") {
+    get("/api/gallery/{token}") {
         val gallery = call.parameters["token"]?.let { galleries.photographs(it) }
 
         if (gallery == null) {
@@ -54,7 +58,7 @@ fun Route.inviteRoutes(
         call.respond(GalleryResponse(eventName = gallery.eventName, photographs = gallery.photographs))
     }
 
-    route("/join/{token}") {
+    route("/api/join/{token}") {
         get {
             val token = call.parameters["token"]
             val invited = token?.let { invites.lookUp(it) }

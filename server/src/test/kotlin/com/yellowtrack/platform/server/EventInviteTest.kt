@@ -88,7 +88,7 @@ class EventInviteTest {
             val session = client.signUp()
             val invite = client.invite(session, client.createEvent(session, "Harbour Awards 2026"))
 
-            val response = client.get("/join/${invite.token}")
+            val response = client.get("/api/join/${invite.token}")
 
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
             assertEquals(
@@ -111,7 +111,7 @@ class EventInviteTest {
             client.openStation(session, event, "Bay 1", "Camera A")
             val invite = client.invite(session, event)
 
-            val body = client.get("/join/${invite.token}").bodyAsText()
+            val body = client.get("/api/join/${invite.token}").bodyAsText()
 
             assertFalse(event in body, "the event identifier was exposed: $body")
             assertFalse("Camera A" in body, "a station's source was exposed: $body")
@@ -123,7 +123,7 @@ class EventInviteTest {
     @Test
     fun `an unknown code is not open`() =
         withServer { client ->
-            assertEquals(HttpStatusCode.NotFound, client.get("/join/not-a-real-token").status)
+            assertEquals(HttpStatusCode.NotFound, client.get("/api/join/not-a-real-token").status)
         }
 
     /**
@@ -143,13 +143,13 @@ class EventInviteTest {
             val withdrawn = client.invite(session, event)
             client.post("/events/$event/invite/revoke") { bearerAuth(session.token) }
 
-            val unknown = client.get("/join/not-a-real-token")
-            val revoked = client.get("/join/${withdrawn.token}")
+            val unknown = client.get("/api/join/not-a-real-token")
+            val revoked = client.get("/api/join/${withdrawn.token}")
 
             assertEquals(unknown.status, revoked.status)
             assertEquals(unknown.bodyAsText(), revoked.bodyAsText())
             // And the one still live is unaffected.
-            assertEquals(HttpStatusCode.OK, client.get("/join/${invite.token}").status)
+            assertEquals(HttpStatusCode.OK, client.get("/api/join/${invite.token}").status)
         }
 
     /** Withdrawing then issuing again gives a new code, so an old banner stays dead. */
@@ -164,8 +164,8 @@ class EventInviteTest {
             val second = client.invite(session, event)
 
             assertNotEquals(first.token, second.token)
-            assertEquals(HttpStatusCode.NotFound, client.get("/join/${first.token}").status)
-            assertEquals(HttpStatusCode.OK, client.get("/join/${second.token}").status)
+            assertEquals(HttpStatusCode.NotFound, client.get("/api/join/${first.token}").status)
+            assertEquals(HttpStatusCode.OK, client.get("/api/join/${second.token}").status)
         }
 
     // -- Signing up --------------------------------------------------------------------------
@@ -327,7 +327,7 @@ class EventInviteTest {
 
             assertEquals(
                 HttpStatusCode.OK,
-                client.get("/join/${invite.token}").status,
+                client.get("/api/join/${invite.token}").status,
                 "another studio withdrew an invite it cannot see",
             )
         }
@@ -356,7 +356,7 @@ class EventInviteTest {
 
             // And the owner can still issue its own.
             val mine = client.invite(harbourline, event)
-            assertEquals(HttpStatusCode.OK, client.get("/join/${mine.token}").status)
+            assertEquals(HttpStatusCode.OK, client.get("/api/join/${mine.token}").status)
         }
 
     // -- Plumbing -----------------------------------------------------------------------------
@@ -430,7 +430,7 @@ class EventInviteTest {
         token: String,
         email: String,
         name: String? = null,
-    ) = post("/join/$token") {
+    ) = post("/api/join/$token") {
         contentType(ContentType.Application.Json)
         setBody(apiJson.encodeToString(SignUpToEventRequest(email, name)))
     }

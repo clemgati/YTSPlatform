@@ -16,6 +16,7 @@ import com.yellowtrack.platform.server.event.EventInvites
 import com.yellowtrack.platform.server.event.Events
 import com.yellowtrack.platform.server.event.eventRoutes
 import com.yellowtrack.platform.server.event.inviteRoutes
+import com.yellowtrack.platform.server.event.publicSite
 import com.yellowtrack.platform.server.mail.MailConfig
 import com.yellowtrack.platform.server.mail.MailHealth
 import com.yellowtrack.platform.server.mail.MailNotifications
@@ -282,6 +283,9 @@ fun Application.module(
 
         // Public. No `authenticate` around it, deliberately and uniquely — see InviteRoutes.
         inviteRoutes(invites, galleries)
+
+        // The two pages themselves, at the addresses printed on banners and mailed to guests.
+        publicSite()
         syncRoutes(Reconciler(database))
     }
 }

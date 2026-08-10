@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!--
+  Somebody's own photographs.
+
+  Flat, like the sign-up page, and for the same reason: the token is in the address bar and
+  nothing is interpolated server-side.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <!-- The link is the whole of the secret, so it must not travel in a Referer header to
+         whatever an image or an outbound click leads to. -->
+    <meta name="referrer" content="no-referrer">
+    <title>Your photographs</title>
+    <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<main>
+    <h1>Your photographs</h1>
+    <p class="event" id="event">Loading…</p>
+
+    <div class="problem" id="problem" hidden></div>
+
+    <div class="grid" id="grid" hidden></div>
+
+    <p class="note" id="note" hidden>
+        Tap a photograph to open it full size. These links expire after about an hour — come
+        back to this page for fresh ones.
+    </p>
+</main>
+
+<script src="/gallery.js"></script>
+</body>
+</html>

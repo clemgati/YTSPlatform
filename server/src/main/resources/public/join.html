@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!--
+  Signing up, from a phone, at an event.
+
+  Served as a flat file with nothing interpolated into it. The token is in the address bar and
+  the page reads it from there — no server-side templating, so there is no way for a crafted
+  token to become markup. Everything the page shows is set with textContent for the same
+  reason.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- A sign-up page has no business being indexed, and a token in a search result is a
+         token in somebody else's hands. -->
+    <meta name="robots" content="noindex, nofollow">
+    <!-- Nor should the token travel to whatever the guest visits next. -->
+    <meta name="referrer" content="no-referrer">
+    <title>Get your photographs</title>
+    <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<main>
+    <h1>Get your photographs</h1>
+    <p class="event" id="event">Loading…</p>
+
+    <div class="problem" id="problem" hidden></div>
+
+    <form id="form" hidden>
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" autocomplete="email" inputmode="email"
+               required placeholder="you@example.com">
+
+        <label for="name">Your name <span style="font-weight:400">(optional)</span></label>
+        <input type="text" id="name" name="name" autocomplete="name" placeholder="Ada Okafor">
+
+        <button type="submit" id="submit">Send me my photographs</button>
+
+        <p class="note">
+            We will email your photographs when the photographer has finished with them. Your
+            address is used for that and nothing else.
+        </p>
+    </form>
+
+    <div class="done" id="done" hidden>
+        <strong>You are signed up.</strong>
+        <p style="margin:0.5rem 0 0">
+            Look out for an email once the photographer has released your photographs. It may
+            not arrive until after the event.
+        </p>
+    </div>
+</main>
+
+<script src="/join.js"></script>
+</body>
+</html>
