@@ -1,12 +1,15 @@
 package com.yellowtrack.platform.server.event
 
 import com.yellowtrack.platform.core.model.auth.ErrorResponse
+import com.yellowtrack.platform.core.model.event.AdvanceStationRequest
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
 import com.yellowtrack.platform.core.model.event.DeliveredResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.OpenStationRequest
 import com.yellowtrack.platform.core.model.event.PhotographAccepted
+import com.yellowtrack.platform.core.model.event.PublishRequest
+import com.yellowtrack.platform.core.model.event.PublishedResponse
 import com.yellowtrack.platform.server.auth.BEARER_AUTH
 import com.yellowtrack.platform.server.auth.SessionPrincipal
 import com.yellowtrack.platform.server.storage.StoredObjects
@@ -70,6 +73,72 @@ fun Route.eventRoutes(
                     HttpStatusCode.Created,
                     CreatedResponse(events.createEvent(call.studioId(), request.name.trim(), request.startsAt)),
                 )
+            }
+
+            /** Who has signed up. The list a photographer picks the next name from. */
+            get("/{eventId}/registrations") {
+                val eventId = call.parameters["eventId"] ?: return@get call.missingEvent()
+
+                call.respond(events.listRegistrations(call.studioId(), eventId))
+            }
+
+            /**
+             * Seats somebody at a station, which is the act that makes photographs theirs.
+             *
+             * The join the API was missing: without it no slot ever existed, so every
+             * photograph routed to the event's gallery and delivery could never be reached.
+             * It failed silently, because routing to the gallery is the correct behaviour
+             * when no slot is open — there was simply never a slot.
+             *
+             * One action rather than a close and an open, as `advanceSlot` explains: the two
+             * happening separately is how a photograph lands in the gap between subjects and
+             * belongs to neither.
+             */
+            post("/{eventId}/stations/{stationId}/advance") {
+                val stationId =
+                    call.parameters["stationId"]
+                        ?: return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse("which station?"),
+                        )
+                val request = call.receive<AdvanceStationRequest>()
+
+                val slotId =
+                    try {
+                        events.advanceSlot(call.studioId(), stationId, request.registrationId)
+                    } catch (refused: AdvanceRefused) {
+                        call.respond(
+                            when (refused) {
+                                AdvanceRefused.NoSuchStation,
+                                AdvanceRefused.NoSuchRegistration,
+                                -> HttpStatusCode.NotFound
+                                AdvanceRefused.StationClosed -> HttpStatusCode.Conflict
+                            },
+                            ErrorResponse(refused.message ?: "That could not be done."),
+                        )
+                        return@post
+                    }
+
+                call.respond(HttpStatusCode.Created, CreatedResponse(slotId))
+            }
+
+            /** The sittings, and what each is waiting for. The list the studio works down. */
+            get("/{eventId}/sittings") {
+                val eventId = call.parameters["eventId"] ?: return@get call.missingEvent()
+
+                call.respond(events.listSittings(call.studioId(), eventId))
+            }
+
+            /**
+             * Publishes gallery photographs.
+             *
+             * The studio's decision rather than the camera's — an event is not an unreviewed
+             * feed of whatever came off a card.
+             */
+            post("/{eventId}/photographs/publish") {
+                val request = call.receive<PublishRequest>()
+
+                call.respond(PublishedResponse(events.publish(call.studioId(), request.photoIds)))
             }
 
             /**

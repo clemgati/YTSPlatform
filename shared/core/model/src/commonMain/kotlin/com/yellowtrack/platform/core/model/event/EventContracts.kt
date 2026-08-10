@@ -64,3 +64,47 @@ data class StationSummary(
 data class CreatedResponse(
     val id: String,
 )
+
+/** Somebody signed up to an event, as the studio's list shows them. */
+@Serializable
+data class RegistrationSummary(
+    val id: String,
+    val email: String,
+    val name: String? = null,
+    val registeredAt: Long,
+)
+
+@Serializable
+data class AdvanceStationRequest(
+    val registrationId: String,
+)
+
+/**
+ * A sitting: one person, one station, one period.
+ *
+ * Carries what the studio decides from — how many photographs it holds, whether it is
+ * finished, and whether it has been handed over.
+ */
+@Serializable
+data class SittingSummary(
+    val id: String,
+    val registrationId: String,
+    val email: String,
+    val name: String? = null,
+    val stationName: String,
+    val openedAt: Long,
+    val closedAt: Long? = null,
+    val deliveredAt: Long? = null,
+    val photographs: Int = 0,
+)
+
+/** Gallery photographs the studio has chosen to publish. */
+@Serializable
+data class PublishRequest(
+    val photoIds: List<String>,
+)
+
+@Serializable
+data class PublishedResponse(
+    val published: Int,
+)
