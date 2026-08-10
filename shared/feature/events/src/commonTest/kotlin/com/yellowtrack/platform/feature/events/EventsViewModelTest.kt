@@ -465,6 +465,138 @@ class EventsViewModelTest {
             )
         }
 
+    // -- Keeping up with an event that is happening ------------------------------------------
+
+    /**
+     * Somebody who scans the code while the photographer is looking at the screen.
+     *
+     * This is the failure as it was reported: two people signed up, and the list to seat them
+     * from still showed only the two who had signed up earlier. Everything was loaded once
+     * when the event was opened and then frozen — on a screen whose entire premise is that
+     * people sign up while the event is happening.
+     */
+    @Test
+    fun `somebody who signs up while the event is open appears`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            assertEquals(
+                2,
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations.size,
+            )
+
+            // A guest scans the code. Nothing on the studio's side is touched.
+            api.registrationsByEvent.getValue("event-1") +=
+                RegistrationSummary("reg-3", "barbara@example.test", "Barbara", 2_000)
+
+            viewModel.refreshOpenEvent()
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(
+                listOf("first@example.test", "second@example.test", "barbara@example.test"),
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .map { it.email },
+                "a sign-up during the event never reached the screen",
+            )
+        }
+
+    /** And the photograph count climbs while ingest is running, rather than freezing. */
+    @Test
+    fun `photograph counts keep up while the event is open`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.seat(
+                "event-1",
+                "station-1",
+                viewModel
+                    .content()
+                    .open!!
+                    .registrations
+                    .first()
+                    .id,
+            )
+            testScheduler.advanceUntilIdle()
+            assertEquals(
+                0,
+                viewModel
+                    .content()
+                    .open!!
+                    .sittings
+                    .single()
+                    .photographs,
+            )
+
+            api.photographIn("event-1", 3)
+            viewModel.refreshOpenEvent()
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(
+                3,
+                viewModel
+                    .content()
+                    .open!!
+                    .sittings
+                    .single()
+                    .photographs,
+                "the count froze while photographs were arriving",
+            )
+        }
+
+    /** With no event open there is nothing to refresh, and asking must not go to the server. */
+    @Test
+    fun `refreshing with no event open asks the server nothing`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+            viewModel.closeEvent()
+            testScheduler.advanceUntilIdle()
+
+            val before = api.registrationsRead
+            viewModel.refreshOpenEvent()
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(before, api.registrationsRead, "it read an event nobody is looking at")
+        }
+
+    /**
+     * A refresh that fails says nothing.
+     *
+     * It repeats every couple of seconds, and a photographer with a queue can do nothing about
+     * a momentary failure. A real one surfaces the instant they touch anything.
+     */
+    @Test
+    fun `a failed refresh does not put an error on the screen`() =
+        runTest(dispatcher) {
+            val api = eventWithPeople()
+            val viewModel = viewModel(api)
+            testScheduler.advanceUntilIdle()
+            viewModel.open("event-1")
+            testScheduler.advanceUntilIdle()
+
+            api.registrationsFails = EventActionFailed("Could not reach the server.")
+            viewModel.refreshOpenEvent()
+            testScheduler.advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.problem, "a background refresh interrupted the screen")
+            assertTrue(viewModel.uiState.value.content is UiState.Success, "the screen was thrown away")
+        }
+
     // -- Seating somebody, and sending them their photographs ---------------------------------
 
     /**
@@ -1222,8 +1354,15 @@ class EventsViewModelTest {
             token = "a-different-token"
         }
 
-        override suspend fun registrations(eventId: String): List<RegistrationSummary> =
-            registrationsByEvent[eventId].orEmpty()
+        var registrationsRead = 0
+        var registrationsFails: Throwable? = null
+
+        override suspend fun registrations(eventId: String): List<RegistrationSummary> {
+            registrationsRead++
+            registrationsFails?.let { throw it }
+
+            return registrationsByEvent[eventId].orEmpty()
+        }
 
         override suspend fun advance(
             eventId: String,
