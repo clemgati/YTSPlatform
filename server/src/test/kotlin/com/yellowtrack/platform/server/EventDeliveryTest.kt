@@ -77,6 +77,23 @@ class EventDeliveryTest {
         assertNull(world.deliveredAt(), "an unsendable delivery was marked as done")
     }
 
+    /**
+     * A specific refusal must not be hidden behind a general one.
+     *
+     * `deliver` checked the mailer first, so on a deployment with no mail every refusal came
+     * back "this server cannot send mail" — including for a sitting the studio could simply
+     * close. One of those is fixable by the person reading it and the other is not.
+     */
+    @Test
+    fun `an open sitting says so even when the server cannot send mail`() {
+        val world = World()
+        world.photograph()
+
+        val unsendable = world.deliveryWithoutMail()
+
+        assertFailsWith<DeliveryRefused.StillOpen> { unsendable.deliver(world.studioId, world.slotId) }
+    }
+
     // -- Sending ------------------------------------------------------------------------------
 
     @Test

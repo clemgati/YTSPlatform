@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.server.event
 
 import com.yellowtrack.platform.core.model.event.EventSummary
+import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.server.Database
 import java.sql.Connection
@@ -35,6 +37,26 @@ sealed interface Routed {
 class SourceAlreadyInUse(
     val sourceKey: String,
 ) : Exception("a station is already open on $sourceKey")
+
+/**
+ * Why a station could not be advanced to somebody.
+ *
+ * Both of these were possible and unchecked until the routes went in: nothing stopped a slot
+ * being opened on a station that had finished, or bound to somebody registered for a
+ * different event entirely. Neither shows up as an error — the slot is created, photographs
+ * route into it, and the wrong person is emailed.
+ */
+sealed class AdvanceRefused(
+    message: String,
+) : Exception(message) {
+    data object NoSuchStation : AdvanceRefused("That station is not there.")
+
+    /** A finished station must not take another sitting. */
+    data object StationClosed : AdvanceRefused("That station is closed. Open it again first.")
+
+    /** Registered for another event, or not registered at all. */
+    data object NoSuchRegistration : AdvanceRefused("Nobody by that registration is signed up to this event.")
+}
 
 /**
  * Events, stations, slots, and the one question that decides who a photograph belongs to.
@@ -183,6 +205,9 @@ class Events(
         registrationId: String,
     ): String =
         database.inStudio(studioId) { connection ->
+            val eventId = eventOfOpenStation(connection, stationId)
+            if (!registeredForEvent(connection, eventId, registrationId)) throw AdvanceRefused.NoSuchRegistration
+
             closeOpenSlot(connection, stationId)
 
             val id = newId()
@@ -262,6 +287,86 @@ class Events(
         }
 
     // -- Reading ---------------------------------------------------------------------------
+
+    /** Who has signed up, most recent first. The list a photographer picks a name from. */
+    fun listRegistrations(
+        studioId: String,
+        eventId: String,
+    ): List<RegistrationSummary> =
+        database.inStudio(studioId) { connection ->
+            connection
+                .prepareStatement(
+                    """
+                    SELECT id, email, name, registered_at
+                    FROM event_registration
+                    WHERE event_id = ?
+                    ORDER BY registered_at DESC, id
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, eventId)
+                    statement.executeQuery().use { rows ->
+                        buildList {
+                            while (rows.next()) {
+                                add(
+                                    RegistrationSummary(
+                                        id = rows.getString(1),
+                                        email = rows.getString(2),
+                                        name = rows.getString(3),
+                                        registeredAt = rows.getLong(4),
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+        }
+
+    /**
+     * The event's sittings, newest first, with what each is waiting for.
+     *
+     * The list the studio works down after an event: who, how many photographs, closed or
+     * not, delivered or not. Undelivered closed sittings are the whole job.
+     */
+    fun listSittings(
+        studioId: String,
+        eventId: String,
+    ): List<SittingSummary> =
+        database.inStudio(studioId) { connection ->
+            connection
+                .prepareStatement(
+                    """
+                    SELECT s.id, s.registration_id, r.email, r.name, t.name,
+                           s.opened_at, s.closed_at, s.delivered_at,
+                           (SELECT count(*) FROM event_photo p WHERE p.slot_id = s.id)
+                    FROM event_slot s
+                    JOIN event_station t ON t.id = s.station_id
+                    JOIN event_registration r ON r.id = s.registration_id
+                    WHERE t.event_id = ?
+                    ORDER BY s.opened_at DESC, s.id
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(1, eventId)
+                    statement.executeQuery().use { rows ->
+                        buildList {
+                            while (rows.next()) {
+                                add(
+                                    SittingSummary(
+                                        id = rows.getString(1),
+                                        registrationId = rows.getString(2),
+                                        email = rows.getString(3),
+                                        name = rows.getString(4),
+                                        stationName = rows.getString(5),
+                                        openedAt = rows.getLong(6),
+                                        closedAt = rows.getLong(7).takeUnless { rows.wasNull() },
+                                        deliveredAt = rows.getLong(8).takeUnless { rows.wasNull() },
+                                        photographs = rows.getInt(9),
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+        }
 
     /**
      * The studio's events, most recent first.
@@ -381,6 +486,44 @@ class Events(
                 statement.executeQuery().use { rows ->
                     if (rows.next()) OpenSlot(rows.getString(1), rows.getString(2)) else null
                 }
+            }
+
+    /** The event a station belongs to, refusing if it is gone or finished. */
+    private fun eventOfOpenStation(
+        connection: Connection,
+        stationId: String,
+    ): String =
+        connection
+            .prepareStatement("SELECT event_id, closed_at FROM event_station WHERE id = ?")
+            .use { statement ->
+                statement.setString(1, stationId)
+                statement.executeQuery().use { rows ->
+                    if (!rows.next()) throw AdvanceRefused.NoSuchStation
+                    val eventId = rows.getString(1)
+                    rows.getLong(2).takeUnless { rows.wasNull() }?.let { throw AdvanceRefused.StationClosed }
+                    eventId
+                }
+            }
+
+    /**
+     * Somebody signed up to *this* event.
+     *
+     * Row level security already keeps another studio's registrations invisible. This is the
+     * narrower question it cannot answer: a studio running two events on one day must not be
+     * able to seat a person from the morning into the afternoon's station, which would send
+     * them somebody else's sitting.
+     */
+    private fun registeredForEvent(
+        connection: Connection,
+        eventId: String,
+        registrationId: String,
+    ): Boolean =
+        connection
+            .prepareStatement("SELECT 1 FROM event_registration WHERE id = ? AND event_id = ?")
+            .use { statement ->
+                statement.setString(1, registrationId)
+                statement.setString(2, eventId)
+                statement.executeQuery().use { it.next() }
             }
 
     private fun existingRegistration(

@@ -79,9 +79,13 @@ class EventDelivery(
         studioId: String,
         slotId: String,
     ): Delivered {
-        val mailer = mailer ?: throw DeliveryRefused.NotConfigured
-        val from = fromAddress ?: throw DeliveryRefused.NotConfigured
-
+        // The sitting is judged before the server is.
+        //
+        // The other order reads plausibly and is worse: on a deployment with no mail
+        // configured, *every* refusal comes back "this server cannot send mail" — including
+        // for a sitting that is still open, which is a thing the studio can fix and the
+        // other is not. The environment failure still surfaces, just after the specific one,
+        // which is also the order somebody would fix them in.
         val sitting =
             database.inStudio(studioId) { connection -> sitting(connection, slotId) }
                 ?: throw DeliveryRefused.NoSuchSitting
@@ -91,6 +95,9 @@ class EventDelivery(
         if (sitting.deliveredAt != null) {
             return Delivered(email = sitting.email, photographs = sitting.photographs, sentNow = false)
         }
+
+        val mailer = mailer ?: throw DeliveryRefused.NotConfigured
+        val from = fromAddress ?: throw DeliveryRefused.NotConfigured
 
         // A studio that has never filled in Settings has no profile row at all, which is the
         // same position as one with a blank address: there is nowhere for a reply to go.
