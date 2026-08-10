@@ -28,7 +28,6 @@ import com.yellowtrack.platform.core.designsystem.component.YTStatusIndicator
 import com.yellowtrack.platform.core.designsystem.component.YTTextButton
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
-import com.yellowtrack.platform.core.ui.component.EmptyContent
 import com.yellowtrack.platform.core.ui.component.StatefulContent
 
 /**
@@ -60,13 +59,6 @@ internal fun EventsScreen(
         state = uiState.content,
         modifier = modifier.fillMaxSize(),
         onRetry = onRetry,
-        emptyContent = {
-            EmptyContent(
-                modifier = it,
-                title = "No events yet",
-                message = "An event is a day you hand photographs to the people in them.",
-            )
-        },
     ) { content, contentModifier ->
         Column(
             modifier =
@@ -150,6 +142,15 @@ private fun EventList(
                 },
             )
         }
+    }
+
+    if (content.events.isEmpty()) {
+        Text(
+            "No events yet. An event is a day you hand photographs to the people in them — " +
+                "name one above to start.",
+            style = YTTheme.typography.bodyMedium,
+            color = YTTheme.colors.onSurfaceVariant,
+        )
     }
 
     content.events.forEach { event ->

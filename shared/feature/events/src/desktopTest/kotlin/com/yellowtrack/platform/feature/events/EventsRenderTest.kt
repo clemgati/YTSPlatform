@@ -56,6 +56,21 @@ class EventsRenderTest {
     }
 
     /**
+     * The first screen a new studio ever sees.
+     *
+     * Never rendered until a real one was opened and found to be a dead end: a message, and
+     * no way to create anything. Rendered now precisely because it is the state with nothing
+     * in it — the one easiest to skip when choosing what to look at, and the one every studio
+     * meets first.
+     */
+    @Test
+    fun `renders the empty event list`() {
+        render("events-empty") {
+            EventsUiState(content = UiState.Success(EventsContent(events = emptyList())))
+        }
+    }
+
+    /**
      * The state worth looking at.
      *
      * A photographer has tried to open a second station on a camera that already has one. The

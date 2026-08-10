@@ -70,14 +70,32 @@ class EventsViewModelTest {
             assertEquals(1, content.events.single().openStations)
         }
 
+    /**
+     * A studio with no events can still create one.
+     *
+     * The previous version of this test asserted `UiState.Empty` and called it correct. That
+     * state renders a message and nothing else, and the only way to create an event lives on
+     * the success screen — so every new studio was shown "No events yet" and no way forward.
+     * The test enshrined the dead end, and the render tests only ever covered populated
+     * screens, so looking would not have caught it either.
+     */
     @Test
-    fun `a studio with no events sees an empty screen rather than an error`() =
+    fun `a studio with no events can still create one`() =
         runTest(dispatcher) {
-            val viewModel = viewModel(FakeApi())
-
+            val api = FakeApi()
+            val viewModel = viewModel(api)
             testScheduler.advanceUntilIdle()
 
-            assertTrue(viewModel.uiState.value.content is UiState.Empty)
+            // Success with an empty list, not Empty: the screen is normal and has nothing on
+            // it, which is what keeps the form reachable.
+            val content = viewModel.uiState.value.content
+            assertTrue(content is UiState.Success, "an empty list became a screen with no way out: $content")
+            assertTrue(viewModel.content().events.isEmpty())
+
+            viewModel.createEvent("Harbour Awards 2026")
+            testScheduler.advanceUntilIdle()
+
+            assertEquals(1, api.eventsCreated, "the first event could not be created")
         }
 
     @Test
