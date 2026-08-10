@@ -263,6 +263,50 @@ class EventDeliveryTest {
         assertEquals("Harbourline Photography", email.fromName)
     }
 
+    /**
+     * One person, two cameras, one gallery.
+     *
+     * A guest photographed at a headshot bay and again at a group station is one person with
+     * two sittings. Nothing binds a registration to a single station — slots are per station,
+     * and the constraint is one *open* slot per station rather than one per person — so this
+     * works, and it needs to: the photographs belong to them either way and must arrive
+     * together rather than as two links to two half-galleries.
+     */
+    @Test
+    fun `somebody photographed at two stations gets one gallery holding both`() {
+        val world = World()
+
+        // Bay 1.
+        world.photograph()
+        world.closeSitting()
+        world.deliver()
+        val gallery = world.galleryToken()!!
+        assertEquals(
+            1,
+            world
+                .galleries()
+                .photographs(gallery)!!
+                .photographs.size,
+        )
+
+        // The same person, at a different camera.
+        world.newStationFor("Bay 2", "Camera B")
+        world.photograph()
+        world.photograph()
+        world.closeSitting()
+        world.deliver()
+
+        assertEquals(gallery, world.galleryToken(), "a second station issued a second link")
+        assertEquals(
+            3,
+            world
+                .galleries()
+                .photographs(gallery)!!
+                .photographs.size,
+            "the two stations' photographs did not arrive together",
+        )
+    }
+
     // -- The gallery --------------------------------------------------------------------------
 
     @Test
@@ -481,6 +525,9 @@ class EventDeliveryTest {
         var slotId: String
             private set
 
+        /** The camera photographs currently arrive from — it moves when the station does. */
+        private var currentSource: String = "Camera A"
+
         val registrationId: String get() = currentRegistrationId
 
         init {
@@ -557,11 +604,21 @@ class EventDeliveryTest {
                     }
             }
 
-            events.recordPhotograph(studioId, eventId, "Camera A", objectId, System.currentTimeMillis())
+            events.recordPhotograph(studioId, eventId, currentSource, objectId, System.currentTimeMillis())
         }
 
         fun closeSitting() {
             events.closeStation(studioId, stationId)
+        }
+
+        /** A different camera entirely, with the same person in front of it. */
+        fun newStationFor(
+            name: String,
+            camera: String,
+        ) {
+            currentSource = camera
+            stationId = events.openStation(studioId, eventId, name, camera)
+            slotId = events.advanceSlot(studioId, stationId, currentRegistrationId)
         }
 
         /** Reopens the station and advances to the same person again. */
