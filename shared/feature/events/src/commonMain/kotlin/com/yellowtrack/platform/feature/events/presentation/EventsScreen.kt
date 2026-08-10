@@ -269,11 +269,21 @@ private fun OpenEventDetail(
             YTTextField(
                 value = sourceKey,
                 onValueChange = { sourceKey = it },
-                label = "Watched folder",
+                label = "Camera",
                 placeholder = "Camera A",
+                /*
+                 * A name, not a path — and the old wording said "the folder name tethered
+                 * capture writes into", which read as an instruction to type a folder path.
+                 * Somebody did, and reasonably.
+                 *
+                 * This never touches a disk. It is the label a photograph carries so the
+                 * server knows which station it belongs to; the machine doing the watching is
+                 * told which folder separately, below. Keeping the two apart is deliberate —
+                 * a laptop can be swapped mid-event without the event changing.
+                 */
                 help =
-                    "The folder name tethered capture writes into. It is what binds a " +
-                        "photograph to this station.",
+                    "A short name for the camera at this station — not a folder path. " +
+                        "Photographs are matched to this station by it.",
                 errorMessage = "A station is already open on ${sourceKey.trim()}.".takeIf { alreadyClaimed },
                 imeAction = ImeAction.Done,
             )
@@ -510,7 +520,15 @@ private fun Ingest(
     onStop: () -> Unit,
 ) {
     if (status == null) {
-        YTTextButton(text = "Watch a folder…", onClick = onWatch)
+        Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
+            YTTextButton(text = "Watch a folder on this Mac…", onClick = onWatch)
+            Text(
+                "Where the photographs actually land — the folder tethered capture writes " +
+                    "into. This is the only place a path is needed.",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
+        }
 
         return
     }
@@ -521,18 +539,12 @@ private fun Ingest(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // The folder name is usually the source key — a photographer names the folder
-            // after the camera and the source is taken from it — so naming it again under
-            // the station reads as a stutter. Shown only when they have drifted apart, which
-            // is exactly when somebody needs to know which folder this actually is.
-            val folder =
-                status.folderName
-                    .takeIf { it != status.sourceKey }
-                    ?.let { "$it — " }
-                    .orEmpty()
-
+            // Always named, now. It used to be hidden when it matched the camera's name, on
+            // the theory that repeating it was a stutter — but a camera and a folder are
+            // different things, and somebody reading this needs to know which folder is
+            // being read, especially after mistaking one for the other.
             Text(
-                folder + "${status.sent} sent" +
+                "${status.folderName} — ${status.sent} sent" +
                     if (status.waiting > 0) ", ${status.waiting} waiting" else "",
                 style = YTTheme.typography.bodySmall,
                 color = YTTheme.colors.onSurfaceVariant,
