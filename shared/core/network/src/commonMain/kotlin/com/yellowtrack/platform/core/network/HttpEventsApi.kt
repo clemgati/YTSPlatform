@@ -7,6 +7,7 @@ import com.yellowtrack.platform.core.model.event.AdvanceStationRequest
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
 import com.yellowtrack.platform.core.model.event.DeliveredResponse
+import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.OpenStationRequest
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
@@ -20,6 +21,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.CancellationException
@@ -75,6 +77,24 @@ class HttpEventsApi(
         // station somebody else already closed is the state being asked for.
         val response =
             send { post("$baseUrl/events/$eventId/stations/$stationId/close") { authorised() } }
+
+        if (!response.isSuccess()) throw EventActionFailed(response.reason())
+    }
+
+    override suspend fun invite(eventId: String): EventInviteResponse =
+        request { post("$baseUrl/events/$eventId/invite") { authorised() } }
+
+    /** Not JSON, so it is read as text rather than decoded. */
+    override suspend fun inviteCard(eventId: String): String {
+        val response = send { get("$baseUrl/events/$eventId/invite.html") { authorised() } }
+
+        if (!response.isSuccess()) throw EventActionFailed(response.reason())
+
+        return response.bodyAsText()
+    }
+
+    override suspend fun revokeInvite(eventId: String) {
+        val response = send { post("$baseUrl/events/$eventId/invite/revoke") { authorised() } }
 
         if (!response.isSuccess()) throw EventActionFailed(response.reason())
     }

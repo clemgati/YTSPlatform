@@ -22,6 +22,7 @@ import io.ktor.server.request.contentType
 import io.ktor.server.request.receive
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -225,6 +226,55 @@ fun Route.eventRoutes(
                 }
 
                 call.respond(EventInviteResponse(token = token, url = "$photosUrl/join/$token"))
+            }
+
+            /**
+             * The same invite, as something a phone can read off a wall.
+             *
+             * Authenticated, and deliberately so. A printed banner is produced once by the
+             * studio, so nothing needs this without a session — and an unauthenticated
+             * endpoint that turns an event identifier into a working sign-up code would
+             * undo the point of the token.
+             *
+             * Issues the invite if there is not one yet, so a studio that presses Print
+             * before ever pressing anything else gets a code rather than an error.
+             */
+            get("/{eventId}/invite.svg") {
+                val eventId = call.parameters["eventId"] ?: return@get call.missingEvent()
+                val token = invites.issue(call.studioId(), eventId)
+
+                if (token == null) {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("There is no such event."))
+                    return@get
+                }
+
+                call.respondText(
+                    QrCode.svg("$photosUrl/join/$token"),
+                    ContentType.Image.SVG,
+                )
+            }
+
+            /**
+             * The code as a page a studio prints and puts on a table.
+             *
+             * Carries the event's name and the link in text as well as the code, because
+             * somebody has to know what they are scanning, and a code photographs badly in
+             * some lighting while a printed URL can still be typed.
+             */
+            get("/{eventId}/invite.html") {
+                val eventId = call.parameters["eventId"] ?: return@get call.missingEvent()
+                val token = invites.issue(call.studioId(), eventId)
+                val event = token?.let { invites.lookUp(it) }
+
+                if (token == null || event == null) {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("There is no such event."))
+                    return@get
+                }
+
+                call.respondText(
+                    InviteCard.html(eventName = event.eventName, link = "$photosUrl/join/$token"),
+                    ContentType.Text.Html,
+                )
             }
 
             /** Withdraws it. The printed code stops working; the event carries on. */

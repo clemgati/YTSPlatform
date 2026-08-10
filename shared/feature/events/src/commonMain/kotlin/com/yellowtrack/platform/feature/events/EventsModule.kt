@@ -6,5 +6,5 @@ import org.koin.dsl.module
 
 val eventsModule =
     module {
-        viewModel { EventsViewModel(api = get(), ingest = get(), platform = get()) }
+        viewModel { EventsViewModel(api = get(), ingest = get(), platform = get(), sink = get()) }
     }

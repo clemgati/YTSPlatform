@@ -6,6 +6,9 @@ import com.yellowtrack.platform.core.data.event.EventActionFailed
 import com.yellowtrack.platform.core.data.event.EventsApi
 import com.yellowtrack.platform.core.data.event.IngestPlatform
 import com.yellowtrack.platform.core.data.event.IngestService
+import com.yellowtrack.platform.core.export.Document
+import com.yellowtrack.platform.core.export.DocumentFormat
+import com.yellowtrack.platform.core.export.DocumentSink
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SittingSummary
@@ -43,6 +46,7 @@ internal class EventsViewModel(
     private val api: EventsApi,
     private val ingest: IngestService,
     private val platform: IngestPlatform,
+    private val sink: DocumentSink,
 ) : ViewModel() {
     private val state = MutableStateFlow(EventsUiState(content = UiState.Loading))
 
@@ -262,6 +266,55 @@ internal class EventsViewModel(
         }
     }
 
+    /**
+     * Produces the event's sign-up code and saves it where the studio can print it.
+     *
+     * One action rather than two, because a code nobody can print is not a code. The file is
+     * written through the same sink a call sheet goes through, so "where has my file gone"
+     * has one answer per platform rather than two.
+     */
+    fun printSignUpCode(eventId: String) {
+        act {
+            val invite = api.invite(eventId)
+            val card = api.inviteCard(eventId)
+
+            val saved =
+                sink.save(
+                    Document(
+                        baseName = "sign-up-code",
+                        format = DocumentFormat.Html,
+                        content = card,
+                    ),
+                )
+
+            state.update {
+                it.copy(
+                    note = "Saved to ${saved.location}. Open it and print it.",
+                    content = it.content.withInvite(eventId, invite.url),
+                )
+            }
+        }
+    }
+
+    /**
+     * Stops honouring the code.
+     *
+     * A banner cannot be recalled, so this is the only way to close a sign-up — and the next
+     * code issued is a different one, which is what leaves the old banner dead.
+     */
+    fun withdrawSignUpCode(eventId: String) {
+        act {
+            api.revokeInvite(eventId)
+
+            state.update {
+                it.copy(
+                    note = "That code no longer works.",
+                    content = it.content.withInvite(eventId, null),
+                )
+            }
+        }
+    }
+
     /** Hands a sitting to the person in it. */
     fun deliver(
         eventId: String,
@@ -354,6 +407,16 @@ internal class EventsViewModel(
         }
 
     private fun <T> UiState<T>.dataOrNull(): T? = (this as? UiState.Success)?.data
+
+    private fun UiState<EventsContent>.withInvite(
+        eventId: String,
+        url: String?,
+    ): UiState<EventsContent> {
+        val content = dataOrNull() ?: return this
+        val open = content.open?.takeIf { it.id == eventId } ?: return this
+
+        return UiState.Success(content.copy(open = open.copy(inviteUrl = url)))
+    }
 
     private companion object {
         const val FALLBACK = "That could not be done just now."

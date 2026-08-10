@@ -178,6 +178,8 @@ class EventsRenderTest {
                             onStopWatching = {},
                             onSeat = { _, _, _ -> },
                             onDeliver = { _, _ -> },
+                            onPrintSignUpCode = {},
+                            onWithdrawSignUpCode = {},
                             onDismissNote = {},
                             onDismissProblem = {},
                         )

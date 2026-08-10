@@ -58,6 +58,14 @@ internal data class OpenEvent(
     val id: String,
     val name: String,
     val stations: List<StationRow>,
+    /**
+     * The sign-up link, once it has been asked for.
+     *
+     * Null until the studio opens the code, because issuing one is a decision — it is what a
+     * banner gets printed from, and a code that exists before anybody wanted one is a
+     * sign-up nobody is watching.
+     */
+    val inviteUrl: String? = null,
     /** Everybody signed up, newest first — the list a photographer picks the next name from. */
     val registrations: List<PersonRow> = emptyList(),
     val sittings: List<SittingRow> = emptyList(),
