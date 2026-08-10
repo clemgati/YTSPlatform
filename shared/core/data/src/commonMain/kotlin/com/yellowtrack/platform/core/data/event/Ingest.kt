@@ -91,6 +91,14 @@ data class IngestStatus(
     val deferred: Int = 0,
     /** Photographs the server will never take. Each one is a photograph nobody receives. */
     val refused: List<RefusedPhotograph> = emptyList(),
+    /**
+     * Files this cannot deliver, by extension — raw, almost always.
+     *
+     * The one number that explains an otherwise inexplicable zero. A photographer shooting
+     * raw-only sees every frame land in the folder and nothing sent, and without this the
+     * screen offers no reason at all.
+     */
+    val ignored: Map<String, Int> = emptyMap(),
     /** Queued and no longer plausibly about to work. */
     val stuck: List<String> = emptyList(),
     /**
@@ -104,5 +112,5 @@ data class IngestStatus(
 ) {
     /** Something a studio should look at before the guests leave. */
     val needsAttention: Boolean
-        get() = refused.isNotEmpty() || stuck.isNotEmpty() || lastSweepFailed != null
+        get() = refused.isNotEmpty() || stuck.isNotEmpty() || lastSweepFailed != null || ignored.isNotEmpty()
 }

@@ -150,6 +150,8 @@ class EventsRenderTest {
                                 sent = 214,
                                 waiting = 2,
                                 refused = listOf(RefusedPhotograph("DSC_0188.JPG", "that photograph was empty")),
+                                // The real folder that produced nothing: seven Sony raws.
+                                ignored = mapOf("arw" to 7),
                             ),
                     ),
             )

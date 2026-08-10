@@ -148,6 +148,10 @@ class IngestService(
                             // somebody will not receive, and it stops being in any later
                             // report because the file is never offered again.
                             refused = existing.refused + report.refused,
+                            // Replaced rather than accumulated: it is a count of what is in
+                            // the folder now, and a photographer who fixes the camera should
+                            // see it stop climbing rather than carry the morning's total.
+                            ignored = report.ignored,
                             stuck = report.stuck,
                             // Cleared by a sweep that worked, so a transient unmount does not
                             // leave a warning up for the rest of the day.
