@@ -33,6 +33,18 @@ import io.ktor.server.routing.get
  * `textContent` rather than `innerHTML`.
  */
 fun Route.publicSite() {
+    /**
+     * The root, which exists so that typing the domain is not an error.
+     *
+     * It is printed on banners and it is the sender of every delivery email, so it is typed
+     * by people holding no link at all. Before this it answered 403 from the vhost
+     * allowlist, which reads as broken rather than as "you need your own link".
+     *
+     * Unlike the other two, this page may be cached and may be indexed: it names no event,
+     * no studio and no person, and there is no token in its address.
+     */
+    get("/") { call.landing() }
+
     get("/join/{token}") { call.page("join.html") }
 
     get("/gallery/{token}") { call.page("gallery.html") }
@@ -60,6 +72,22 @@ private suspend fun ApplicationCall.page(name: String) {
     respondText(html, ContentType.Text.Html)
 }
 
+/**
+ * The front page: cacheable, indexable, and carrying no token.
+ *
+ * The `no-store` and `noindex` the other pages need exist because their addresses *are* the
+ * credential. This one has no address to protect, and a domain that sends mail while serving
+ * nothing indexable is a domain receivers trust less.
+ */
+private suspend fun ApplicationCall.landing() {
+    val html = read("index.html") ?: return respond(HttpStatusCode.NotFound, "Not found")
+
+    response.cacheControl(CacheControl.MaxAge(maxAgeSeconds = 3_600))
+    security(indexable = true)
+
+    respondText(html, ContentType.Text.Html)
+}
+
 /** The stylesheet and scripts hold nothing private, so they may be cached. */
 private suspend fun ApplicationCall.asset(
     name: String,
@@ -73,7 +101,7 @@ private suspend fun ApplicationCall.asset(
     respondText(body, type)
 }
 
-private fun ApplicationCall.security() {
+private fun ApplicationCall.security(indexable: Boolean = false) {
     // Everything the pages need comes from this origin, except the photographs themselves,
     // which are presigned URLs on the object store. Nothing is inline, so no unsafe-inline.
     response.header(
@@ -92,8 +120,9 @@ private fun ApplicationCall.security() {
     // A token in a Referer is a token handed to whatever the guest visits next. The pages say
     // this in a meta tag too; a header is the half a proxy cannot strip by rewriting HTML.
     response.header("Referrer-Policy", "no-referrer")
-    // Search engines have no business here, and a token in an index is a token in public.
-    response.header("X-Robots-Tag", "noindex, nofollow")
+    // Search engines have no business on a page whose address is a credential, and a token
+    // in an index is a token in public. The front page has no token and wants to be found.
+    if (!indexable) response.header("X-Robots-Tag", "noindex, nofollow")
 }
 
 private suspend fun ApplicationCall.respond(
