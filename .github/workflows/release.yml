@@ -83,7 +83,7 @@ jobs:
         run: ./gradlew :desktopApp:${{ matrix.task }} -Pyellowtrack.appleTargets=false --stacktrace
 
       - name: Upload ${{ matrix.name }} installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: yellowtrack-${{ matrix.name }}
           path: ${{ matrix.glob }}
