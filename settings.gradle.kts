@@ -35,6 +35,7 @@ plugins {
 
 include(":androidApp")
 include(":desktopApp")
+include(":eventsDisplayApp")
 include(":webApp")
 
 include(":shared:app")
