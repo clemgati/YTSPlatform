@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowCompat
@@ -34,9 +35,33 @@ class DisplayActivity : ComponentActivity() {
 
         hideSystemBars()
 
+        onBackPressedDispatcher.addCallback(this, ignoreBack)
+
         setContent {
-            DisplayApp(onDisplayingChanged = ::pinToThisScreen)
+            DisplayApp(onDisplayingChanged = ::whileShowingACode)
         }
+    }
+
+    /**
+     * Back does nothing while a code is on the table.
+     *
+     * Found by running it. Pinning is the real guard, but pinning can be refused — and when it
+     * is, Back finishes the activity, the view model dies with the process, and the next
+     * launch opens on the event picker having asked nobody for a password. A guest brushing
+     * the gesture area is a great deal more likely than a guest force-quitting an
+     * application, so the easy accident should not be the one that works.
+     *
+     * Only while a code is shown. On the picker and on sign-in, Back leaves the application as
+     * it does anywhere else — trapping a studio in a sign-in form would be its own bug.
+     */
+    private val ignoreBack =
+        object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() = Unit
+        }
+
+    private fun whileShowingACode(isDisplaying: Boolean) {
+        ignoreBack.isEnabled = isDisplaying
+        pinToThisScreen(isDisplaying)
     }
 
     /**
