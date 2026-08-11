@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Named for what it is on a home screen, next to the studio application. "Yellow Track"
+		alone would give a studio two identical-looking icons and no way to tell which one is
+		the till and which one is the sign.
+	-->
+	<key>CFBundleDisplayName</key>
+	<string>YellowTrack Display</string>
+	<key>CFBundleName</key>
+	<string>YT Display</string>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<!--
+		The status bar is hidden for the same reason the Android companion hides the system
+		bars: this is a sign on a table, and a clock and a battery icon along the top are
+		clutter on it.
+	-->
+	<key>UIStatusBarHidden</key>
+	<true/>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<!--
+		Lets a build reach a server on the machine that built it.
+
+		`NSAllowsLocalNetworking` relaxes App Transport Security for loopback and `.local`
+		addresses and for nothing else, so a release build — which talks to an HTTPS host from
+		`BuildInfo.SERVER_URL` — is unaffected by it. The Android companion needs the same
+		exception and states it the same way; without it, running against `:server:run` fails
+		as a connection error that reads as the server being down.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

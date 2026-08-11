@@ -2,7 +2,6 @@ package com.yellowtrack.platform.display
 
 import android.app.Application
 import com.yellowtrack.platform.core.di.initKoinAndroid
-import com.yellowtrack.platform.feature.display.displayModule
 
 /**
  * The companion display, as its own application.
@@ -21,6 +20,6 @@ class DisplayApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        initKoinAndroid(this, extraModules = listOf(displayModule))
+        initKoinAndroid(this)
     }
 }
