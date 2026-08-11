@@ -115,6 +115,57 @@ class QrCodeTest {
         assertEquals(link, decode(modules), "the code did not survive being partly obscured")
     }
 
+    // -- The same code as a grid ---------------------------------------------------------------
+
+    /**
+     * The grid and the SVG are one code, module for module.
+     *
+     * They share an encoder, so this looks tautological — and is not. Each has its own loop
+     * turning the encoder's output into its own shape, and those loops are exactly where the
+     * two drift apart. Transposing one of them produces a grid that still decodes, because a
+     * reader will try a mirrored code, so a decode test cannot see the difference at all. This
+     * compares the modules.
+     */
+    @Test
+    fun `the grid is the same code as the printed one`() {
+        val link = "https://yellowtrackphotos.com/join/sRzW2qICHRoYGE9UXL5X0w"
+        val printed = rasterise(QrCode.svg(link))
+
+        val grid = QrCode.matrix(link)
+
+        assertEquals(printed.size, grid.size, "the two are not even the same size")
+        val differing =
+            (0 until grid.size).flatMap { y ->
+                (0 until grid.size).mapNotNull { x ->
+                    "$x,$y".takeIf { printed[y][x] != (grid.rows[y][x] == '1') }
+                }
+            }
+
+        assertEquals(emptyList(), differing.take(5), "the screen code differs from the printed one here")
+    }
+
+    /**
+     * The border survives the second rendering too.
+     *
+     * A decode test cannot catch this either: given a clean synthetic image a reader finds a
+     * code flush to the edge quite happily. A phone pointed at a screen, against whatever is
+     * behind it, does not.
+     */
+    @Test
+    fun `the grid keeps a quiet zone around it`() {
+        val grid = QrCode.matrix("https://yellowtrackphotos.com/join/abc", quietZone = 4)
+
+        val side = grid.size
+        (0 until 4).forEach { ring ->
+            (0 until side).forEach { i ->
+                assertTrue(grid.rows[ring][i] == '0', "row $ring is not blank")
+                assertTrue(grid.rows[side - 1 - ring][i] == '0', "row ${side - 1 - ring} is not blank")
+                assertTrue(grid.rows[i][ring] == '0', "column $ring is not blank")
+                assertTrue(grid.rows[i][side - 1 - ring] == '0', "column ${side - 1 - ring} is not blank")
+            }
+        }
+    }
+
     // -- Reading it back ----------------------------------------------------------------------
 
     /** The path is `M x yh1v1h-1z` per dark module, which is what wrote it. */

@@ -3,6 +3,7 @@ package com.yellowtrack.platform.core.data.event
 import com.yellowtrack.platform.core.model.event.DeliveredResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
+import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
@@ -61,6 +62,15 @@ interface EventsApi {
      * this is idempotent and the studio never has to think about it.
      */
     suspend fun invite(eventId: String): EventInviteResponse
+
+    /**
+     * The code as a grid, for an application that draws it on a screen.
+     *
+     * A device on a table rather than a printed card. Nothing on the client encodes a QR —
+     * that is Reed-Solomon and masking, and it belongs in one place — so the server sends the
+     * geometry and the client draws it.
+     */
+    suspend fun inviteCode(eventId: String): QrMatrix
 
     /**
      * The code as a page a studio can print and put on a table.

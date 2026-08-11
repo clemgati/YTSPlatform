@@ -1,11 +1,16 @@
 package com.yellowtrack.platform.server
 
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.RGBLuminanceSource
+import com.google.zxing.common.HybridBinarizer
+import com.google.zxing.qrcode.QRCodeReader
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.InvitedEventResponse
+import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.server.event.EventInvites
@@ -485,6 +490,107 @@ class EventInviteTest {
             val mine = client.invite(harbourline, event)
             assertEquals(HttpStatusCode.OK, client.get("/api/join/${mine.token}").status)
         }
+
+    // -- The code as a grid ---------------------------------------------------------------
+
+    /**
+     * The code on a screen is the code on the paper.
+     *
+     * A device on a table and a printed card are two renderings of one invite, and the failure
+     * to be afraid of is that they drift — a second encoder, a different quiet zone, an event
+     * whose screen code sends people somewhere the printed one does not. So this decodes what
+     * went over the wire and compares it to the link the invite endpoint gave out.
+     */
+    @Test
+    fun `the code drawn on a screen carries the link the invite gave out`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val grid = client.grid(session, event)
+
+            assertEquals(invite.url, decode(grid))
+        }
+
+    /** Asking for the grid before ever issuing an invite still gives a working code. */
+    @Test
+    fun `a studio that asks for the grid first still gets a code`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+
+            val grid = client.grid(session, event)
+
+            // The same code the invite endpoint then reports, rather than a second one.
+            assertEquals(client.invite(session, event).url, decode(grid))
+        }
+
+    /**
+     * The grid is square and says how big it is.
+     *
+     * A client draws a module per character and trusts `size`; a row of the wrong length would
+     * shear the code into something that renders and never scans.
+     */
+    @Test
+    fun `the grid is square`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+
+            val grid = client.grid(session, event)
+
+            assertEquals(grid.size, grid.rows.size, "the grid has the wrong number of rows")
+            assertTrue(grid.rows.all { it.length == grid.size }, "a row is not as wide as the grid says")
+            assertTrue(grid.rows.all { row -> row.all { it == '0' || it == '1' } }, "a row holds something else")
+        }
+
+    /** Without a session this endpoint would turn an event identifier into a working code. */
+    @Test
+    fun `the grid refuses a caller with no token`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+
+            assertEquals(HttpStatusCode.Unauthorized, client.get("/events/$event/invite.qr").status)
+        }
+
+    /** And the same cross-tenant hole the issuing endpoint had. */
+    @Test
+    fun `one studio cannot get a code for another studio's event`() =
+        withServer { client ->
+            val harbourline = client.signUp()
+            val other = client.signUp()
+            val event = client.createEvent(harbourline, "Harbour Awards 2026")
+
+            val stolen = client.get("/events/$event/invite.qr") { bearerAuth(other.token) }
+
+            assertNotEquals(HttpStatusCode.OK, stolen.status, "another studio got a code: ${stolen.bodyAsText()}")
+        }
+
+    private suspend fun HttpClient.grid(
+        session: SessionResponse,
+        event: String,
+    ): QrMatrix {
+        val response = get("/events/$event/invite.qr") { bearerAuth(session.token) }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+
+        return apiJson.decodeFromString(response.bodyAsText())
+    }
+
+    /** Blown up so the binarizer has something to threshold, then read as a phone would. */
+    private fun decode(grid: QrMatrix): String {
+        val scale = 4
+        val side = grid.size * scale
+        val pixels =
+            IntArray(side * side) { i ->
+                val dark = grid.rows[i / side / scale][i % side / scale] == '1'
+                if (dark) 0x000000 else 0xFFFFFF
+            }
+
+        return QRCodeReader().decode(BinaryBitmap(HybridBinarizer(RGBLuminanceSource(side, side, pixels)))).text
+    }
 
     // -- Plumbing -----------------------------------------------------------------------------
 

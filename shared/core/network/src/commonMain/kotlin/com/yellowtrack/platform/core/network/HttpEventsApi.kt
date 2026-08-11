@@ -10,6 +10,7 @@ import com.yellowtrack.platform.core.model.event.DeliveredResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.OpenStationRequest
+import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
@@ -83,6 +84,9 @@ class HttpEventsApi(
 
     override suspend fun invite(eventId: String): EventInviteResponse =
         request { post("$baseUrl/events/$eventId/invite") { authorised() } }
+
+    override suspend fun inviteCode(eventId: String): QrMatrix =
+        request { get("$baseUrl/events/$eventId/invite.qr") { authorised() } }
 
     /** Not JSON, so it is read as text rather than decoded. */
     override suspend fun inviteCard(eventId: String): String {
