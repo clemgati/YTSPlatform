@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        The launcher icon's background layer.
+
+        Black rather than the brand yellow: the mark is yellow, and a yellow mark on yellow
+        is a yellow square. The same reasoning as the application's own dark theme, where
+        yellow is the thing that draws the eye precisely because nothing else is.
+    -->
+    <color name="ic_launcher_background">#000000</color>
+</resources>
