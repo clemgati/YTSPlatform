@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
@@ -162,14 +163,34 @@ fun YTQrCode(
             // rather than this component's. A mark that spilled past the plate would cover
             // modules the error correction has not budgeted for, and it would do so quietly:
             // the code would still look like a code.
+            // Fitted rather than filled, so the mark keeps its own proportions.
+            //
+            // The plate is square because the code's modules are; a mark is whatever shape it
+            // is. Drawing it at the plate's size stretched it to fit — which nothing here
+            // could see, because every test drew a shape that looks the same stretched.
+            val available = logoSide - 2 * inset
+            val intrinsic = painter.intrinsicSize
+            val markSize =
+                if (intrinsic.isSpecified && intrinsic.width > 0f && intrinsic.height > 0f) {
+                    val scale = minOf(available / intrinsic.width, available / intrinsic.height)
+                    Size(intrinsic.width * scale, intrinsic.height * scale)
+                } else {
+                    // A painter with no opinion gets the square, which is all there is to give
+                    // it.
+                    Size(available, available)
+                }
+
             clipRect(
                 left = logoLeft,
                 top = logoTop,
                 right = logoLeft + logoSide,
                 bottom = logoTop + logoSide,
             ) {
-                translate(left = logoLeft + inset, top = logoTop + inset) {
-                    with(painter) { draw(Size(logoSide - 2 * inset, logoSide - 2 * inset)) }
+                translate(
+                    left = logoLeft + inset + (available - markSize.width) / 2f,
+                    top = logoTop + inset + (available - markSize.height) / 2f,
+                ) {
+                    with(painter) { draw(markSize) }
                 }
             }
         }
