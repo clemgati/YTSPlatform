@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug builds only, and only for the two addresses a development server can be on.
+
+    `10.0.2.2` is the emulator's alias for the host machine's loopback, which is the only way
+    a build running in an emulator can reach a server started by `:server:run`. Without this
+    the request fails as a cleartext refusal, which surfaces in the application as "could not
+    reach the server" and looks exactly like the server being down.
+
+    Scoped to these hosts rather than a blanket `usesCleartextTraffic`, so a debug build still
+    refuses plain HTTP to anywhere real.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
