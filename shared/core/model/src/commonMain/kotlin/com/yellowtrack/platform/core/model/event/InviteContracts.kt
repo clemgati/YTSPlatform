@@ -48,3 +48,26 @@ data class GalleryResponse(
     /** Temporary URLs, oldest first. They expire; the gallery link does not. */
     val photographs: List<String>,
 )
+
+/**
+ * A sign-up code as geometry, for a client that draws it itself.
+ *
+ * The printed card gets SVG, which a browser renders. An application showing the code on a
+ * screen has no browser and no SVG renderer, and adding one to every platform to draw a grid
+ * of squares would be absurd — so the server sends the grid and the client draws it.
+ *
+ * Encoding a QR code is Reed-Solomon and masking, which belongs in one place. Drawing one is
+ * a loop.
+ */
+@Serializable
+data class QrMatrix(
+    /** Width and height in modules, including the quiet zone. */
+    val size: Int,
+    /**
+     * One string per row, `1` for a dark module.
+     *
+     * Text rather than a packed encoding because it is a few kilobytes either way, and this
+     * one can be read in a log when somebody asks why a code will not scan.
+     */
+    val rows: List<String>,
+)

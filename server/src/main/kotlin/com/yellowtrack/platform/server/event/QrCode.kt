@@ -4,6 +4,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.yellowtrack.platform.core.model.event.QrMatrix
 
 /**
  * A sign-up link as something a phone can read off a wall.
@@ -34,22 +35,7 @@ object QrCode {
         content: String,
         quietZone: Int = 4,
     ): String {
-        val matrix =
-            QRCodeWriter().encode(
-                content,
-                BarcodeFormat.QR_CODE,
-                // Sized in modules rather than pixels — the SVG viewBox does the scaling, so
-                // these are the smallest values that let zxing choose the version it needs.
-                1,
-                1,
-                mapOf(
-                    EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.H,
-                    EncodeHintType.MARGIN to quietZone,
-                    // The link is ASCII, and saying so keeps the code smaller than letting
-                    // zxing assume it might not be.
-                    EncodeHintType.CHARACTER_SET to "ISO-8859-1",
-                ),
-            )
+        val matrix = encode(content, quietZone)
 
         val side = matrix.width
 
@@ -73,6 +59,58 @@ object QrCode {
             </svg>
             """.trimIndent()
     }
+
+    /**
+     * The same code as a grid, for a client that draws it rather than rendering markup.
+     *
+     * The printed card gets SVG, which a browser renders. An application showing a code on a
+     * screen has no browser and no SVG renderer, and adding one to every platform to draw a
+     * grid of squares would be absurd — so the server sends the grid.
+     *
+     * Shares [encode] with [svg] deliberately: a code on a screen and a code on paper are then
+     * the same code, including the quiet zone and the error correction, both of which are easy
+     * to lose when a second implementation draws the same thing.
+     */
+    fun matrix(
+        content: String,
+        quietZone: Int = 4,
+    ): QrMatrix {
+        val matrix = encode(content, quietZone)
+
+        return QrMatrix(
+            size = matrix.width,
+            rows =
+                (0 until matrix.height).map { y ->
+                    buildString {
+                        (0 until matrix.width).forEach { x -> append(if (matrix[x, y]) '1' else '0') }
+                    }
+                },
+        )
+    }
+
+    /**
+     * Sized in modules rather than pixels: whoever draws it decides how big, so these are the
+     * smallest values that let zxing choose the version it needs.
+     *
+     * `H` error correction because this is photographed at an angle, in a venue's lighting,
+     * off paper or off a screen with something reflecting in it. The margin is the quiet zone
+     * readers use to find the code's edges, and the character set is stated because the link
+     * is ASCII and saying so keeps the code smaller.
+     */
+    private fun encode(
+        content: String,
+        quietZone: Int,
+    ) = QRCodeWriter().encode(
+        content,
+        BarcodeFormat.QR_CODE,
+        1,
+        1,
+        mapOf(
+            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.H,
+            EncodeHintType.MARGIN to quietZone,
+            EncodeHintType.CHARACTER_SET to "ISO-8859-1",
+        ),
+    )
 }
 
 /**

@@ -17,6 +17,7 @@ import com.yellowtrack.platform.core.export.SavedDocument
 import com.yellowtrack.platform.core.model.event.DeliveredResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
+import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
@@ -1340,6 +1341,16 @@ class EventsViewModelTest {
             inviteIssued++
 
             return EventInviteResponse(token = token, url = "https://photos.example.test/join/$token")
+        }
+
+        var codeRequested = 0
+
+        override suspend fun inviteCode(eventId: String): QrMatrix {
+            codeRequested++
+
+            // A shape rather than a code: nothing here draws it, and the drawing is tested
+            // where it happens.
+            return QrMatrix(size = 3, rows = listOf("101", "010", "101"))
         }
 
         override suspend fun inviteCard(eventId: String): String {

@@ -255,6 +255,25 @@ fun Route.eventRoutes(
             }
 
             /**
+             * The code as a grid, for an application that draws it on a screen.
+             *
+             * A device propped on a table instead of a printed card. It has no browser to
+             * render SVG, and giving every platform an SVG renderer to draw a grid of squares
+             * would be absurd — so the geometry goes over the wire and the client draws it.
+             */
+            get("/{eventId}/invite.qr") {
+                val eventId = call.parameters["eventId"] ?: return@get call.missingEvent()
+                val token = invites.issue(call.studioId(), eventId)
+
+                if (token == null) {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("There is no such event."))
+                    return@get
+                }
+
+                call.respond(QrCode.matrix("$photosUrl/join/$token"))
+            }
+
+            /**
              * The code as a page a studio prints and puts on a table.
              *
              * Carries the event's name and the link in text as well as the code, because
