@@ -164,6 +164,61 @@ class DisplayRenderTest {
         }
     }
 
+    /**
+     * The code reads even when the tablet is set to light.
+     *
+     * This is the test that would have stopped a broken sign leaving the building. The code's
+     * field is the brand's yellow, and against a light background it has about 1.7 to 1 with
+     * what surrounds it — not enough for a reader to find the code's edges, so it refuses the
+     * whole thing. The screen answers that by being dark whatever the device says, and this
+     * asks the screen for the light scheme to prove it.
+     *
+     * Found by CI rather than here: a Linux runner has no dark-mode preference, so it drew
+     * the light scheme while this machine drew the dark one. The tablet it had been running
+     * on was set to light too.
+     */
+    @Test
+    fun `the code reads with the device set to light`() {
+        val link = "https://yellowtrackphotos.com/join/nvmQ9xkkfDjk12Jx7kpKkA"
+        val rows = matrixFor(link)
+
+        val pixels =
+            pixels(1_600, 2_400, darkTheme = false) {
+                DisplayUiState(
+                    content =
+                        UiState.Success(
+                            content(
+                                showing =
+                                    Showing(
+                                        event = DisplayableEvent("event-1", "Harbour Awards 2026", null),
+                                        code = QrMatrix(size = rows.size, rows = rows),
+                                        link = link,
+                                    ),
+                            ),
+                        ),
+                )
+            }
+
+        assertEquals(link, decode(pixels, 1_600, 2_400), "the code did not read under the light scheme")
+
+        // And the reason it read: the sign painted its own dark surround. Asserted separately
+        // because the decode alone is not specific — a code can survive a good deal, and this
+        // names the property it survived by.
+        val corners =
+            listOf(0, 1_599, 1_600 * 2_399, 1_600 * 2_400 - 1).map { luminance(pixels[it]) }
+
+        assertTrue(corners.all { it < 0.2 }, "the sign is not dark; its corners are $corners")
+    }
+
+    /** Rec. 709, as a luminance source uses it to tell light from dark. */
+    private fun luminance(rgb: Int): Double {
+        val r = (rgb shr 16 and 0xFF) / 255.0
+        val g = (rgb shr 8 and 0xFF) / 255.0
+        val b = (rgb and 0xFF) / 255.0
+
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
     // -- Plumbing -----------------------------------------------------------------------------
 
     private fun content(showing: Showing) =
@@ -210,9 +265,10 @@ class DisplayRenderTest {
     private fun pixels(
         width: Int,
         height: Int,
+        darkTheme: Boolean = true,
         state: () -> DisplayUiState,
     ): IntArray {
-        val bytes = encode(width, height, density = 1f, state = state)
+        val bytes = encode(width, height, density = 1f, darkTheme = darkTheme, state = state)
         val image = Image.makeFromEncoded(bytes)
         val bitmap = org.jetbrains.skia.Bitmap()
         bitmap.allocN32Pixels(image.width, image.height)
@@ -243,11 +299,14 @@ class DisplayRenderTest {
         width: Int,
         height: Int,
         density: Float,
+        darkTheme: Boolean = true,
         state: () -> DisplayUiState,
     ): ByteArray {
         val scene =
             ImageComposeScene(width = width, height = height, density = Density(density)) {
-                YellowTrackTheme {
+                // The scheme the *device* asks for. The screen overrides it, which is the
+                // point: passing false here is how the light-theme test proves that.
+                YellowTrackTheme(darkTheme = darkTheme) {
                     Surface(modifier = Modifier.fillMaxSize(), color = YTTheme.colors.background) {
                         DisplayScreen(
                             uiState = state(),

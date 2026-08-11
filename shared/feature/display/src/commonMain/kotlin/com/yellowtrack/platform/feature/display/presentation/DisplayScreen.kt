@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,6 +30,7 @@ import com.yellowtrack.platform.core.designsystem.component.YTTextField
 import com.yellowtrack.platform.core.designsystem.resources.Res
 import com.yellowtrack.platform.core.designsystem.resources.yellow_track_mark
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
+import com.yellowtrack.platform.core.designsystem.theme.YellowTrackTheme
 import com.yellowtrack.platform.core.ui.state.UiState
 import org.jetbrains.compose.resources.painterResource
 
@@ -51,7 +53,44 @@ internal fun DisplayScreen(
     onDismissProblem: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
+    // Always dark, whatever the tablet is set to.
+    //
+    // Not a preference. The code's field is the brand's yellow, and on a light background
+    // that field has barely any contrast with what surrounds it — about 1.7 to 1 — so the
+    // reader cannot find the code's edges and refuses it outright. Verified: the same screen
+    // decodes under the dark scheme and fails under the light one, and the device this ran on
+    // first was set to light.
+    //
+    // It is also simply what a sign should do. This is furniture in a venue, not a screen
+    // somebody chose a theme for, and it should look the same on every tablet a studio owns.
+    YellowTrackTheme(darkTheme = true) {
+        Surface(modifier = modifier.fillMaxSize(), color = YTTheme.colors.background) {
+            DisplayContents(
+                uiState = uiState,
+                onShow = onShow,
+                onRetry = onRetry,
+                onAskToLeave = onAskToLeave,
+                onCancelLeaving = onCancelLeaving,
+                onTypePassword = onTypePassword,
+                onConfirmUnlock = onConfirmUnlock,
+                onDismissProblem = onDismissProblem,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DisplayContents(
+    uiState: DisplayUiState,
+    onShow: (String) -> Unit,
+    onRetry: () -> Unit,
+    onAskToLeave: () -> Unit,
+    onCancelLeaving: () -> Unit,
+    onTypePassword: (String) -> Unit,
+    onConfirmUnlock: () -> Unit,
+    onDismissProblem: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
         when (val content = uiState.content) {
             UiState.Loading -> YTLoadingIndicator()
 

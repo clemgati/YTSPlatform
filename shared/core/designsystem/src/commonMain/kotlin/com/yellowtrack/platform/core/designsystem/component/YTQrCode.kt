@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.semantics.contentDescription
@@ -152,8 +153,24 @@ fun YTQrCode(
             // as clipped rather than as placed, which is the kind of thing that only shows up
             // when somebody looks at it.
             val inset = logoSide * LOGO_INSET_FRACTION
-            translate(left = logoLeft + inset, top = logoTop + inset) {
-                with(painter) { draw(Size(logoSide - 2 * inset, logoSide - 2 * inset)) }
+
+            // Clipped to the plate, so a painter cannot draw outside the square it was given.
+            //
+            // `Painter.draw` is asked for a size; it is not obliged to stay within one, and
+            // what a given painter does with a size it cannot honour — an intrinsic aspect it
+            // wants to keep, a nine-patch, a vector with its own viewport — is its business
+            // rather than this component's. A mark that spilled past the plate would cover
+            // modules the error correction has not budgeted for, and it would do so quietly:
+            // the code would still look like a code.
+            clipRect(
+                left = logoLeft,
+                top = logoTop,
+                right = logoLeft + logoSide,
+                bottom = logoTop + logoSide,
+            ) {
+                translate(left = logoLeft + inset, top = logoTop + inset) {
+                    with(painter) { draw(Size(logoSide - 2 * inset, logoSide - 2 * inset)) }
+                }
             }
         }
     }
