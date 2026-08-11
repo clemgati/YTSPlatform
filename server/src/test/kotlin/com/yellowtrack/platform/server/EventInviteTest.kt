@@ -4,6 +4,7 @@ import com.google.zxing.BinaryBitmap
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
+import com.yellowtrack.platform.core.model.auth.DeleteAccountRequest
 import com.yellowtrack.platform.core.model.auth.SessionResponse
 import com.yellowtrack.platform.core.model.auth.SignUpRequest
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
@@ -558,6 +559,82 @@ class EventInviteTest {
             val mine = client.invite(harbourline, event)
             assertEquals(HttpStatusCode.OK, client.get("/api/join/${mine.token}").status)
         }
+
+    // -- A studio on its way out --------------------------------------------------------
+
+    /**
+     * Deleting the account closes the sign-up pages with it.
+     *
+     * Found by running the walkthrough against production: the studio it created was deleted
+     * in its own last step, and its code went on answering. Deletion is a mark and a purge
+     * thirty days later, and for those thirty days a stranger could still scan the code, hand
+     * over an address, and be told photographs were coming. They were not — the purge destroys
+     * everything — so it collected personal data for an account being erased and lied to the
+     * person who gave it.
+     *
+     * The lookup checked the event was not deleted and never asked about the studio.
+     */
+    @Test
+    fun `a code stops working when the studio deletes its account`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            assertEquals(HttpStatusCode.OK, client.get("/api/join/${invite.token}").status)
+
+            client.deleteAccount(session)
+
+            assertEquals(HttpStatusCode.NotFound, client.get("/api/join/${invite.token}").status)
+        }
+
+    /**
+     * And says exactly what an unknown code says.
+     *
+     * Answering differently would confirm that a particular code once existed, which is a
+     * fact about a studio a stranger holding an old banner should not be able to check —
+     * least of all about a studio that has asked to be forgotten.
+     */
+    @Test
+    fun `a deleted studio's code answers exactly as an unknown one does`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+            client.deleteAccount(session)
+
+            val deleted = client.get("/api/join/${invite.token}")
+            val unknown = client.get("/api/join/not-a-real-token")
+
+            assertEquals(unknown.status, deleted.status)
+            assertEquals(unknown.bodyAsText(), deleted.bodyAsText())
+        }
+
+    /** And nobody can sign up through it either, which is the half that collects an address. */
+    @Test
+    fun `signing up through a deleted studio's code is refused`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+            client.deleteAccount(session)
+
+            val refused = client.join(invite.token, "guest@example.test")
+            val unknown = client.join("not-a-real-token", "guest@example.test")
+
+            assertEquals(unknown.status, refused.status)
+        }
+
+    private suspend fun HttpClient.deleteAccount(session: SessionResponse) {
+        val response =
+            post("/auth/delete-account") {
+                bearerAuth(session.token)
+                contentType(ContentType.Application.Json)
+                setBody(apiJson.encodeToString(DeleteAccountRequest("a long enough password")))
+            }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+    }
 
     // -- Whether sign-up is open ------------------------------------------------------------
 

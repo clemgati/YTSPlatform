@@ -130,14 +130,26 @@ class EventGalleries(
         val registrationId: String,
     )
 
-    /** Outside every policy, by primary key, returning the two identifiers and nothing else. */
+    /**
+     * Outside every policy, by primary key, returning the two identifiers and nothing else.
+     *
+     * The studio must still exist. Deleting an account is a mark now and a purge thirty days
+     * later, and this went on serving signed URLs to the photographs throughout — anybody
+     * holding an emailed link could still fetch the pictures of a studio that had asked to be
+     * forgotten. The sign-up code had the same hole; this is the worse half of it, because
+     * what is on the other side of this token is the photographs themselves.
+     */
     private fun resolve(token: String): Holder? =
         database.unscoped { connection ->
             connection
                 .prepareStatement(
                     """
-                    SELECT studio_id, registration_id FROM event_gallery
-                    WHERE token = ? AND revoked_at IS NULL
+                    SELECT g.studio_id, g.registration_id
+                    FROM event_gallery g
+                    JOIN studio s ON s.id = g.studio_id
+                    WHERE g.token = ?
+                      AND g.revoked_at IS NULL
+                      AND s.deleted_at IS NULL
                     """.trimIndent(),
                 ).use { statement ->
                     statement.setString(1, token)
