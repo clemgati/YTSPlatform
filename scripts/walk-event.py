@@ -15,13 +15,18 @@ so every photograph routed to the event's gallery and delivery was unreachable, 
 failed anywhere. `EventEndToEndTest` now covers the same story in process. This covers what
 that cannot: a real bucket, a real IAM role, a real mail server, a real domain.
 
-It creates a throwaway studio. `--cleanup` marks it deleted afterwards, and the purge removes
-it for good after the retention window.
+It creates a throwaway studio and deletes it afterwards, whether or not the walk succeeded;
+the purge removes it for good after the retention window. `--keep` leaves it behind, which is
+worth doing when a walk fails and you want to look at what it left.
+
+The studio's password is generated per run and printed nowhere. Nothing needs it after this
+process exits, and `--keep` therefore leaves an account only its own purge can reach.
 """
 
 import argparse
 import base64
 import json
+import secrets
 import sys
 import urllib.error
 import urllib.request
@@ -39,7 +44,14 @@ PIXEL = base64.b64decode(
     "usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/AL+iiigD//2Q=="
 )
 
-PASSWORD = "a walkthrough password"
+def new_password():
+    """A fresh one per run.
+
+    It used to be a constant in this file, which meant every walkthrough studio that
+    outlived its run — and until this commit that was all of them — could be signed into by
+    anybody who had read the repository. On a public API, holding one is holding an account.
+    """
+    return secrets.token_urlsafe(24)
 
 
 class Failed(Exception):
@@ -99,12 +111,16 @@ def main():
                         help="an address you can read. The delivery really goes here.")
     parser.add_argument("--studio-email", default=None,
                         help="the studio's reply address. Defaults to --guest.")
-    parser.add_argument("--cleanup", action="store_true",
-                        help="mark the throwaway studio deleted when finished.")
+    # Opt out rather than opt in. It was opt in, and the result was a studio left on
+    # production for every run anybody forgot the flag on — each one holding a live sign-up
+    # code that a stranger could still scan.
+    parser.add_argument("--keep", action="store_true",
+                        help="leave the throwaway studio behind. Delete it yourself afterwards.")
     arguments = parser.parse_args()
 
     base = arguments.base
     guest = arguments.guest
+    password = new_password()
     reply_to = arguments.studio_email or guest
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     stamp = datetime.now(timezone.utc).strftime("%H%M%S")
@@ -116,13 +132,42 @@ def main():
     step(1, "A studio signs up")
     email = f"walkthrough-{stamp}-{uuid.uuid4().hex[:6]}@yellowtrackstudios.com"
     _, session = call(base, "POST", "/auth/sign-up", body={
-        "email": email, "password": PASSWORD,
+        "email": email, "password": password,
         "name": "Walkthrough", "studioName": "Walkthrough Studio",
     }, expect=[201])
     token, studio_id = session["token"], session["studioId"]
     note(f"{email}")
     note(f"studio {studio_id}")
 
+    # The rest runs inside a try, so a studio outlives this script only when somebody
+    # asked for that. A walk that fails in step 9 used to leave a studio behind holding a
+    # live sign-up code on a public domain, and the failure that produced it was the
+    # reason nobody was looking.
+    try:
+        walk(base, token, studio_id, guest, reply_to, now, stamp)
+    finally:
+        if arguments.keep:
+            note(f"keeping {email} — delete it yourself when you are done with it")
+        else:
+            step(15, "Cleaning up")
+            call(base, "POST", "/auth/delete-account", token=token,
+                 body={"password": password}, expect=[200])
+            note("the studio is marked deleted; the purge removes it after the retention window")
+
+    print("\n" + "-" * 72)
+    print("Every step the software can check has passed.")
+    print()
+    print(f"The one it cannot is now in {guest}: open it on a phone, follow the link, and")
+    print("confirm the photograph appears. That is the whole feature, and nothing short of")
+    print("reading that email proves it.")
+    print()
+    print("If the link 404s, PHOTOS_URL points somewhere this server does not serve.")
+    print("If the image is broken, the presigned URL is wrong or the role cannot GetObject.")
+    return 0
+
+
+def walk(base, token, studio_id, guest, reply_to, now, stamp):
+    """Steps 2 to 14. Everything after the studio exists and before it is torn down."""
     # 2 -----------------------------------------------------------------------------------
     step(2, "It fills in its details")
     note("A studio with no profile has no reply address, and delivery refuses — so this is")
@@ -230,23 +275,6 @@ def main():
     if again["sentNow"]:
         raise Failed("the second delivery sent another email")
     note("sentNow=false, as it should be")
-
-    if arguments.cleanup:
-        step(15, "Cleaning up")
-        call(base, "POST", "/auth/delete-account", token=token,
-             body={"password": PASSWORD}, expect=[200])
-        note("the studio is marked deleted; the purge removes it after the retention window")
-
-    print("\n" + "-" * 72)
-    print("Every step the software can check has passed.")
-    print()
-    print(f"The one it cannot is now in {guest}: open it on a phone, follow the link, and")
-    print("confirm the photograph appears. That is the whole feature, and nothing short of")
-    print("reading that email proves it.")
-    print()
-    print("If the link 404s, PHOTOS_URL points somewhere this server does not serve.")
-    print("If the image is broken, the presigned URL is wrong or the role cannot GetObject.")
-    return 0
 
 
 if __name__ == "__main__":
