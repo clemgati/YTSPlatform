@@ -404,6 +404,69 @@ like a wrong password.
 Verify the domain with **DKIM**, not just the address. Mail from an unauthenticated domain
 lands in spam, which is indistinguishable from not sending it.
 
+#### Send `www` to the apex
+
+Serve the public site on one host, not two. Both worked for a while, and the cost was a
+guest who typed the address with a `www` on it, got the page, filled the form in and was
+refused — `www` is a different origin to a browser, and the CORS allowance named only the
+apex. The server now accepts both (`Application.kt`, `subDomains = listOf("www")`), so this
+is no longer load bearing. It is still worth doing: one canonical origin cannot drift from
+the other, and this class of bug stops being possible rather than being tolerated.
+
+Check what is serving `www` today, and that the certificate covers it — it must, or TLS
+fails before the redirect can happen:
+
+```sh
+apachectl -S | grep -i yellowtrackphotos
+sudo openssl x509 -in /etc/letsencrypt/live/yellowtrackphotos.com/fullchain.pem -noout -text |
+    grep -A1 "Subject Alternative Name"
+```
+
+If `www` is reaching the site through a `ServerAlias` on the apex vhost, remove that line —
+otherwise the alias keeps matching and the redirect below is never consulted. Then add a
+vhost of its own, in a new file so certbot's generated ones are left alone:
+
+```apache
+# /etc/apache2/sites-available/yellowtrack-photos-www.conf
+
+<VirtualHost *:80>
+    ServerName www.yellowtrackphotos.com
+
+    # Permanent, and it keeps the path: a printed banner may carry
+    # www.yellowtrackphotos.com/join/TOKEN, and dropping the path would send a guest who
+    # scanned it to the front page with no way to know what they missed.
+    RedirectPermanent / http://yellowtrackphotos.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName www.yellowtrackphotos.com
+
+    SSLEngine on
+    # The apex's certificate, which must already cover this name — check it with the
+    # openssl line above before enabling this, or every `www` visitor meets a TLS warning
+    # instead of a redirect, which is a worse failure than the one being fixed.
+    SSLCertificateFile      /etc/letsencrypt/live/yellowtrackphotos.com/fullchain.pem
+    SSLCertificateKeyFile   /etc/letsencrypt/live/yellowtrackphotos.com/privkey.pem
+
+    RedirectPermanent / https://yellowtrackphotos.com/
+</VirtualHost>
+```
+
+```sh
+sudo a2ensite yellowtrack-photos-www
+sudo apachectl configtest && sudo systemctl reload apache2
+```
+
+Then confirm it, including that the path survives:
+
+```sh
+curl -sSI https://www.yellowtrackphotos.com/join/anything | head -3
+# expect: HTTP/1.1 301, and Location: https://yellowtrackphotos.com/join/anything
+```
+
+`RedirectPermanent` is a 301, which browsers cache hard. Get the target right before
+enabling it, because a wrong one is expensive to withdraw from everybody who has visited.
+
 ---
 
 ## systemd
