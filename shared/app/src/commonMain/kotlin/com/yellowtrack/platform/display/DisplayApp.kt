@@ -27,9 +27,23 @@ import org.koin.compose.koinInject
  *
  * That is not tidiness. Everything left out is something that could fail on a tablet nobody
  * is looking at, and the failure would be a blank screen on a table.
+ *
+ * Shared between the Android and iOS companions. The two differ only in what they can do
+ * about an unattended device — see [onDisplayingChanged], which each host answers with what
+ * its platform actually offers rather than with a promise it cannot keep.
  */
 @Composable
-fun DisplayApp(onDisplayingChanged: (Boolean) -> Unit = {}) {
+fun DisplayApp(
+    /**
+     * Called with true while a code is on the table.
+     *
+     * Android pins the screen and swallows Back. iOS can do neither — Guided Access is
+     * started by a person holding the device and there is no API to ask for it — so there it
+     * does nothing, and the password is the whole of the lock. Stated here rather than
+     * quietly differing.
+     */
+    onDisplayingChanged: (Boolean) -> Unit = {},
+) {
     val auth: AuthRepository = koinInject()
     val clock: AppClock = koinInject()
 

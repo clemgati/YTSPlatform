@@ -6,6 +6,7 @@ import com.yellowtrack.platform.core.network.networkModule
 import com.yellowtrack.platform.feature.auth.authFeatureModule
 import com.yellowtrack.platform.feature.clients.clientsModule
 import com.yellowtrack.platform.feature.dashboard.dashboardModule
+import com.yellowtrack.platform.feature.display.displayModule
 import com.yellowtrack.platform.feature.events.eventsModule
 import com.yellowtrack.platform.feature.ledger.ledgerModule
 import com.yellowtrack.platform.feature.sessions.sessionsModule
@@ -31,5 +32,9 @@ val appModule =
             settingsModule,
             studioModule,
             eventsModule,
+            // The companion display is a second application over this same graph. Composed
+            // here like any other feature: a host that had to remember to add it would be a
+            // host that can forget.
+            displayModule,
         )
     }
