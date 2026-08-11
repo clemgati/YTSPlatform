@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.min
 import com.yellowtrack.platform.core.designsystem.component.YTButton
@@ -25,8 +26,11 @@ import com.yellowtrack.platform.core.designsystem.component.YTLoadingIndicator
 import com.yellowtrack.platform.core.designsystem.component.YTQrCode
 import com.yellowtrack.platform.core.designsystem.component.YTTextButton
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
+import com.yellowtrack.platform.core.designsystem.resources.Res
+import com.yellowtrack.platform.core.designsystem.resources.yellow_track_mark
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import com.yellowtrack.platform.core.ui.state.UiState
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * Two screens behind one entry point: choosing an event, and being the code.
@@ -182,6 +186,7 @@ private fun ShowingCode(
             Text(
                 showing.event.name,
                 style = YTTheme.typography.headlineLarge,
+                color = YTTheme.colors.primary,
                 textAlign = TextAlign.Center,
             )
 
@@ -209,6 +214,16 @@ private fun ShowingCode(
                     rows = showing.code.rows,
                     modifier = Modifier.width(side).height(side),
                     contentDescription = "Sign-up code for ${showing.event.name}",
+                    // The brand's own colours, within the one rule a code imposes: the
+                    // modules must be the darker of the two. Yellow is the field, not the
+                    // modules — a pale module colour on a dark field is an inverted code, and
+                    // a good many readers refuse those outright.
+                    dark = CODE_DARK,
+                    light = CODE_LIGHT,
+                    logo = painterResource(Res.drawable.yellow_track_mark),
+                    // The mark is yellow, so it needs the dark plate the launcher icon gives
+                    // it. On the yellow field it would be a yellow square.
+                    logoPlate = CODE_DARK,
                 )
                 Text(
                     showing.link,
@@ -265,3 +280,14 @@ private fun ShowingCode(
  * below. Measured against the shorter side so rotating the device does not change it.
  */
 private const val CODE_FRACTION_OF_SHORTER_SIDE = 0.62f
+
+/**
+ * The code's own two colours.
+ *
+ * Not taken from the theme. The theme follows the device between light and dark, and a code
+ * that changed colour with the tablet's mood would be a code whose contrast nobody had
+ * checked in one of the two states. These are fixed, measured, and the same on every device:
+ * about eleven to one, which is far more than a camera needs.
+ */
+private val CODE_DARK = Color(0xFF111111)
+private val CODE_LIGHT = Color(0xFFFAB91D)
