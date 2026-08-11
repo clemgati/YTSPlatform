@@ -7,6 +7,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.floor
@@ -38,6 +41,42 @@ fun YTQrCode(
     rows: List<String>,
     modifier: Modifier = Modifier,
     contentDescription: String? = "Sign-up code",
+    /**
+     * The modules, which must be the darker of the two.
+     *
+     * Readers expect dark on light and many refuse the inverse outright, so this is not a
+     * free choice: a brand's colour can be [light] or it can be this one, and if it is a pale
+     * colour it can only be [light].
+     */
+    dark: Color = Color.Black,
+    /** What the modules sit on. Painted rather than assumed — see below. */
+    light: Color = Color.White,
+    /**
+     * Drawn over the middle, or nothing.
+     *
+     * Costs error correction. The code is encoded at level `H`, which recovers about thirty
+     * per cent of itself, and every module a logo covers is spent out of that budget — the
+     * same budget that absorbs glare, a thumbprint and a bad angle at a table. So this is
+     * deliberately small, and [LOGO_FRACTION_OF_WIDTH] says how small and why.
+     */
+    logo: Painter? = null,
+    /**
+     * How much of the code's width [logo] may cover, as a fraction.
+     *
+     * Exposed because it is the number that decides whether the code still scans, so it
+     * should be visible at the call site rather than buried. Raise it and measure: the test
+     * beside this component decodes the result at every size, with the mark blacked out.
+     */
+    logoFraction: Float = LOGO_FRACTION_OF_WIDTH,
+    /**
+     * What [logo] is drawn onto, inside the code.
+     *
+     * Defaults to [light], which suits a mark that is dark. A mark the same colour as the
+     * field disappears into it — the launcher icon learned this and says so in `colors.xml`:
+     * a yellow mark on yellow is a yellow square. Give it the dark colour and the mark reads
+     * as a plate, the way the icon does.
+     */
+    logoPlate: Color = light,
 ) {
     if (rows.isEmpty()) return
 
@@ -72,19 +111,86 @@ fun YTQrCode(
         val top = floor((this.size.height - drawn) / 2f)
 
         // The light background is painted rather than assumed: this is drawn onto whatever the
-        // surrounding screen is, and a code needs its own white to be found against.
-        drawRect(color = Color.White, topLeft = Offset(left, top), size = Size(drawn, drawn))
+        // surrounding screen is, and a code needs its own field to be found against.
+        drawRect(color = light, topLeft = Offset(left, top), size = Size(drawn, drawn))
 
         rows.forEachIndexed { y, row ->
             row.forEachIndexed { x, module_ ->
                 if (module_ == '1') {
                     drawRect(
-                        color = Color.Black,
+                        color = dark,
                         topLeft = Offset(left + x * module, top + y * module),
                         size = Size(module, module),
                     )
                 }
             }
         }
+
+        logo?.let { painter ->
+            // Snapped to whole modules, like everything else here. A logo whose edges land
+            // mid-module leaves slivers of half-covered modules around it, which is exactly
+            // the ambiguity the flooring above exists to avoid.
+            val logoModules = floor(size * logoFraction).toInt().coerceAtLeast(1)
+            val padModules = logoModules + 2 * LOGO_MARGIN_MODULES
+            val padSide = padModules * module
+            val padLeft = left + floor((drawn - padSide) / (2f * module)) * module
+            val padTop = top + floor((drawn - padSide) / (2f * module)) * module
+
+            // Always a ring of the light colour first, whatever the plate is. Without it a
+            // dark plate touches the dark modules around it and the two read as one blob,
+            // which is a bigger piece of damage than the plate alone.
+            drawRect(color = light, topLeft = Offset(padLeft, padTop), size = Size(padSide, padSide))
+
+            val logoSide = logoModules * module
+            val logoLeft = padLeft + LOGO_MARGIN_MODULES * module
+            val logoTop = padTop + LOGO_MARGIN_MODULES * module
+
+            if (logoPlate != light) {
+                drawRect(color = logoPlate, topLeft = Offset(logoLeft, logoTop), size = Size(logoSide, logoSide))
+            }
+
+            // Inset inside the plate so the mark is not flush against its own edge. It read
+            // as clipped rather than as placed, which is the kind of thing that only shows up
+            // when somebody looks at it.
+            val inset = logoSide * LOGO_INSET_FRACTION
+
+            // Clipped to the plate, so a painter cannot draw outside the square it was given.
+            //
+            // `Painter.draw` is asked for a size; it is not obliged to stay within one, and
+            // what a given painter does with a size it cannot honour — an intrinsic aspect it
+            // wants to keep, a nine-patch, a vector with its own viewport — is its business
+            // rather than this component's. A mark that spilled past the plate would cover
+            // modules the error correction has not budgeted for, and it would do so quietly:
+            // the code would still look like a code.
+            clipRect(
+                left = logoLeft,
+                top = logoTop,
+                right = logoLeft + logoSide,
+                bottom = logoTop + logoSide,
+            ) {
+                translate(left = logoLeft + inset, top = logoTop + inset) {
+                    with(painter) { draw(Size(logoSide - 2 * inset, logoSide - 2 * inset)) }
+                }
+            }
+        }
     }
 }
+
+/**
+ * How much of the code's width the mark may cover.
+ *
+ * Chosen by decoding rather than by taste. A logo is contiguous damage in the middle of the
+ * code, which error correction handles worse than the same number of modules scattered about,
+ * and the budget it spends is the budget that would otherwise absorb a venue's lighting.
+ *
+ * A fifth of the width is about four per cent of the area, well inside what level `H` allows,
+ * and it decodes at every size this is drawn at with the whole mark blacked out — which is a
+ * harsher test than the real mark, since that has transparency the reader can see through.
+ */
+private const val LOGO_FRACTION_OF_WIDTH = 0.2f
+
+/** Blank modules between the mark and the code, so the two cannot be read as one. */
+private const val LOGO_MARGIN_MODULES = 1
+
+/** Breathing room between the mark and the edge of its plate. */
+private const val LOGO_INSET_FRACTION = 0.12f

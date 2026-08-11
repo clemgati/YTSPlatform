@@ -6,7 +6,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.google.zxing.BinaryBitmap
@@ -117,6 +123,100 @@ class YTQrCodeTest {
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
 
+    /**
+     * The code still reads with the mark on it, at every size, in the brand's colours.
+     *
+     * The mark is a solid opaque block here, which is harsher than the real one: it covers
+     * every module beneath it, where the real mark has transparency a reader sees through.
+     *
+     * Measured when this was written: a block covering 30% of the width still decoded at
+     * every size and 35% decoded at none. The component ships 20%, so this passes with about
+     * ten points of width to spare — and if somebody raises that constant toward the cliff,
+     * this is what fails.
+     */
+    @Test
+    fun `a branded code with a mark on it decodes at every size`() {
+        val link = "https://yellowtrackphotos.com/join/nvmQ9xkkfDjk12Jx7kpKkA"
+        val rows = matrixFor(link)
+
+        val failed =
+            listOf(240, 320, 400, 512, 640, 900).filterNot { side ->
+                val pixels =
+                    render(
+                        rows,
+                        side,
+                        background = Color(0xFF181818),
+                        dark = BRAND_DARK,
+                        light = BRAND_LIGHT,
+                        logo = true,
+                    )
+                runCatching { decode(pixels) }.getOrNull() == link
+            }
+
+        assertEquals(emptyList(), failed, "the branded code did not decode at these pixel sizes")
+    }
+
+    /**
+     * And it paints its own field rather than letting the screen show through.
+     *
+     * The white-background version of this test cannot cover the branded one: it asks whether
+     * the light modules are near-white, and here they are deliberately not. What matters is
+     * the same either way — that the light modules are the colour this component chose, not
+     * whatever was behind it.
+     */
+    @Test
+    fun `a branded code paints its own field`() {
+        val link = "https://yellowtrackphotos.com/join/nvmQ9xkkfDjk12Jx7kpKkA"
+        val pixels =
+            render(
+                matrixFor(link),
+                480,
+                background = Color(0xFF181818),
+                dark = BRAND_DARK,
+                light = BRAND_LIGHT,
+                logo = true,
+            )
+
+        val field = pixels.count { it == (BRAND_LIGHT.toArgb() and 0xFFFFFF) }
+        val fraction = field.toDouble() / pixels.size
+
+        assertTrue(fraction > 0.25, "only ${(fraction * 100).toInt()}% of the code is the light colour")
+    }
+
+    /**
+     * A mark cannot cover more of the code than it was given, whatever it tries to draw.
+     *
+     * `Painter.draw` is asked for a size and is not obliged to honour it — an intrinsic
+     * aspect ratio, a vector viewport, a platform's image scaling — and this component cannot
+     * know what any particular painter will do. A mark that spilled past its plate would
+     * cover modules nothing had budgeted for, and quietly: the code would still look like a
+     * code, and would simply stop scanning.
+     *
+     * The painter here draws ten times the size it was handed, which is worse than any real
+     * one would. Without the clip it obliterates the code.
+     */
+    @Test
+    fun `a mark that overdraws cannot damage the code`() {
+        val link = "https://yellowtrackphotos.com/join/nvmQ9xkkfDjk12Jx7kpKkA"
+        val rows = matrixFor(link)
+
+        val failed =
+            listOf(320, 480, 900).filterNot { side ->
+                val pixels =
+                    render(
+                        rows,
+                        side,
+                        background = Color(0xFF181818),
+                        dark = BRAND_DARK,
+                        light = BRAND_LIGHT,
+                        greedyLogo = true,
+                    )
+                runCatching { decode(pixels) }.getOrNull() == link
+            }
+
+        assertEquals(emptyList(), failed, "an overdrawing mark broke the code at these sizes")
+    }
+
     // -- Rendering and reading ------------------------------------------------------------
 
     /** A real encoding, produced the way the server produces it. */
@@ -148,10 +248,27 @@ class YTQrCodeTest {
         rows: List<String>,
         side: Int,
         background: Color = Color.White,
+        dark: Color = Color.Black,
+        light: Color = Color.White,
+        logo: Boolean = false,
+        greedyLogo: Boolean = false,
     ): IntArray {
         val scene =
             ImageComposeScene(width = side, height = side, density = Density(1f)) {
                 YTQrCode(
+                    dark = dark,
+                    light = light,
+                    // A solid block, which is the worst case: it covers every module under
+                    // it, where a real mark has transparency a reader can see through.
+                    // Solid and opaque, which covers every module beneath it — worse than
+                    // the real mark, which has transparency a reader can see through.
+                    logo =
+                        when {
+                            greedyLogo -> GreedyPainter
+                            logo -> ColorPainter(Color.Black)
+                            else -> null
+                        },
+                    logoPlate = if (logo || greedyLogo) dark else light,
                     rows = rows,
                     // Padding, because a code drawn hard against the edge of a surface has no
                     // margin beyond its own quiet zone on a real screen either.
@@ -182,5 +299,20 @@ class YTQrCodeTest {
         val bitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(side, side, pixels)))
 
         return QRCodeReader().decode(bitmap).text
+    }
+
+    /** Draws ten times the size it is given, to prove the clip holds. */
+    private object GreedyPainter : Painter() {
+        override val intrinsicSize = Size.Unspecified
+
+        override fun DrawScope.onDraw() {
+            drawRect(color = Color.Black, topLeft = Offset(-size.width * 5, -size.height * 5), size = size * 10f)
+        }
+    }
+
+    private companion object {
+        /** The palette the display app uses, and the only one the brand allows here. */
+        val BRAND_DARK = Color(0xFF111111)
+        val BRAND_LIGHT = Color(0xFFFAB91D)
     }
 }

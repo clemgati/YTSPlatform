@@ -4,6 +4,13 @@ plugins {
 
 // The design system must never know about business concepts, so it deliberately depends
 // on no model or data module.
+// The mark is here rather than in the screen that first used it: it is now on two screens in
+// two modules, and features never depend on each other. Public so they can both reach it.
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "com.yellowtrack.platform.core.designsystem.resources"
+}
+
 kotlin {
     sourceSets {
         commonMain.dependencies {

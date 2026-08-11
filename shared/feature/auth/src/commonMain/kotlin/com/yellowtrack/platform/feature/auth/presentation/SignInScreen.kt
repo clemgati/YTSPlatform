@@ -23,11 +23,11 @@ import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTSectionCard
 import com.yellowtrack.platform.core.designsystem.component.YTTextButton
 import com.yellowtrack.platform.core.designsystem.component.YTTextField
+import com.yellowtrack.platform.core.designsystem.resources.Res
+import com.yellowtrack.platform.core.designsystem.resources.yellow_track_mark
 import com.yellowtrack.platform.core.designsystem.theme.YTTheme
 import kotlinx.datetime.TimeZone
 import org.jetbrains.compose.resources.painterResource
-import yellow_track_platform.shared.feature.auth.generated.resources.Res
-import yellow_track_platform.shared.feature.auth.generated.resources.yellow_track_mark
 import kotlin.time.Instant
 
 /**
