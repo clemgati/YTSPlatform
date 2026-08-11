@@ -422,9 +422,13 @@ sudo openssl x509 -in /etc/letsencrypt/live/yellowtrackphotos.com/fullchain.pem 
     grep -A1 "Subject Alternative Name"
 ```
 
-If `www` is reaching the site through a `ServerAlias` on the apex vhost, remove that line —
-otherwise the alias keeps matching and the redirect below is never consulted. Then add a
-vhost of its own, in a new file so certbot's generated ones are left alone:
+If `www` is reaching the site through a `ServerAlias`, remove that line — otherwise the alias
+keeps matching and the redirect below is never consulted. Expect it in **two** places, and
+missing the second is why a redirect appears to do nothing on one scheme: the `:80` vhost you
+wrote, and the `:443` one certbot generated beside it, since certbot copies the aliases it
+found. `apachectl -S` above names both files.
+
+Then add a vhost of its own, in a new file so certbot's generated ones are left alone:
 
 ```apache
 # /etc/apache2/sites-available/yellowtrack-photos-www.conf
@@ -435,7 +439,12 @@ vhost of its own, in a new file so certbot's generated ones are left alone:
     # Permanent, and it keeps the path: a printed banner may carry
     # www.yellowtrackphotos.com/join/TOKEN, and dropping the path would send a guest who
     # scanned it to the front page with no way to know what they missed.
-    RedirectPermanent / http://yellowtrackphotos.com/
+    #
+    # Everything except the ACME challenge, which has to be served rather than redirected.
+    # Certificate renewal proves control of this name over plain HTTP on this path, and a
+    # redirect sitting in front of it can take that away — not now, but at the first renewal
+    # sixty days later, by which time nobody is connecting the two.
+    RedirectMatch permanent ^/(?!\.well-known/acme-challenge/)(.*)$ http://yellowtrackphotos.com/$1
 </VirtualHost>
 
 <VirtualHost *:443>
@@ -447,24 +456,32 @@ vhost of its own, in a new file so certbot's generated ones are left alone:
     # instead of a redirect, which is a worse failure than the one being fixed.
     SSLCertificateFile      /etc/letsencrypt/live/yellowtrackphotos.com/fullchain.pem
     SSLCertificateKeyFile   /etc/letsencrypt/live/yellowtrackphotos.com/privkey.pem
+    Include /etc/letsencrypt/options-ssl-apache.conf
 
-    RedirectPermanent / https://yellowtrackphotos.com/
+    RedirectMatch permanent ^/(.*)$ https://yellowtrackphotos.com/$1
 </VirtualHost>
 ```
+
+Removing the aliases does not change what the certificate covers: the names come from
+`/etc/letsencrypt/renewal/`, not from the vhost.
 
 ```sh
 sudo a2ensite yellowtrack-photos-www
 sudo apachectl configtest && sudo systemctl reload apache2
 ```
 
-Then confirm it, including that the path survives:
+Then confirm it, including that the path survives and that renewal still works:
 
 ```sh
 curl -sSI https://www.yellowtrackphotos.com/join/anything | head -3
 # expect: HTTP/1.1 301, and Location: https://yellowtrackphotos.com/join/anything
+
+# The one that cannot be discovered later without an outage. It must succeed for both
+# names; a redirect in front of the challenge path is exactly what breaks it.
+sudo certbot renew --dry-run
 ```
 
-`RedirectPermanent` is a 301, which browsers cache hard. Get the target right before
+`RedirectMatch permanent` is a 301, which browsers cache hard. Get the target right before
 enabling it, because a wrong one is expensive to withdraw from everybody who has visited.
 
 ---
