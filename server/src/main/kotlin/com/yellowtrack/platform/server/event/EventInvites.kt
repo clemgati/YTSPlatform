@@ -203,12 +203,32 @@ class EventInvites(
      * The only query in the application that reads a table with no row level security and is
      * reachable without a session. It selects by primary key, returns at most one row, and
      * exposes nothing but the two identifiers needed to re-enter a studio scope.
+     *
+     * The studio must still exist. Deleting an account is a mark now and a purge thirty days
+     * later, and for those thirty days this went on handing out the studio's sign-up pages:
+     * a stranger could scan a code belonging to a studio that had asked to be forgotten, give
+     * an address, and be told photographs were coming. They were not, because the purge
+     * destroys everything — so it collected personal data for an account being erased and
+     * lied to the person who gave it. Found by running the walkthrough against production,
+     * whose own last step deletes the studio it made.
+     *
+     * Joined here rather than checked by each caller, because both of them — reading the page
+     * and signing up through it — are the same mistake, and one of them would have been
+     * fixed and the other forgotten.
      */
     private fun resolve(token: String): Invite? =
         database.unscoped { connection ->
             connection
-                .prepareStatement("SELECT studio_id, event_id FROM event_invite WHERE token = ? AND revoked_at IS NULL")
-                .use { statement ->
+                .prepareStatement(
+                    """
+                    SELECT i.studio_id, i.event_id
+                    FROM event_invite i
+                    JOIN studio s ON s.id = i.studio_id
+                    WHERE i.token = ?
+                      AND i.revoked_at IS NULL
+                      AND s.deleted_at IS NULL
+                    """.trimIndent(),
+                ).use { statement ->
                     statement.setString(1, token)
                     statement.executeQuery().use { rows ->
                         if (rows.next()) Invite(rows.getString(1), rows.getString(2)) else null

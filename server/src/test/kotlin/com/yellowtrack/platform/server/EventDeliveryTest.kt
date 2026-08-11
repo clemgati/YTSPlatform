@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.server
 
+import com.yellowtrack.platform.server.account.AccountDeletion
 import com.yellowtrack.platform.server.auth.Accounts
 import com.yellowtrack.platform.server.event.Delivered
 import com.yellowtrack.platform.server.event.DeliveryRefused
@@ -469,11 +470,39 @@ class EventDeliveryTest {
         override fun delete(keys: List<String>): Set<String> = keys.toSet()
     }
 
+    /**
+     * A gallery link dies with the studio that issued it.
+     *
+     * The same hole as the sign-up code and a worse one: this link serves the photographs
+     * themselves. Deletion is a mark now and a purge thirty days later, and for those thirty
+     * days anybody holding an emailed link could still fetch signed URLs to the photographs
+     * of a studio that had asked to be forgotten.
+     *
+     * Deleted through the real path rather than by writing to the row, so this tests what a
+     * studio pressing the button actually causes.
+     */
+    @Test
+    fun `a gallery stops working when the studio deletes its account`() {
+        val world = World()
+        world.photograph()
+        world.closeSitting()
+        world.deliver()
+        val token = world.galleryToken()!!
+
+        assertNotNull(world.galleries().photographs(token), "the gallery was not readable to begin with")
+
+        AccountDeletion(TestDatabase.database)
+            .request(world.accountId, world.studioId, "a long enough password")
+
+        assertNull(world.galleries().photographs(token), "a deleted studio's photographs were still served")
+    }
+
     private inner class World(
         studioEmail: String? = "ada@harbourline.test",
     ) {
         val mailer = RecordingMailer()
         val studioId: String
+        val accountId: String
         private val events = Events(TestDatabase.database)
         private val eventId: String
         private var currentRegistrationId: String
@@ -492,6 +521,7 @@ class EventDeliveryTest {
                     "Harbourline Photography",
                 )
             studioId = signedIn.studioId
+            accountId = signedIn.account.id
 
             // The studio's own details live in `studio_profile`, which is where a reply
             // address comes from. A studio that has never opened Settings has no row here at
