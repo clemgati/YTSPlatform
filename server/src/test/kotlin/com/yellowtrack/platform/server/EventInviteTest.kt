@@ -297,6 +297,73 @@ class EventInviteTest {
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         }
 
+    /**
+     * The `www` host of the public site, which is a different origin to a browser.
+     *
+     * Found by the walkthrough against production: `www.yellowtrackphotos.com` serves the
+     * sign-up page and the apex does too, so a guest reaching it either way gets the same
+     * page — and only one of them could sign up. The other typed an address, pressed the
+     * button and was told the server could not be reached, which is the same failure this
+     * CORS block was added to fix and was still live on the host half the world types.
+     *
+     * Allowed as a named subdomain rather than by loosening the rule: `www` of the site this
+     * application serves, and nothing else.
+     */
+    @Test
+    fun `a sign-up from the public site's www host is accepted`() =
+        withCors { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val response =
+                client.post("/api/join/${invite.token}") {
+                    header(HttpHeaders.Origin, "https://www.yellowtrackphotos.com")
+                    contentType(ContentType.Application.Json)
+                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test")))
+                }
+
+            assertEquals(HttpStatusCode.NoContent, response.status, response.bodyAsText())
+        }
+
+    /** And reading it, which is the request that actually failed in production. */
+    @Test
+    fun `reading an event from the public site's www host is accepted`() =
+        withCors { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val response =
+                client.get("/api/join/${invite.token}") {
+                    header(HttpHeaders.Origin, "https://www.yellowtrackphotos.com")
+                }
+
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        }
+
+    /**
+     * And only `www`.
+     *
+     * Written because widening the allowance to every subdomain of the photographs host
+     * passed every other test here. The unrelated-origin test uses a different host
+     * altogether, so it says nothing about how far this one reaches.
+     */
+    @Test
+    fun `a sign-up from another subdomain of the public site is refused`() =
+        withCors { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val response =
+                client.get("/api/join/${invite.token}") {
+                    header(HttpHeaders.Origin, "https://anything.yellowtrackphotos.com")
+                }
+
+            assertNotEquals(HttpStatusCode.OK, response.status, "an arbitrary subdomain was allowed")
+        }
+
     /** Somebody else's page must still not post to it. */
     @Test
     fun `a sign-up from an unrelated origin is refused`() =

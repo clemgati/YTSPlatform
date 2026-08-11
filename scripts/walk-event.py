@@ -58,6 +58,18 @@ class Failed(Exception):
     pass
 
 
+def photos_origin(base):
+    """Where a guest's browser is when it calls the public endpoints.
+
+    Derived from the API's host so a local run works too: on `http://127.0.0.1:8080` the
+    pages and the API are the same origin, and on the deployment they are not.
+    """
+    if "api.yellowtrackstudios.com" in base:
+        return "https://yellowtrackphotos.com"
+
+    return base.rstrip("/")
+
+
 def call(base, method, path, token=None, body=None, raw=None, content_type=None, expect=None):
     """One request. Returns (status, parsed-or-text)."""
     url = base.rstrip("/") + path
@@ -69,8 +81,13 @@ def call(base, method, path, token=None, body=None, raw=None, content_type=None,
     # The public endpoints are called by a browser, and a browser sends `Origin` on every
     # POST — including a same-origin one. Omitting it is why this script passed while the
     # sign-up page was refused with a bare 403 in production.
+    #
+    # The origin is the photographs site, not this API. It was the API's own address, which
+    # is an origin no browser ever sends here — a guest is on the sign-up page, and that page
+    # is served from PHOTOS_URL. Sending the wrong one made every `/api/` call a 403, so the
+    # script tested a rule nobody is subject to and missed the one everybody is.
     if path.startswith("/api/"):
-        request.add_header("Origin", base.rstrip("/"))
+        request.add_header("Origin", photos_origin(base))
     if data is not None:
         request.add_header("Content-Type", content_type or "application/json")
 

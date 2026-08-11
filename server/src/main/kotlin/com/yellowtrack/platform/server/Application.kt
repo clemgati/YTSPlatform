@@ -231,7 +231,19 @@ fun Application.module(
         install(CORS) {
             corsOrigins.forEach { origin ->
                 val withoutScheme = origin.substringAfter("://")
-                allowHost(withoutScheme, schemes = listOf(origin.substringBefore("://")))
+                allowHost(
+                    withoutScheme,
+                    schemes = listOf(origin.substringBefore("://")),
+                    // `www` is a different origin to a browser, and both hosts serve these
+                    // pages. A guest who reached the sign-up page by typing the address with
+                    // a `www` on it loaded it, filled it in, and was refused — the same
+                    // failure this block exists to fix, still live on the host half the world
+                    // types. Found by the walkthrough against production.
+                    //
+                    // Named rather than a wildcard: `www` of the site this application
+                    // serves, and no other subdomain of it.
+                    subDomains = listOf("www"),
+                )
             }
             allowHeader(HttpHeaders.Authorization)
             allowHeader(HttpHeaders.ContentType)
