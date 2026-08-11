@@ -50,6 +50,7 @@ include(":shared:core:network")
 
 include(":shared:feature:auth")
 include(":shared:feature:dashboard")
+include(":shared:feature:display")
 include(":shared:feature:clients")
 include(":shared:feature:settings")
 include(":shared:feature:ledger")

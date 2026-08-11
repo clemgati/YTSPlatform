@@ -410,11 +410,21 @@ class Events(
                            e.starts_at,
                            (SELECT count(*) FROM event_station s
                              WHERE s.event_id = e.id AND s.closed_at IS NULL),
-                           (SELECT count(*) FROM event_photo p WHERE p.event_id = e.id)
+                           (SELECT count(*) FROM event_photo p WHERE p.event_id = e.id),
+                           -- Naming the studio is not redundant. `event_invite` carries no
+                           -- policy (V12, ADR 0009 decision 7), so unlike every other table
+                           -- joined here it is not filtered by the studio scope — and the two
+                           -- bugs that pattern has already caused were both a query on this
+                           -- table that forgot to say which studio it meant.
+                           EXISTS (SELECT 1 FROM event_invite i
+                                    WHERE i.event_id = e.id
+                                      AND i.studio_id = ?
+                                      AND i.revoked_at IS NULL)
                     FROM event e
                     ORDER BY coalesce(e.starts_at, e.created_at) DESC, e.id
                     """.trimIndent(),
                 ).use { statement ->
+                    statement.setString(1, studioId)
                     statement.executeQuery().use { rows ->
                         buildList {
                             while (rows.next()) {
@@ -426,6 +436,7 @@ class Events(
                                         startsAt = startsAt,
                                         openStations = rows.getInt(4),
                                         photographs = rows.getInt(5),
+                                        signUpOpen = rows.getBoolean(6),
                                     ),
                                 )
                             }

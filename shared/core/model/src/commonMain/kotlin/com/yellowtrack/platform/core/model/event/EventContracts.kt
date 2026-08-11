@@ -34,6 +34,14 @@ data class EventSummary(
      */
     val openStations: Int = 0,
     val photographs: Int = 0,
+    /**
+     * Whether somebody scanning this event's code would be able to sign up.
+     *
+     * On the summary rather than asked per event, because the only other way to ask is to
+     * request the invite — and that *issues* one. A display device listing events would then
+     * open sign-ups on every event a studio had ever created simply by showing the list.
+     */
+    val signUpOpen: Boolean = false,
 )
 
 @Serializable

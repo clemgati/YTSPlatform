@@ -9,6 +9,7 @@ import com.yellowtrack.platform.core.model.auth.SignUpRequest
 import com.yellowtrack.platform.core.model.event.CreateEventRequest
 import com.yellowtrack.platform.core.model.event.CreatedResponse
 import com.yellowtrack.platform.core.model.event.EventInviteResponse
+import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.InvitedEventResponse
 import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
@@ -490,6 +491,134 @@ class EventInviteTest {
             val mine = client.invite(harbourline, event)
             assertEquals(HttpStatusCode.OK, client.get("/api/join/${mine.token}").status)
         }
+
+    // -- Whether sign-up is open ------------------------------------------------------------
+
+    /**
+     * The list says whether a code is live, and asking does not make one.
+     *
+     * A display device shows the events somebody could still sign up to, which means asking
+     * that question about every event a studio has. The only other way to ask is to request
+     * the invite — and that issues one. A device would then open sign-ups on every event the
+     * studio had ever created merely by listing them, which is the opposite of what the
+     * studio asked for and invisible until strangers started appearing on old events.
+     */
+    @Test
+    fun `an event with no code is not open for sign-up`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+
+            assertFalse(client.events(session).single { it.id == event }.signUpOpen)
+        }
+
+    @Test
+    fun `listing events does not issue a code`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+
+            client.events(session)
+            client.events(session)
+
+            assertFalse(
+                client.events(session).single { it.id == event }.signUpOpen,
+                "listing events opened sign-ups by itself",
+            )
+        }
+
+    @Test
+    fun `an event with a live code is open for sign-up`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+
+            client.invite(session, event)
+
+            assertTrue(client.events(session).single { it.id == event }.signUpOpen)
+        }
+
+    /**
+     * Withdrawing closes it again, and the display on the table has to notice.
+     *
+     * A device showing a code for a withdrawn invite is inviting people to scan something
+     * that will refuse them — worse than showing nothing, because they walk away believing
+     * they signed up.
+     */
+    @Test
+    fun `withdrawing a code closes sign-up again`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            client.invite(session, event)
+
+            client.post("/events/$event/invite/revoke") { bearerAuth(session.token) }
+
+            assertFalse(client.events(session).single { it.id == event }.signUpOpen)
+        }
+
+    /** One event's code must not report another's as open. */
+    @Test
+    fun `the flag is per event`() =
+        withServer { client ->
+            val session = client.signUp()
+            val open = client.createEvent(session, "Open")
+            val closed = client.createEvent(session, "Closed")
+            client.invite(session, open)
+
+            val events = client.events(session)
+
+            assertTrue(events.single { it.id == open }.signUpOpen)
+            assertFalse(events.single { it.id == closed }.signUpOpen, "the other event was reported open")
+        }
+
+    /**
+     * Another studio's invite row must not make this studio's event look open.
+     *
+     * No route can produce this state — issuing checks ownership, which is the fix for the
+     * first bug this table caused. The row is written directly here because the predicate
+     * that keeps it harmless is invisible otherwise: every other table in this query is
+     * filtered by the studio scope, `event_invite` carries no policy and is not, and both
+     * bugs this table has already caused were a query on it that forgot to say which studio
+     * it meant. Without a test the `AND i.studio_id = ?` reads like a redundant line somebody
+     * will eventually tidy away.
+     */
+    @Test
+    fun `another studio's invite does not open this studio's event`() =
+        withServer { client ->
+            val harbourline = client.signUp()
+            val other = client.signUp()
+            val event = client.createEvent(harbourline, "Harbour Awards 2026")
+
+            TestDatabase.database.unscoped { db ->
+                db
+                    .prepareStatement(
+                        """
+                        INSERT INTO event_invite(token, studio_id, event_id, created_at)
+                        VALUES (?, ?, ?, ?)
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setString(1, "a-token-belonging-to-nobody-here")
+                        statement.setString(2, other.studioId)
+                        statement.setString(3, event)
+                        statement.setLong(4, 0L)
+                        statement.executeUpdate()
+                    }
+            }
+
+            assertFalse(
+                client.events(harbourline).single { it.id == event }.signUpOpen,
+                "another studio's invite opened this studio's event",
+            )
+        }
+
+    private suspend fun HttpClient.events(session: SessionResponse): List<EventSummary> {
+        val response = get("/events") { bearerAuth(session.token) }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+
+        return apiJson.decodeFromString(response.bodyAsText())
+    }
 
     // -- The code as a grid ---------------------------------------------------------------
 
