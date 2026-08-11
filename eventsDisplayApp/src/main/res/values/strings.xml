@@ -1,0 +1,8 @@
+<resources>
+    <!--
+        Named for what it is on a home screen, next to the studio application. "Yellow Track"
+        alone would give a studio two identical-looking icons and no way to tell which one is
+        the till and which one is the sign.
+    -->
+    <string name="app_name">YellowTrack Display</string>
+</resources>

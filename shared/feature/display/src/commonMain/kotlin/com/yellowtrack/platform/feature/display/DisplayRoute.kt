@@ -5,15 +5,31 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.yellowtrack.platform.core.ui.state.UiState
 import com.yellowtrack.platform.feature.display.presentation.DisplayScreen
 import com.yellowtrack.platform.feature.display.presentation.DisplayViewModel
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun DisplayRoute(modifier: Modifier = Modifier) {
+fun DisplayRoute(
+    modifier: Modifier = Modifier,
+    /**
+     * Called with true while a code is on the table, and false while it is not.
+     *
+     * The feature does not know what a host does with this. On Android it pins the screen,
+     * so the back gesture cannot walk out of an unattended device and around the password;
+     * elsewhere it does nothing. Expressed as a fact about the screen rather than as
+     * "pin now", because that is the only part of it this module can be right about.
+     */
+    onDisplayingChanged: (Boolean) -> Unit = {},
+) {
     val viewModel: DisplayViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    val isDisplaying = (uiState.content as? UiState.Success)?.data?.showing != null
+
+    LaunchedEffect(isDisplaying) { onDisplayingChanged(isDisplaying) }
 
     /*
      * The device follows the server for as long as it is switched on.

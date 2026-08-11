@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Same reason as the studio application: AndroidConnectivity registers a network
+        callback, and without this ConnectivityService throws rather than degrading.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".DisplayApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <!--
+            `singleTask`, and no recents entry once it is showing a code.
+
+            This device is left on a table. Every additional copy of the activity is another
+            way for somebody to end up looking at the event picker without the password, and
+            the recents list is the shortest of them.
+
+            `screenOrientation` is deliberately unset: a studio props this in whatever stand
+            it owns, and both orientations are rendered and tested.
+        -->
+        <activity
+            android:name=".DisplayActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
