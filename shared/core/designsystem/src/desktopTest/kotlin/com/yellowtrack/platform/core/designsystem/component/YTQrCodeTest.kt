@@ -217,6 +217,38 @@ class YTQrCodeTest {
         assertEquals(emptyList(), failed, "an overdrawing mark broke the code at these sizes")
     }
 
+    /**
+     * A mark keeps its own proportions.
+     *
+     * The plate is square because the modules are; a mark is whatever shape it is, and the
+     * first version drew it at the plate's size — which stretched every mark that was not
+     * square. Nothing here saw it: the stand-in painters were solid blocks, and a solid block
+     * looks identical stretched.
+     *
+     * This one is twice as wide as it is tall and draws in a colour nothing else uses, so the
+     * shape it ends up as can be measured off the pixels.
+     */
+    @Test
+    fun `a mark is not stretched to fill its plate`() {
+        val rows = matrixFor("https://yellowtrackphotos.com/join/nvmQ9xkkfDjk12Jx7kpKkA")
+        val side = 720
+        val pixels =
+            render(rows, side, background = Color(0xFF181818), dark = BRAND_DARK, light = BRAND_LIGHT, wideLogo = true)
+
+        val marked = pixels.indices.filter { pixels[it] == (MARK_COLOUR.toArgb() and 0xFFFFFF) }
+        assertTrue(marked.isNotEmpty(), "the mark was not drawn at all")
+
+        val xs = marked.map { it % side }
+        val ys = marked.map { it / side }
+        val width = (xs.max() - xs.min() + 1).toDouble()
+        val height = (ys.max() - ys.min() + 1).toDouble()
+
+        assertTrue(
+            (width / height - 2.0) < 0.15 && (width / height) > 1.85,
+            "a 2:1 mark came out ${"%.2f".format(width / height)}:1",
+        )
+    }
+
     // -- Rendering and reading ------------------------------------------------------------
 
     /** A real encoding, produced the way the server produces it. */
@@ -252,6 +284,7 @@ class YTQrCodeTest {
         light: Color = Color.White,
         logo: Boolean = false,
         greedyLogo: Boolean = false,
+        wideLogo: Boolean = false,
     ): IntArray {
         val scene =
             ImageComposeScene(width = side, height = side, density = Density(1f)) {
@@ -264,11 +297,12 @@ class YTQrCodeTest {
                     // the real mark, which has transparency a reader can see through.
                     logo =
                         when {
+                            wideLogo -> WidePainter
                             greedyLogo -> GreedyPainter
                             logo -> ColorPainter(Color.Black)
                             else -> null
                         },
-                    logoPlate = if (logo || greedyLogo) dark else light,
+                    logoPlate = if (logo || greedyLogo || wideLogo) dark else light,
                     rows = rows,
                     // Padding, because a code drawn hard against the edge of a surface has no
                     // margin beyond its own quiet zone on a real screen either.
@@ -310,9 +344,21 @@ class YTQrCodeTest {
         }
     }
 
+    /** Twice as wide as it is tall, in a colour nothing else on the canvas uses. */
+    private object WidePainter : Painter() {
+        override val intrinsicSize = Size(200f, 100f)
+
+        override fun DrawScope.onDraw() {
+            drawRect(color = MARK_COLOUR, size = size)
+        }
+    }
+
     private companion object {
         /** The palette the display app uses, and the only one the brand allows here. */
         val BRAND_DARK = Color(0xFF111111)
         val BRAND_LIGHT = Color(0xFFFAB91D)
+
+        /** Nothing else draws in this, so the mark's own pixels can be found. */
+        val MARK_COLOUR = Color(0xFFFF00FF)
     }
 }
