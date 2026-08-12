@@ -163,11 +163,6 @@ private suspend fun ApplicationCall.respond(
 ) = respondText(body, ContentType.Text.Plain, status)
 
 /**
- * Read from the classpath rather than the file system, so it works the same from a shadow jar
- * as from a Gradle run.
- */
-
-/**
  * The placeholder the pages carry, and what it is replaced with.
  *
  * Assets are cached for an hour and the pages are not, so changing the stylesheet used to mean
@@ -191,6 +186,10 @@ private val assetVersion: String by lazy {
     digest.digest().take(6).joinToString("") { byte -> byte.toUByte().toString(16).padStart(2, '0') }
 }
 
+/**
+ * Read from the classpath rather than the file system, so it works the same from a shadow jar
+ * as from a Gradle run.
+ */
 private fun readBytes(name: String): ByteArray? =
     object {}
         .javaClass.classLoader
