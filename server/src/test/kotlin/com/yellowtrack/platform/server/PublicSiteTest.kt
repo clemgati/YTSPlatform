@@ -9,6 +9,7 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -16,8 +17,10 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -83,6 +86,47 @@ class PublicSiteTest {
             val body = client.get("/join/%3Cscript%3Ealert(1)%3C%2Fscript%3E").bodyAsText()
 
             assertFalse("alert(1)" in body, "a crafted token reached the page: $body")
+        }
+
+    /**
+     * The mark the sign-up page shows, and that the page asks for the one being served.
+     *
+     * A guest is about to type their name, address and telephone number into a page they
+     * reached by pointing a camera at a piece of paper. A broken image at the top of it is
+     * worse than no image, and nothing else here would notice: the page would still render,
+     * the form would still work, and the one thing meant to say who is asking would be a grey
+     * box.
+     */
+    @Test
+    fun `the sign-up page shows a mark that is actually served`() =
+        withServer { client ->
+            val page = client.get("/join/anything").bodyAsText()
+
+            val source =
+                Regex("""<img[^>]*src="([^"]+)"""")
+                    .find(page)
+                    ?.groupValues
+                    ?.get(1)
+
+            assertNotNull(source, "the page has no image at all")
+            assertTrue(source.startsWith("/mark.png"), "unexpected image source: $source")
+
+            val served = client.get(source)
+
+            assertEquals(HttpStatusCode.OK, served.status)
+            assertEquals(ContentType.Image.PNG, served.contentType()?.withoutParameters())
+            // The signature, not the size. Serving this through the text helper — which is
+            // the obvious mistake, since every other asset goes that way — decodes it as
+            // UTF-8 and re-encodes it, and the result is still a few kilobytes of something.
+            // It is simply no longer a PNG, and only the first eight bytes say so.
+            val bytes = served.bodyAsBytes()
+
+            assertContentEquals(
+                byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte()),
+                bytes.take(4).toByteArray(),
+                "what came back is not a PNG",
+            )
+            assertTrue(bytes.size > 1_000, "the mark is suspiciously small")
         }
 
     /**
