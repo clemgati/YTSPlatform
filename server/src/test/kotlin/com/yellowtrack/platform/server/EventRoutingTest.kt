@@ -32,7 +32,7 @@ class EventRoutingTest {
     fun `a photograph taken during a slot belongs to that person`() {
         val world = world()
         val station = world.events.openStation(world.studio, world.event, "Headshots", CAMERA_A)
-        val ada = world.events.register(world.studio, world.event, "ada@example.com")
+        val ada = world.events.register(world.studio, world.event, "ada@example.com").id
         val slot = world.events.advanceSlot(world.studio, station, ada)
 
         val routed = world.events.recordPhotograph(world.studio, world.event, CAMERA_A, world.object1, capturedAt = 200)
@@ -54,7 +54,7 @@ class EventRoutingTest {
     fun `another camera is not swallowed by an open slot`() {
         val world = world()
         val station = world.events.openStation(world.studio, world.event, "Formals", CAMERA_A)
-        val ada = world.events.register(world.studio, world.event, "ada@example.com")
+        val ada = world.events.register(world.studio, world.event, "ada@example.com").id
         world.events.advanceSlot(world.studio, station, ada)
 
         val roaming =
@@ -83,12 +83,12 @@ class EventRoutingTest {
     fun `a late upload belongs to whoever was in front of the camera at the time`() {
         val world = world()
         val station = world.events.openStation(world.studio, world.event, "Headshots", CAMERA_A)
-        val ada = world.events.register(world.studio, world.event, "ada@example.com")
+        val ada = world.events.register(world.studio, world.event, "ada@example.com").id
         val adaSlot = world.events.advanceSlot(world.studio, station, ada)
 
         // Ada is photographed, then the photographer moves on to Grace.
         world.clock = 500
-        val grace = world.events.register(world.studio, world.event, "grace@example.com")
+        val grace = world.events.register(world.studio, world.event, "grace@example.com").id
         val graceSlot = world.events.advanceSlot(world.studio, station, grace)
         world.clock = 900
 
@@ -105,7 +105,7 @@ class EventRoutingTest {
     fun `photographs after the station closes belong to the gallery again`() {
         val world = world()
         val station = world.events.openStation(world.studio, world.event, "Headshots", CAMERA_A)
-        val ada = world.events.register(world.studio, world.event, "ada@example.com")
+        val ada = world.events.register(world.studio, world.event, "ada@example.com").id
         world.events.advanceSlot(world.studio, station, ada)
         world.clock = 400
         world.events.closeStation(world.studio, station)
@@ -121,8 +121,8 @@ class EventRoutingTest {
     fun `registering twice with the same address is the same registration`() {
         val world = world()
 
-        val first = world.events.register(world.studio, world.event, "ada@example.com")
-        val second = world.events.register(world.studio, world.event, "ada@example.com", name = "Ada")
+        val first = world.events.register(world.studio, world.event, "ada@example.com").id
+        val second = world.events.register(world.studio, world.event, "ada@example.com", name = "Ada").id
 
         assertEquals(first, second)
     }

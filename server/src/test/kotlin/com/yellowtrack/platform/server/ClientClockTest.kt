@@ -139,7 +139,7 @@ class ClientClockTest {
         val events = Events(TestDatabase.database)
         val studio = studio()
         val event = events.createEvent(studio, "Harbour Awards 2026")
-        val registration = events.register(studio, event, "guest@example.test")
+        val registration = events.register(studio, event, "guest@example.test").id
         val station = events.openStation(studio, event, "Bay 1", "Camera A")
 
         val before = System.currentTimeMillis()
@@ -164,7 +164,7 @@ class ClientClockTest {
         val events = Events(TestDatabase.database)
         val studio = studio()
         val event = events.createEvent(studio, "Harbour Awards 2026")
-        val registration = events.register(studio, event, "guest@example.test")
+        val registration = events.register(studio, event, "guest@example.test").id
         val station = events.openStation(studio, event, "Bay 1", "Camera A")
         events.advanceSlot(studio, station, registration)
 

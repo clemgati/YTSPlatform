@@ -159,7 +159,6 @@ fun Application.module(
     // Events, and the register that lets the purge reach what they store.
     val events = Events(database)
     val storedObjects = StoredObjects(database, objects)
-    val invites = EventInvites(database, events)
     val galleries = EventGalleries(database, objects)
 
     // Its own sender, and on the domain the link points at.
@@ -172,6 +171,18 @@ fun Application.module(
     if (System.getenv("EVENTS_FROM").isNullOrBlank()) {
         log.info("EVENTS_FROM is not set: event deliveries will leave from DOCUMENT_FROM.")
     }
+
+    val invites =
+        EventInvites(
+            database = database,
+            events = events,
+            // The same sender and the same monitoring the delivery uses. A guest who signs
+            // up and a guest who is sent photographs are the same person hearing from the
+            // same studio, and two sending identities would be two reputations to build.
+            mailer = mailConfig?.let { MonitoredMailer(SmtpMail(it), mailHealth) },
+            fromAddress = eventsFrom,
+            onSendFailure = { log.error("could not confirm a sign-up", it) },
+        )
 
     val delivery =
         EventDelivery(

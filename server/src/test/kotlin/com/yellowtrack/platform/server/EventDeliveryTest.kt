@@ -544,7 +544,7 @@ class EventDeliveryTest {
             }
 
             eventId = events.createEvent(studioId, "Harbour Awards 2026")
-            currentRegistrationId = events.register(studioId, eventId, "guest@example.test", "Ada Guest")
+            currentRegistrationId = events.register(studioId, eventId, "guest@example.test", "Ada Guest").id
             stationId = events.openStation(studioId, eventId, "Bay 1", "Camera A")
             slotId = events.advanceSlot(studioId, stationId, currentRegistrationId)
         }
@@ -602,7 +602,7 @@ class EventDeliveryTest {
 
         /** A different person, at the same event, on a new station. */
         fun newRegistration(email: String) {
-            currentRegistrationId = events.register(studioId, eventId, email, null)
+            currentRegistrationId = events.register(studioId, eventId, email, null).id
             stationId = events.openStation(studioId, eventId, "Bay 1", "Camera A")
             slotId = events.advanceSlot(studioId, stationId, currentRegistrationId)
         }
