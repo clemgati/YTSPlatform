@@ -19,6 +19,7 @@ import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.core.ui.state.UiState
@@ -1361,6 +1362,15 @@ class EventsViewModelTest {
             // A shape rather than a code: nothing here draws it, and the drawing is tested
             // where it happens.
             return QrMatrix(size = 3, rows = listOf("101", "010", "101"))
+        }
+
+        var joined = mutableListOf<SignUpToEventRequest>()
+
+        override suspend fun joinEvent(
+            token: String,
+            request: SignUpToEventRequest,
+        ) {
+            joined += request
         }
 
         override suspend fun inviteCard(eventId: String): String {

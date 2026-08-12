@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -246,6 +247,18 @@ private fun ShowingCode(
             verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.medium, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // The same mark and name the sign-up page and the walk-up form carry. A guest
+            // looking at the table sees one thing rather than a code that could have come
+            // from anywhere.
+            Image(
+                painter = painterResource(Res.drawable.yellow_track_mark),
+                contentDescription = null,
+                modifier = Modifier.height(SIGN_MARK_HEIGHT),
+            )
+            Text("Yellow Track", style = YTTheme.typography.titleLarge)
+
+            Spacer(Modifier.height(YTTheme.spacing.large))
+
             Text(
                 showing.event.name,
                 style = YTTheme.typography.headlineLarge,
@@ -475,6 +488,11 @@ private fun WalkUpMasthead(eventName: String) {
             modifier = Modifier.height(MASTHEAD_MARK_HEIGHT),
         )
         Text("Yellow Track", style = YTTheme.typography.titleMedium)
+
+        // Who is asking, then what is being asked. Without this they read as one run-on
+        // heading, which is the thing the mark was added to avoid.
+        Spacer(Modifier.height(YTTheme.spacing.medium))
+
         Text(
             "Get your photographs",
             style = YTTheme.typography.headlineSmall,
@@ -508,3 +526,6 @@ private val CODE_LIGHT = Color(0xFFFAB91D)
 
 /** Small enough to be a masthead rather than a picture somebody has to scroll past. */
 private val MASTHEAD_MARK_HEIGHT = 40.dp
+
+/** Larger on the sign itself, which is read from across a table rather than at arm's length. */
+private val SIGN_MARK_HEIGHT = 64.dp
