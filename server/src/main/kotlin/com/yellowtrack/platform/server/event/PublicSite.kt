@@ -76,7 +76,7 @@ fun Route.publicSite() {
  * intermediary outlives the visit.
  */
 private suspend fun ApplicationCall.page(name: String) {
-    val html = read(name) ?: return respond(HttpStatusCode.NotFound, "Not found")
+    val html = read(name)?.replace(ASSET_TOKEN, assetVersion) ?: return respond(HttpStatusCode.NotFound, "Not found")
 
     response.cacheControl(CacheControl.NoStore(null))
     response.header(HttpHeaders.Pragma, "no-cache")
@@ -161,6 +161,30 @@ private suspend fun ApplicationCall.respond(
     status: HttpStatusCode,
     body: String,
 ) = respondText(body, ContentType.Text.Plain, status)
+
+/**
+ * The placeholder the pages carry, and what it is replaced with.
+ *
+ * Assets are cached for an hour and the pages are not, so changing the stylesheet used to mean
+ * a fresh page styled by a stale sheet — for up to an hour, for anybody who had visited
+ * before. The heading was centred on the deployment and left-aligned in the studio's browser,
+ * and nothing about that looks like a caching problem while you are staring at it.
+ *
+ * Derived from the bytes rather than from the clock, so the address changes when the asset
+ * changes and not when the server restarts. A deployment that alters nothing invalidates
+ * nothing.
+ */
+private const val ASSET_TOKEN = "{{assets}}"
+
+private val assetVersion: String by lazy {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+
+    listOf("site.css", "join.js", "gallery.js", "mark.png")
+        .mapNotNull { readBytes(it) }
+        .forEach { digest.update(it) }
+
+    digest.digest().take(6).joinToString("") { byte -> byte.toUByte().toString(16).padStart(2, '0') }
+}
 
 /**
  * Read from the classpath rather than the file system, so it works the same from a shadow jar

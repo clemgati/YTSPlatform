@@ -364,6 +364,56 @@ class DisplayViewModelTest {
         }
 
     /**
+     * An address that could not be one is refused before it is sent.
+     *
+     * The web form gets this from the browser. The dialog had nothing, so anything at all
+     * could be typed and the only objection came from the server after a round trip. The
+     * photographs go to this address and nowhere else — a typo is somebody who never hears
+     * from the studio again.
+     */
+    @Test
+    fun `a walk-up with an impossible address is not sent`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+
+            listOf("nobody", "no body@example.test", "two@@example.test", "trailing@dot.").forEach { address ->
+                viewModel.typeWalkUp(email = address, givenName = "John", familyName = "Smith")
+                viewModel.submitWalkUp()
+                advanceUntilIdle()
+
+                assertEquals(emptyList(), api.joined, "'$address' was sent to the server")
+            }
+        }
+
+    /** And the field says so while they type, rather than after they press the button. */
+    @Test
+    fun `an impossible address is marked as they type`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+
+            // Nothing typed yet is not a mistake, it is a form nobody has started.
+            assertFalse(assertNotNull(viewModel.content().showing?.walkUp).addressLooksWrong)
+
+            viewModel.typeWalkUp(email = "nobody")
+            assertTrue(assertNotNull(viewModel.content().showing?.walkUp).addressLooksWrong)
+
+            viewModel.typeWalkUp(email = "nobody@example.test")
+            assertFalse(assertNotNull(viewModel.content().showing?.walkUp).addressLooksWrong)
+        }
+
+    /**
      * A refusal keeps what they typed.
      *
      * They are standing at the table and can fix a mistyped address. Clearing the form would
@@ -375,21 +425,23 @@ class DisplayViewModelTest {
             val api =
                 FakeEventsApi(
                     events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)),
-                ).apply { joinFails = RuntimeException("That does not look like an email address.") }
+                ).apply { joinFails = RuntimeException("This event is taking a lot of sign-ups.") }
             val viewModel = viewModel(api)
             advanceUntilIdle()
             viewModel.show("open-1")
             advanceUntilIdle()
 
             viewModel.openWalkUp()
-            viewModel.typeWalkUp(email = "not-an-address", givenName = "John", familyName = "Smith")
+            // A plausible address the *server* refuses. An impossible one never leaves the
+            // device now, which is a different test.
+            viewModel.typeWalkUp(email = "guest@example.test", givenName = "John", familyName = "Smith")
             viewModel.submitWalkUp()
             advanceUntilIdle()
 
             val form = assertNotNull(viewModel.content().showing?.walkUp)
 
-            assertEquals("not-an-address", form.email, "the form was cleared")
-            assertEquals("That does not look like an email address.", form.problem)
+            assertEquals("guest@example.test", form.email, "the form was cleared")
+            assertEquals("This event is taking a lot of sign-ups.", form.problem)
             assertFalse(form.done)
         }
 

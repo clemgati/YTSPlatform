@@ -17,7 +17,7 @@
     <!-- Nor should the token travel to whatever the guest visits next. -->
     <meta name="referrer" content="no-referrer">
     <title>Get your photographs</title>
-    <link rel="stylesheet" href="/site.css">
+    <link rel="stylesheet" href="/site.css?v={{assets}}">
 </head>
 <body>
 <main>
@@ -33,7 +33,7 @@
             The version is not decoration. The image is cached for a day, so replacing it
             without changing its address means a guest sees the old one until tomorrow.
         -->
-        <img src="/mark.png?v=1" alt="" width="80" height="45">
+        <img src="/mark.png?v={{assets}}" alt="" width="80" height="45">
         <p class="brand-name">Yellow Track</p>
     </div>
 
@@ -91,6 +91,6 @@
     </div>
 </main>
 
-<script src="/join.js"></script>
+<script src="/join.js?v={{assets}}"></script>
 </body>
 </html>

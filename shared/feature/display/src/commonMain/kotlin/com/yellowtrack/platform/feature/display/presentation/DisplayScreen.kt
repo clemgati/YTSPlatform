@@ -436,6 +436,10 @@ private fun WalkUpForm(
                     label = "Email address",
                     keyboardType = KeyboardType.Email,
                     enabled = !form.isSubmitting,
+                    // Said while they are typing rather than after they press the button. The
+                    // photographs go to this address and nowhere else, and a typo here is
+                    // somebody who never hears from the studio again.
+                    errorMessage = "That does not look like an email address".takeIf { form.addressLooksWrong },
                 )
                 YTTextField(
                     value = form.givenName,

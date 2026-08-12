@@ -89,6 +89,50 @@ class PublicSiteTest {
         }
 
     /**
+     * The pages ask for assets by an address that changes when the asset does.
+     *
+     * Assets are cached for an hour and pages are not, so a stylesheet change used to reach a
+     * browser that had visited before only after that hour — the heading was centred on the
+     * deployment and left-aligned in the studio's browser, and that looks nothing like a
+     * caching problem while you are staring at it.
+     *
+     * The placeholder must not survive either. A page serving a literal `{{assets}}` would
+     * still render, still be styled, and quietly never invalidate anything again.
+     */
+    @Test
+    fun `the pages version the assets they ask for`() =
+        withServer { client ->
+            val page = client.get("/join/anything").bodyAsText()
+
+            assertFalse("{{assets}}" in page, "the placeholder was served as-is")
+
+            val versions =
+                Regex("""(?:href|src)="/(?:site\.css|join\.js|mark\.png)\?v=([0-9a-f]+)"""")
+                    .findAll(page)
+                    .map { it.groupValues[1] }
+                    .toList()
+
+            assertEquals(3, versions.size, "not every asset is versioned: $page")
+            assertEquals(1, versions.toSet().size, "the assets disagree about the version")
+
+            // And it is derived from the assets, not merely present. A constant would satisfy
+            // everything above while never invalidating anything — which is the bug this
+            // exists to prevent rather than a lesser version of it.
+            assertEquals(hashOfAssets(), versions.first(), "the version does not follow the assets")
+        }
+
+    /** The same derivation, computed here, so a token that ignores the bytes fails. */
+    private fun hashOfAssets(): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+
+        listOf("site.css", "join.js", "gallery.js", "mark.png")
+            .mapNotNull { javaClass.classLoader.getResourceAsStream("public/$it")?.use { s -> s.readBytes() } }
+            .forEach { digest.update(it) }
+
+        return digest.digest().take(6).joinToString("") { byte -> byte.toUByte().toString(16).padStart(2, '0') }
+    }
+
+    /**
      * The mark the sign-up page shows, and that the page asks for the one being served.
      *
      * A guest is about to type their name, address and telephone number into a page they
