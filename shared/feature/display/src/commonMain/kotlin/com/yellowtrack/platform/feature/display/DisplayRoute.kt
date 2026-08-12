@@ -49,6 +49,25 @@ fun DisplayRoute(
         }
     }
 
+    /*
+     * The walk-up form clears itself when it is left alone.
+     *
+     * It stands open on a table in a room full of strangers, with somebody's address and
+     * telephone number half typed into it. Somebody who wanders off mid-form must not leave
+     * that there for the next person to read, or to submit under their own address.
+     *
+     * Keyed on the interaction count, so every keystroke and every touch starts the wait
+     * again — a person reading the form slowly is not somebody who has abandoned it.
+     */
+    val walkUp = (uiState.content as? UiState.Success)?.data?.showing?.walkUp
+
+    LaunchedEffect(walkUp != null, walkUp?.interactions, walkUp?.done) {
+        if (walkUp == null) return@LaunchedEffect
+
+        delay(if (walkUp.done) CONFIRMATION_MILLIS else ABANDONED_MILLIS)
+        viewModel.closeWalkUp()
+    }
+
     DisplayScreen(
         uiState = uiState,
         onShow = viewModel::show,
@@ -58,6 +77,10 @@ fun DisplayRoute(
         onTypePassword = viewModel::typePassword,
         onConfirmUnlock = viewModel::confirmUnlock,
         onDismissProblem = viewModel::dismissProblem,
+        onOpenWalkUp = viewModel::openWalkUp,
+        onCloseWalkUp = viewModel::closeWalkUp,
+        onTypeWalkUp = viewModel::typeWalkUp,
+        onSubmitWalkUp = viewModel::submitWalkUp,
         modifier = modifier,
     )
 }
@@ -72,3 +95,20 @@ fun DisplayRoute(
  * venue's wifi for ten hours is not making a request every two seconds all day.
  */
 private const val REFRESH_INTERVAL_MILLIS = 5_000L
+
+/**
+ * How long the walk-up form waits before deciding nobody is filling it in.
+ *
+ * Three minutes: long enough to find an email address on a lanyard or ask somebody how to
+ * spell a surname, short enough that a form abandoned at a busy table is gone before the next
+ * person reaches it.
+ */
+private const val ABANDONED_MILLIS = 3 * 60 * 1_000L
+
+/**
+ * And how long "you are signed up" stays before the device is ready for the next person.
+ *
+ * Long enough to read, short enough that somebody walking up does not have to dismiss
+ * a stranger's confirmation to reach the form.
+ */
+private const val CONFIRMATION_MILLIS = 12 * 1_000L

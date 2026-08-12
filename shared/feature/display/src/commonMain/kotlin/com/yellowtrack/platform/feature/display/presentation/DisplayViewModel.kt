@@ -6,6 +6,7 @@ import com.yellowtrack.platform.core.data.auth.AuthRepository
 import com.yellowtrack.platform.core.data.auth.SessionState
 import com.yellowtrack.platform.core.data.event.EventsApi
 import com.yellowtrack.platform.core.model.event.EventSummary
+import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.core.ui.state.UiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,7 +78,17 @@ internal class DisplayViewModel(
                                     DisplayContent(
                                         studioName = studioName(),
                                         events = open.map { it.displayable() },
-                                        showing = shown.copy(withdrawn = open.none { it.id == shown.event.id }),
+                                        showing =
+                                            shown.copy(
+                                                withdrawn = open.none { it.id == shown.event.id },
+                                                // The walk-up form goes with the code:
+                                                // otherwise somebody is half way through a
+                                                // form that can only be refused.
+                                                walkUp =
+                                                    shown.walkUp.takeIf {
+                                                        open.any { event -> event.id == shown.event.id }
+                                                    },
+                                            ),
                                     ),
                                 )
                             open.isEmpty() -> UiState.Empty
@@ -127,7 +138,7 @@ internal class DisplayViewModel(
                     current
                         .mapContent { content ->
                             content.copy(
-                                showing = Showing(event = event, code = code, link = invite.url),
+                                showing = Showing(event = event, code = code, link = invite.url, token = invite.token),
                             )
                         }.copy(problem = null)
                 }
@@ -171,7 +182,10 @@ internal class DisplayViewModel(
                                         // list: the studio needs to see *which* event went quiet,
                                         // and a screen that empties itself says only that
                                         // something broke.
-                                        showing.copy(withdrawn = !stillOpen)
+                                        showing.copy(
+                                            withdrawn = !stillOpen,
+                                            walkUp = showing.walkUp.takeIf { stillOpen },
+                                        )
                                     },
                             )
                         }.copy(problem = null)
@@ -183,6 +197,82 @@ internal class DisplayViewModel(
                 // nothing about the invite — the venue's wifi dropping must not take a
                 // working code off the table.
                 state.update { it.copy(problem = failure.readable()) }
+            }
+        }
+    }
+
+    // -- Registering somebody who has no phone --------------------------------------------
+
+    fun openWalkUp() {
+        state.update { it.mapShowing { showing -> showing.copy(walkUp = WalkUp()) } }
+    }
+
+    fun closeWalkUp() {
+        state.update { it.mapShowing { showing -> showing.copy(walkUp = null) } }
+    }
+
+    fun typeWalkUp(
+        email: String? = null,
+        givenName: String? = null,
+        familyName: String? = null,
+        phone: String? = null,
+    ) {
+        state.update {
+            it.mapWalkUp { form ->
+                form.copy(
+                    email = email ?: form.email,
+                    givenName = givenName ?: form.givenName,
+                    familyName = familyName ?: form.familyName,
+                    phone = phone ?: form.phone,
+                    problem = null,
+                    interactions = form.interactions + 1,
+                )
+            }
+        }
+    }
+
+    /** Any touch at all, so a person reading the form slowly does not have it taken away. */
+    fun noteWalkUpActivity() {
+        state.update { it.mapWalkUp { form -> form.copy(interactions = form.interactions + 1) } }
+    }
+
+    fun submitWalkUp() {
+        val showing = state.value.showing() ?: return
+        val form = showing.walkUp ?: return
+
+        if (!form.canSubmit) return
+
+        // A code the studio has withdrawn registers nobody. The server would refuse it, and
+        // the person at the table would be told their details were wrong when they were not.
+        if (showing.withdrawn) return
+
+        state.update { it.mapWalkUp { current -> current.copy(isSubmitting = true, problem = null) } }
+
+        viewModelScope.launch {
+            try {
+                api.joinEvent(
+                    token = showing.token,
+                    request =
+                        SignUpToEventRequest(
+                            email = form.email.trim(),
+                            givenName = form.givenName.trim(),
+                            familyName = form.familyName.trim(),
+                            phone = form.phone.trim().takeIf { it.isNotBlank() },
+                        ),
+                )
+
+                state.update { it.mapWalkUp { current -> current.copy(isSubmitting = false, done = true) } }
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Throwable) {
+                // Kept on the form rather than thrown away. The person is standing there and
+                // can fix a mistyped address; clearing what they wrote would make them start
+                // again for a missing @.
+                state.update {
+                    it.mapWalkUp { current ->
+                        current.copy(isSubmitting = false, problem = failure.readable())
+                    }
+                }
             }
         }
     }
@@ -282,6 +372,9 @@ internal class DisplayViewModel(
 
     private fun DisplayUiState.mapShowing(block: (Showing) -> Showing): DisplayUiState =
         mapContent { content -> content.copy(showing = content.showing?.let(block)) }
+
+    private fun DisplayUiState.mapWalkUp(block: (WalkUp) -> WalkUp): DisplayUiState =
+        mapShowing { showing -> showing.copy(walkUp = showing.walkUp?.let(block)) }
 
     private fun DisplayUiState.mapUnlock(block: (Unlock) -> Unlock): DisplayUiState =
         mapShowing { showing -> showing.copy(unlock = showing.unlock?.let(block)) }

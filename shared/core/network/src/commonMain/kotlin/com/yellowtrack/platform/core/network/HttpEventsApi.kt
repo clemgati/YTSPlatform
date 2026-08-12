@@ -12,6 +12,7 @@ import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.OpenStationRequest
 import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import io.ktor.client.HttpClient
@@ -84,6 +85,20 @@ class HttpEventsApi(
 
     override suspend fun invite(eventId: String): EventInviteResponse =
         request { post("$baseUrl/events/$eventId/invite") { authorised() } }
+
+    override suspend fun joinEvent(
+        token: String,
+        request: SignUpToEventRequest,
+    ) {
+        // No bearer token. This is the guest's endpoint, and the device is standing in for a
+        // guest's phone rather than acting as the studio.
+        send {
+            post("$baseUrl/api/join/$token") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+        }
+    }
 
     override suspend fun inviteCode(eventId: String): QrMatrix =
         request { get("$baseUrl/events/$eventId/invite.qr") { authorised() } }

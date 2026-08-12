@@ -46,6 +46,14 @@ internal data class Showing(
     /** The same link the code carries, printed underneath for anybody whose camera will not. */
     val link: String,
     /**
+     * The invite's own token, which is what the walk-up form signs somebody up with.
+     *
+     * Held rather than picked back out of [link]: the link is for a person to read, and
+     * parsing it to recover something we were given would be inventing a second source of
+     * truth for the same value.
+     */
+    val token: String,
+    /**
      * Set when the studio has withdrawn this event's code from somewhere else.
      *
      * The device keeps showing the event and stops showing the code. A code that no longer
@@ -55,7 +63,45 @@ internal data class Showing(
     val withdrawn: Boolean = false,
     /** Non-null while somebody is being asked for the password. */
     val unlock: Unlock? = null,
+    /** Non-null while somebody is filling the form in on this device. */
+    val walkUp: WalkUp? = null,
 )
+
+/**
+ * Somebody registering on the device itself, because they have no phone on them.
+ *
+ * The same questions the sign-up page asks, in the same order, submitted through the same
+ * public endpoint with the same token. A guest at a table without a phone is doing exactly
+ * what a guest with one does.
+ */
+internal data class WalkUp(
+    val email: String = "",
+    val givenName: String = "",
+    val familyName: String = "",
+    val phone: String = "",
+    val isSubmitting: Boolean = false,
+    /** What went wrong, in words the person at the table can act on. */
+    val problem: String? = null,
+    /** Set once they are registered, so the form can say so before it clears itself. */
+    val done: Boolean = false,
+    /**
+     * Bumped by anything the person does.
+     *
+     * The form clears itself after a few minutes of nothing, because it is sitting on a table
+     * in a room full of strangers with somebody's address half typed into it. Every keystroke
+     * has to push that back, and a counter is what the screen can watch to know to start the
+     * wait again.
+     */
+    val interactions: Int = 0,
+) {
+    /** The same rule the page enforces: an address and both halves of a name. */
+    val canSubmit: Boolean
+        get() =
+            !isSubmitting &&
+                email.isNotBlank() &&
+                givenName.isNotBlank() &&
+                familyName.isNotBlank()
+}
 
 /**
  * The password prompt that stands between the table and the event list.

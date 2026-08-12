@@ -1,10 +1,12 @@
 package com.yellowtrack.platform.feature.display.presentation
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,13 +14,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTCard
@@ -51,6 +56,10 @@ internal fun DisplayScreen(
     onTypePassword: (String) -> Unit,
     onConfirmUnlock: () -> Unit,
     onDismissProblem: () -> Unit,
+    onOpenWalkUp: () -> Unit,
+    onCloseWalkUp: () -> Unit,
+    onTypeWalkUp: (String?, String?, String?, String?) -> Unit,
+    onSubmitWalkUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Always dark, whatever the tablet is set to.
@@ -74,6 +83,10 @@ internal fun DisplayScreen(
                 onTypePassword = onTypePassword,
                 onConfirmUnlock = onConfirmUnlock,
                 onDismissProblem = onDismissProblem,
+                onOpenWalkUp = onOpenWalkUp,
+                onCloseWalkUp = onCloseWalkUp,
+                onTypeWalkUp = onTypeWalkUp,
+                onSubmitWalkUp = onSubmitWalkUp,
             )
         }
     }
@@ -89,6 +102,10 @@ private fun DisplayContents(
     onTypePassword: (String) -> Unit,
     onConfirmUnlock: () -> Unit,
     onDismissProblem: () -> Unit,
+    onOpenWalkUp: () -> Unit,
+    onCloseWalkUp: () -> Unit,
+    onTypeWalkUp: (String?, String?, String?, String?) -> Unit,
+    onSubmitWalkUp: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (val content = uiState.content) {
@@ -121,6 +138,10 @@ private fun DisplayContents(
                         onCancelLeaving = onCancelLeaving,
                         onTypePassword = onTypePassword,
                         onConfirmUnlock = onConfirmUnlock,
+                        onOpenWalkUp = onOpenWalkUp,
+                        onCloseWalkUp = onCloseWalkUp,
+                        onTypeWalkUp = onTypeWalkUp,
+                        onSubmitWalkUp = onSubmitWalkUp,
                     )
                 } ?: ChoosingEvent(content = content.data, onShow = onShow)
         }
@@ -210,6 +231,10 @@ private fun ShowingCode(
     onCancelLeaving: () -> Unit,
     onTypePassword: (String) -> Unit,
     onConfirmUnlock: () -> Unit,
+    onOpenWalkUp: () -> Unit,
+    onCloseWalkUp: () -> Unit,
+    onTypeWalkUp: (String?, String?, String?, String?) -> Unit,
+    onSubmitWalkUp: () -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         // The code takes what the shorter side allows, so a device lying on its side shows the
@@ -222,6 +247,18 @@ private fun ShowingCode(
             verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.medium, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // The same mark and name the sign-up page and the walk-up form carry. A guest
+            // looking at the table sees one thing rather than a code that could have come
+            // from anywhere.
+            Image(
+                painter = painterResource(Res.drawable.yellow_track_mark),
+                contentDescription = null,
+                modifier = Modifier.height(SIGN_MARK_HEIGHT),
+            )
+            Text("Yellow Track", style = YTTheme.typography.titleLarge)
+
+            Spacer(Modifier.height(YTTheme.spacing.large))
+
             Text(
                 showing.event.name,
                 style = YTTheme.typography.headlineLarge,
@@ -287,6 +324,27 @@ private fun ShowingCode(
             onClick = onAskToLeave,
             modifier = Modifier.align(Alignment.BottomEnd).padding(YTTheme.spacing.small),
         )
+
+        // The opposite corner, and this one is for the guest rather than the studio. Somebody
+        // who left their phone on a table, or whose battery is dead, is otherwise turned away
+        // by a screen whose only instruction is to point a camera at it.
+        if (!showing.withdrawn) {
+            YTTextButton(
+                text = "No phone? Register here",
+                onClick = onOpenWalkUp,
+                modifier = Modifier.align(Alignment.BottomStart).padding(YTTheme.spacing.small),
+            )
+        }
+    }
+
+    showing.walkUp?.let { form ->
+        WalkUpForm(
+            form = form,
+            eventName = showing.event.name,
+            onClose = onCloseWalkUp,
+            onType = onTypeWalkUp,
+            onSubmit = onSubmitWalkUp,
+        )
     }
 
     showing.unlock?.let { unlock ->
@@ -315,6 +373,141 @@ private fun ShowingCode(
 }
 
 /**
+ * The sign-up page's questions, on the device instead of on a phone.
+ *
+ * Deliberately the same fields in the same order, so a studio that has seen one has seen the
+ * other and a guest comparing with the person beside them sees the same form.
+ *
+ * It clears itself when it is done and when it is abandoned. This dialog stands open on a
+ * table in a room full of strangers with somebody's address half typed into it, and the next
+ * person to walk up must not find it there.
+ */
+@Composable
+private fun WalkUpForm(
+    form: WalkUp,
+    eventName: String,
+    onClose: () -> Unit,
+    onType: (String?, String?, String?, String?) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    if (form.done) {
+        // One button, not the form dialog's two. "Close" beside "Done" is two words for the
+        // same act, and this is read by somebody who has just handed over their details and
+        // wants to know they are finished.
+        AlertDialog(
+            onDismissRequest = onClose,
+            title = { Text("You are signed up", style = YTTheme.typography.headlineSmall) },
+            text = {
+                Text(
+                    "Your photographs will be emailed to you when the photographer has " +
+                        "finished with them. Check that email for your number.",
+                    style = YTTheme.typography.bodyLarge,
+                )
+            },
+            confirmButton = { YTTextButton(text = "Done", onClick = onClose) },
+        )
+
+        return
+    }
+
+    // An AlertDialog rather than the form dialog, so the masthead can be the page's masthead:
+    // the mark, the name, the heading and the event, all centred. Somebody at a table may well
+    // see this and a printed card side by side, and they should be the same invitation.
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { WalkUpMasthead(eventName) },
+        confirmButton = {
+            YTTextButton(
+                text = if (form.isSubmitting) "Sending…" else "Register me",
+                onClick = onSubmit,
+                enabled = form.canSubmit,
+            )
+        },
+        dismissButton = { YTTextButton(text = "Cancel", onClick = onClose) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
+                form.problem?.let { problem ->
+                    Text(problem, style = YTTheme.typography.bodyMedium, color = YTTheme.colors.error)
+                }
+
+                YTTextField(
+                    value = form.email,
+                    onValueChange = { onType(it, null, null, null) },
+                    label = "Email address",
+                    keyboardType = KeyboardType.Email,
+                    enabled = !form.isSubmitting,
+                )
+                YTTextField(
+                    value = form.givenName,
+                    onValueChange = { onType(null, it, null, null) },
+                    label = "First name",
+                    enabled = !form.isSubmitting,
+                )
+                YTTextField(
+                    value = form.familyName,
+                    onValueChange = { onType(null, null, it, null) },
+                    label = "Last name",
+                    enabled = !form.isSubmitting,
+                )
+                YTTextField(
+                    value = form.phone,
+                    onValueChange = { onType(null, null, null, it) },
+                    label = "Mobile number (optional)",
+                    keyboardType = KeyboardType.Phone,
+                    enabled = !form.isSubmitting,
+                )
+
+                Text(
+                    "The photographer will email your photographs when they have finished " +
+                        "with them. Your name tells them which pictures are yours.",
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
+            }
+        },
+    )
+}
+
+/**
+ * The sign-up page's masthead, on the device.
+ *
+ * Who is asking, before anything is asked for — the same reason the page carries it. Somebody
+ * about to type their name, address and telephone number into a tablet on a table deserves
+ * the same answer they would get on their own phone.
+ */
+@Composable
+private fun WalkUpMasthead(eventName: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.yellow_track_mark),
+            contentDescription = null,
+            modifier = Modifier.height(MASTHEAD_MARK_HEIGHT),
+        )
+        Text("Yellow Track", style = YTTheme.typography.titleMedium)
+
+        // Who is asking, then what is being asked. Without this they read as one run-on
+        // heading, which is the thing the mark was added to avoid.
+        Spacer(Modifier.height(YTTheme.spacing.medium))
+
+        Text(
+            "Get your photographs",
+            style = YTTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            eventName,
+            style = YTTheme.typography.bodyLarge,
+            color = YTTheme.colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
  * Big enough to scan from across a table, with room left for the name above and the link
  * below. Measured against the shorter side so rotating the device does not change it.
  */
@@ -330,3 +523,9 @@ private const val CODE_FRACTION_OF_SHORTER_SIDE = 0.62f
  */
 private val CODE_DARK = Color(0xFF111111)
 private val CODE_LIGHT = Color(0xFFFAB91D)
+
+/** Small enough to be a masthead rather than a picture somebody has to scroll past. */
+private val MASTHEAD_MARK_HEIGHT = 40.dp
+
+/** Larger on the sign itself, which is read from across a table rather than at arm's length. */
+private val SIGN_MARK_HEIGHT = 64.dp
