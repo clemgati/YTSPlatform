@@ -24,6 +24,7 @@ import com.yellowtrack.platform.feature.display.presentation.DisplayUiState
 import com.yellowtrack.platform.feature.display.presentation.DisplayableEvent
 import com.yellowtrack.platform.feature.display.presentation.Showing
 import com.yellowtrack.platform.feature.display.presentation.Unlock
+import com.yellowtrack.platform.feature.display.presentation.WalkUp
 import org.jetbrains.skia.Image
 import java.io.File
 import kotlin.test.Test
@@ -125,6 +126,38 @@ class DisplayRenderTest {
         }
     }
 
+    @Test
+    fun `renders the walk-up form`() {
+        render("display-walk-up", width = 1_600, height = 2_400) {
+            DisplayUiState(
+                content =
+                    UiState.Success(
+                        content(
+                            showing =
+                                showing().copy(
+                                    walkUp =
+                                        WalkUp(
+                                            email = "john@example.test",
+                                            givenName = "John",
+                                            familyName = "Smith",
+                                        ),
+                                ),
+                        ),
+                    ),
+            )
+        }
+    }
+
+    /** The state a second person walks up to. */
+    @Test
+    fun `renders the walk-up confirmation`() {
+        render("display-walk-up-done", width = 1_600, height = 2_400) {
+            DisplayUiState(
+                content = UiState.Success(content(showing = showing().copy(walkUp = WalkUp(done = true)))),
+            )
+        }
+    }
+
     /**
      * A phone's job, done by the test.
      *
@@ -154,6 +187,7 @@ class DisplayRenderTest {
                                             event = DisplayableEvent("event-1", "Harbour Awards 2026", null),
                                             code = QrMatrix(size = rows.size, rows = rows),
                                             link = link,
+                                            token = "nvmQ9xkkfDjk12Jx7kpKkA",
                                         ),
                                 ),
                             ),
@@ -193,6 +227,7 @@ class DisplayRenderTest {
                                         event = DisplayableEvent("event-1", "Harbour Awards 2026", null),
                                         code = QrMatrix(size = rows.size, rows = rows),
                                         link = link,
+                                        token = "nvmQ9xkkfDjk12Jx7kpKkA",
                                     ),
                             ),
                         ),
@@ -233,6 +268,7 @@ class DisplayRenderTest {
             event = DisplayableEvent("event-1", "Harbour Awards 2026", startsAt = null),
             code = QrMatrix(size = 25, rows = matrixFor("https://yellowtrackphotos.com/join/abc")),
             link = "https://yellowtrackphotos.com/join/nvmQ9xkkfDjk12Jx7kpKkA",
+            token = "nvmQ9xkkfDjk12Jx7kpKkA",
         )
 
     /** A real encoding, produced the way the server produces it. */
@@ -317,6 +353,10 @@ class DisplayRenderTest {
                             onTypePassword = {},
                             onConfirmUnlock = {},
                             onDismissProblem = {},
+                            onOpenWalkUp = {},
+                            onCloseWalkUp = {},
+                            onTypeWalkUp = { _, _, _, _ -> },
+                            onSubmitWalkUp = {},
                         )
                     }
                 }
@@ -330,8 +370,15 @@ class DisplayRenderTest {
             // before now came out ghosted and unreadable for that reason, which is a poor
             // result for a test whose whole purpose is to be looked at. Advancing the clock
             // lets the animation finish.
-            scene.render(0L)
-            scene.render(SETTLED_NANOS).encodeToData()!!.bytes
+            // Stepped rather than jumped. A dialog's enter animation advances with the frames
+            // it is given, and one long step leaves it part way — which is how every dialog
+            // in this project rendered as a ghost until somebody looked.
+            var frame = 0L
+            repeat(SETTLE_FRAMES) {
+                frame += SETTLED_NANOS / SETTLE_FRAMES
+                scene.render(frame)
+            }
+            scene.render(frame).encodeToData()!!.bytes
         } finally {
             scene.close()
         }
@@ -339,6 +386,9 @@ class DisplayRenderTest {
 
     /** Longer than any enter animation in the design system, and nothing here loops. */
     private companion object {
-        const val SETTLED_NANOS = 500_000_000L
+        const val SETTLED_NANOS = 2_000_000_000L
+
+        /** Enough steps that an animation runs rather than jumping to an arbitrary point. */
+        const val SETTLE_FRAMES = 20
     }
 }

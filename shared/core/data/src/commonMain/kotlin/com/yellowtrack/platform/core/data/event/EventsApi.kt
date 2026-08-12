@@ -5,6 +5,7 @@ import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 
@@ -71,6 +72,19 @@ interface EventsApi {
      * geometry and the client draws it.
      */
     suspend fun inviteCode(eventId: String): QrMatrix
+
+    /**
+     * Signs somebody up the way their phone would have, from a device that is not theirs.
+     *
+     * The same public endpoint a scanned code reaches, called with the same token. Not a
+     * studio-authenticated route: a guest filling in a form on a tablet on a table is doing
+     * exactly what a guest with a phone does, and giving that a second path into the database
+     * would be a second set of rules about who may register whom.
+     */
+    suspend fun joinEvent(
+        token: String,
+        request: SignUpToEventRequest,
+    )
 
     /**
      * The code as a page a studio can print and put on a table.

@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.min
 import com.yellowtrack.platform.core.designsystem.component.YTButton
@@ -51,6 +53,10 @@ internal fun DisplayScreen(
     onTypePassword: (String) -> Unit,
     onConfirmUnlock: () -> Unit,
     onDismissProblem: () -> Unit,
+    onOpenWalkUp: () -> Unit,
+    onCloseWalkUp: () -> Unit,
+    onTypeWalkUp: (String?, String?, String?, String?) -> Unit,
+    onSubmitWalkUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Always dark, whatever the tablet is set to.
@@ -74,6 +80,10 @@ internal fun DisplayScreen(
                 onTypePassword = onTypePassword,
                 onConfirmUnlock = onConfirmUnlock,
                 onDismissProblem = onDismissProblem,
+                onOpenWalkUp = onOpenWalkUp,
+                onCloseWalkUp = onCloseWalkUp,
+                onTypeWalkUp = onTypeWalkUp,
+                onSubmitWalkUp = onSubmitWalkUp,
             )
         }
     }
@@ -89,6 +99,10 @@ private fun DisplayContents(
     onTypePassword: (String) -> Unit,
     onConfirmUnlock: () -> Unit,
     onDismissProblem: () -> Unit,
+    onOpenWalkUp: () -> Unit,
+    onCloseWalkUp: () -> Unit,
+    onTypeWalkUp: (String?, String?, String?, String?) -> Unit,
+    onSubmitWalkUp: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (val content = uiState.content) {
@@ -121,6 +135,10 @@ private fun DisplayContents(
                         onCancelLeaving = onCancelLeaving,
                         onTypePassword = onTypePassword,
                         onConfirmUnlock = onConfirmUnlock,
+                        onOpenWalkUp = onOpenWalkUp,
+                        onCloseWalkUp = onCloseWalkUp,
+                        onTypeWalkUp = onTypeWalkUp,
+                        onSubmitWalkUp = onSubmitWalkUp,
                     )
                 } ?: ChoosingEvent(content = content.data, onShow = onShow)
         }
@@ -210,6 +228,10 @@ private fun ShowingCode(
     onCancelLeaving: () -> Unit,
     onTypePassword: (String) -> Unit,
     onConfirmUnlock: () -> Unit,
+    onOpenWalkUp: () -> Unit,
+    onCloseWalkUp: () -> Unit,
+    onTypeWalkUp: (String?, String?, String?, String?) -> Unit,
+    onSubmitWalkUp: () -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         // The code takes what the shorter side allows, so a device lying on its side shows the
@@ -287,6 +309,26 @@ private fun ShowingCode(
             onClick = onAskToLeave,
             modifier = Modifier.align(Alignment.BottomEnd).padding(YTTheme.spacing.small),
         )
+
+        // The opposite corner, and this one is for the guest rather than the studio. Somebody
+        // who left their phone on a table, or whose battery is dead, is otherwise turned away
+        // by a screen whose only instruction is to point a camera at it.
+        if (!showing.withdrawn) {
+            YTTextButton(
+                text = "No phone? Register here",
+                onClick = onOpenWalkUp,
+                modifier = Modifier.align(Alignment.BottomStart).padding(YTTheme.spacing.small),
+            )
+        }
+    }
+
+    showing.walkUp?.let { form ->
+        WalkUpForm(
+            form = form,
+            onClose = onCloseWalkUp,
+            onType = onTypeWalkUp,
+            onSubmit = onSubmitWalkUp,
+        )
     }
 
     showing.unlock?.let { unlock ->
@@ -310,6 +352,92 @@ private fun ShowingCode(
                     errorMessage = unlock.problem,
                 )
             }
+        }
+    }
+}
+
+/**
+ * The sign-up page's questions, on the device instead of on a phone.
+ *
+ * Deliberately the same fields in the same order, so a studio that has seen one has seen the
+ * other and a guest comparing with the person beside them sees the same form.
+ *
+ * It clears itself when it is done and when it is abandoned. This dialog stands open on a
+ * table in a room full of strangers with somebody's address half typed into it, and the next
+ * person to walk up must not find it there.
+ */
+@Composable
+private fun WalkUpForm(
+    form: WalkUp,
+    onClose: () -> Unit,
+    onType: (String?, String?, String?, String?) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    if (form.done) {
+        // One button, not the form dialog's two. "Close" beside "Done" is two words for the
+        // same act, and this is read by somebody who has just handed over their details and
+        // wants to know they are finished.
+        AlertDialog(
+            onDismissRequest = onClose,
+            title = { Text("You are signed up", style = YTTheme.typography.headlineSmall) },
+            text = {
+                Text(
+                    "Your photographs will be emailed to you when the photographer has " +
+                        "finished with them. Check that email for your number.",
+                    style = YTTheme.typography.bodyLarge,
+                )
+            },
+            confirmButton = { YTTextButton(text = "Done", onClick = onClose) },
+        )
+
+        return
+    }
+
+    YTFormDialog(
+        title = "Register for this event",
+        confirmLabel = if (form.isSubmitting) "Sending…" else "Register me",
+        onConfirm = onSubmit,
+        onDismiss = onClose,
+        confirmEnabled = form.canSubmit,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
+            form.problem?.let { problem ->
+                Text(problem, style = YTTheme.typography.bodyMedium, color = YTTheme.colors.error)
+            }
+
+            YTTextField(
+                value = form.email,
+                onValueChange = { onType(it, null, null, null) },
+                label = "Email address",
+                keyboardType = KeyboardType.Email,
+                enabled = !form.isSubmitting,
+            )
+            YTTextField(
+                value = form.givenName,
+                onValueChange = { onType(null, it, null, null) },
+                label = "First name",
+                enabled = !form.isSubmitting,
+            )
+            YTTextField(
+                value = form.familyName,
+                onValueChange = { onType(null, null, it, null) },
+                label = "Last name",
+                enabled = !form.isSubmitting,
+            )
+            YTTextField(
+                value = form.phone,
+                onValueChange = { onType(null, null, null, it) },
+                label = "Mobile number (optional)",
+                keyboardType = KeyboardType.Phone,
+                enabled = !form.isSubmitting,
+            )
+
+            Text(
+                "The photographer will email your photographs when they have finished with " +
+                    "them. Your name tells them which pictures are yours.",
+                style = YTTheme.typography.bodySmall,
+                color = YTTheme.colors.onSurfaceVariant,
+            )
         }
     }
 }

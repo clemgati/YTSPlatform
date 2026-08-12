@@ -11,6 +11,7 @@ import com.yellowtrack.platform.core.model.event.EventInviteResponse
 import com.yellowtrack.platform.core.model.event.EventSummary
 import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
+import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.core.model.event.SittingSummary
 import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.core.ui.state.UiState
@@ -317,6 +318,176 @@ class DisplayViewModelTest {
             )
         }
 
+    // -- Registering somebody who has no phone ---------------------------------------------
+
+    @Test
+    fun `a walk-up registration reaches the same endpoint a phone would`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+            viewModel.typeWalkUp(email = "guest@example.test")
+            viewModel.typeWalkUp(givenName = "John")
+            viewModel.typeWalkUp(familyName = "Smith")
+            viewModel.typeWalkUp(phone = "+44 7700 900000")
+            viewModel.submitWalkUp()
+            advanceUntilIdle()
+
+            val sent = api.joined.single()
+
+            assertEquals("guest@example.test", sent.email)
+            assertEquals("John", sent.givenName)
+            assertEquals("Smith", sent.familyName)
+            assertEquals("+44 7700 900000", sent.phone)
+        }
+
+    /** The same rule the page enforces, so the two forms cannot disagree. */
+    @Test
+    fun `a walk-up cannot be submitted without both names`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+            viewModel.typeWalkUp(email = "guest@example.test", givenName = "John")
+            viewModel.submitWalkUp()
+            advanceUntilIdle()
+
+            assertEquals(emptyList(), api.joined, "an incomplete form was sent")
+        }
+
+    /**
+     * A refusal keeps what they typed.
+     *
+     * They are standing at the table and can fix a mistyped address. Clearing the form would
+     * make them start again over a missing @, in front of a queue.
+     */
+    @Test
+    fun `a refused walk-up keeps the form and says why`() =
+        runTest {
+            val api =
+                FakeEventsApi(
+                    events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)),
+                ).apply { joinFails = RuntimeException("That does not look like an email address.") }
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+            viewModel.typeWalkUp(email = "not-an-address", givenName = "John", familyName = "Smith")
+            viewModel.submitWalkUp()
+            advanceUntilIdle()
+
+            val form = assertNotNull(viewModel.content().showing?.walkUp)
+
+            assertEquals("not-an-address", form.email, "the form was cleared")
+            assertEquals("That does not look like an email address.", form.problem)
+            assertFalse(form.done)
+        }
+
+    /** And a success says so, so the person knows to walk away. */
+    @Test
+    fun `a walk-up that succeeds says so`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+            viewModel.typeWalkUp(email = "guest@example.test", givenName = "John", familyName = "Smith")
+            viewModel.submitWalkUp()
+            advanceUntilIdle()
+
+            assertTrue(assertNotNull(viewModel.content().showing?.walkUp).done)
+        }
+
+    /**
+     * Closing the form takes what was typed with it.
+     *
+     * The next person to walk up must not find somebody else's address in the box — nor be
+     * able to submit under it.
+     */
+    @Test
+    fun `closing the walk-up form forgets what was typed`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+            viewModel.typeWalkUp(email = "guest@example.test", givenName = "John", familyName = "Smith")
+            viewModel.closeWalkUp()
+
+            // Gone, not merely resettable. This is what the three-minute timer calls, and a
+            // close that only cleared the fields would leave an abandoned form open on a
+            // table with somebody's address still on screen.
+            assertNull(viewModel.content().showing?.walkUp, "the form was still open")
+
+            viewModel.openWalkUp()
+
+            val form = assertNotNull(viewModel.content().showing?.walkUp)
+
+            assertEquals("", form.email)
+            assertEquals("", form.givenName)
+            assertEquals("", form.familyName)
+        }
+
+    /** Every keystroke counts as somebody still being there. */
+    @Test
+    fun `typing counts as activity`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+            val before = assertNotNull(viewModel.content().showing?.walkUp).interactions
+
+            viewModel.typeWalkUp(email = "a")
+            viewModel.typeWalkUp(email = "ad")
+            viewModel.noteWalkUpActivity()
+
+            val after = assertNotNull(viewModel.content().showing?.walkUp).interactions
+
+            assertTrue(after >= before + 3, "activity was not counted: $before then $after")
+        }
+
+    /** A withdrawn code takes the walk-up form with it — there is nothing to register for. */
+    @Test
+    fun `a walk-up cannot be opened once the code is withdrawn`() =
+        runTest {
+            val api = FakeEventsApi(events = listOf(summary("open-1", "Harbour Awards", signUpOpen = true)))
+            val viewModel = viewModel(api)
+            advanceUntilIdle()
+            viewModel.show("open-1")
+            advanceUntilIdle()
+
+            api.events = emptyList()
+            viewModel.poll()
+            advanceUntilIdle()
+
+            viewModel.openWalkUp()
+            viewModel.typeWalkUp(email = "guest@example.test", givenName = "John", familyName = "Smith")
+            viewModel.submitWalkUp()
+            advanceUntilIdle()
+
+            assertEquals(emptyList(), api.joined, "somebody registered against a withdrawn code")
+        }
+
     // -- The lock ---------------------------------------------------------------------------
 
     /**
@@ -596,6 +767,17 @@ class DisplayViewModelTest {
                 token = "the-token",
                 url = "https://photos.example.test/join/the-token",
             )
+        }
+
+        var joined = mutableListOf<SignUpToEventRequest>()
+        var joinFails: Throwable? = null
+
+        override suspend fun joinEvent(
+            token: String,
+            request: SignUpToEventRequest,
+        ) {
+            joinFails?.let { throw it }
+            joined += request
         }
 
         override suspend fun inviteCode(eventId: String): QrMatrix {
