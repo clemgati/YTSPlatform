@@ -7,6 +7,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.response.cacheControl
 import io.ktor.server.response.header
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -50,6 +51,18 @@ fun Route.publicSite() {
     get("/gallery/{token}") { call.page("gallery.html") }
 
     get("/site.css") { call.asset("site.css", ContentType.Text.CSS) }
+
+    /**
+     * The mark at the top of the sign-up page.
+     *
+     * A guest is about to type their name, address and phone number into a page they reached
+     * by pointing a camera at a piece of paper. Something recognisable at the top of it is
+     * worth more than any wording underneath.
+     *
+     * 160 pixels wide and eleven kilobytes, shown at about half that. This page is read on a
+     * venue's wifi and the full-size mark is ninety-two kilobytes for the same picture.
+     */
+    get("/mark.png") { call.image("mark.png", ContentType.Image.PNG) }
 
     get("/join.js") { call.asset("join.js", ContentType.Text.JavaScript) }
 
@@ -101,6 +114,25 @@ private suspend fun ApplicationCall.asset(
     respondText(body, type)
 }
 
+/**
+ * The same as [asset], for something that is not text.
+ *
+ * Separate rather than making [asset] generic: [read] decodes to a string, which is right for
+ * every other thing this serves and would quietly corrupt anything that is not.
+ */
+private suspend fun ApplicationCall.image(
+    name: String,
+    type: ContentType,
+) {
+    val bytes = readBytes(name) ?: return respond(HttpStatusCode.NotFound, "Not found")
+
+    // Longer than the pages, which change with a deployment. This does not.
+    response.cacheControl(CacheControl.MaxAge(maxAgeSeconds = 86_400))
+    security()
+
+    respondBytes(bytes, type)
+}
+
 private fun ApplicationCall.security(indexable: Boolean = false) {
     // Everything the pages need comes from this origin, except the photographs themselves,
     // which are presigned URLs on the object store. Nothing is inline, so no unsafe-inline.
@@ -134,6 +166,12 @@ private suspend fun ApplicationCall.respond(
  * Read from the classpath rather than the file system, so it works the same from a shadow jar
  * as from a Gradle run.
  */
+private fun readBytes(name: String): ByteArray? =
+    object {}
+        .javaClass.classLoader
+        .getResourceAsStream("public/$name")
+        ?.use { it.readBytes() }
+
 private fun read(name: String): String? =
     object {}
         .javaClass.classLoader
