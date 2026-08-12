@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.display.presentation
 
+import com.yellowtrack.platform.core.model.auth.EmailAddress
 import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.ui.state.UiState
 
@@ -94,11 +95,25 @@ internal data class WalkUp(
      */
     val interactions: Int = 0,
 ) {
-    /** The same rule the page enforces: an address and both halves of a name. */
+    /**
+     * Whether the address could be one at all.
+     *
+     * The web form gets this free from `type="email"`, and the dialog had nothing: anything
+     * at all could be typed and the only objection came from the server, after a round trip,
+     * in front of a queue. The same check the sign-in screen uses, so the two agree about
+     * what an address looks like.
+     *
+     * Only once something has been typed. Marking an empty box wrong before somebody has
+     * touched it is scolding them for not having finished.
+     */
+    val addressLooksWrong: Boolean
+        get() = email.isNotBlank() && !EmailAddress.isPlausible(email)
+
+    /** The same rule the page enforces: a usable address and both halves of a name. */
     val canSubmit: Boolean
         get() =
             !isSubmitting &&
-                email.isNotBlank() &&
+                EmailAddress.isPlausible(email) &&
                 givenName.isNotBlank() &&
                 familyName.isNotBlank()
 }
