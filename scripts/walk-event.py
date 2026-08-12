@@ -222,14 +222,25 @@ def walk(base, token, studio_id, guest, reply_to, now, stamp):
     # 6 -----------------------------------------------------------------------------------
     step(6, "…and signs up")
     call(base, "POST", f"/api/join/{invite['token']}",
-         body={"email": guest, "name": "Walkthrough Guest"}, expect=[204])
+         body={"email": guest, "givenName": "Walkthrough", "familyName": "Guest",
+               "phone": "+44 7700 900000"},
+         expect=[204])
     note(f"{guest} is registered")
+    note("this also sends them the note saying they are on the list, with their number")
 
     # 7 -----------------------------------------------------------------------------------
     step(7, "The studio sees them")
     _, registrations = call(base, "GET", f"/events/{event}/registrations", token=token, expect=[200])
     registration = registrations[0]["id"]
     note(f"{registrations[0]['email']} ({registration})")
+
+    # The three fields the form started asking for. A walk that passed without them would be
+    # a walk that stopped covering the thing a guest actually fills in.
+    for field in ("givenName", "familyName", "number"):
+        if not registrations[0].get(field):
+            raise Failed(f"the registration came back without a {field}")
+    note(f"{registrations[0]['givenName']} {registrations[0]['familyName']}, "
+         f"number {registrations[0]['number']}, phone {registrations[0].get('phone')}")
 
     # 8 -----------------------------------------------------------------------------------
     step(8, "A station, and that person seated at it")
