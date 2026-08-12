@@ -82,15 +82,22 @@ main {
     color: var(--ink);
 }
 
+/*
+    Centred, with the mark above it, so the top of the page reads as one masthead rather than
+    a centred logo sitting on top of a left-aligned page. The fields below stay left-aligned:
+    a label belongs above its box, at its edge.
+*/
 h1 {
     font-size: 1.5rem;
     line-height: 1.25;
     margin: 0 0 0.25rem;
+    text-align: center;
 }
 
 .event {
     color: var(--muted);
     margin: 0 0 2rem;
+    text-align: center;
 }
 
 label {

@@ -1,5 +1,6 @@
 package com.yellowtrack.platform.feature.display.presentation
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import com.yellowtrack.platform.core.designsystem.component.YTButton
 import com.yellowtrack.platform.core.designsystem.component.YTCard
@@ -325,6 +327,7 @@ private fun ShowingCode(
     showing.walkUp?.let { form ->
         WalkUpForm(
             form = form,
+            eventName = showing.event.name,
             onClose = onCloseWalkUp,
             onType = onTypeWalkUp,
             onSubmit = onSubmitWalkUp,
@@ -369,6 +372,7 @@ private fun ShowingCode(
 @Composable
 private fun WalkUpForm(
     form: WalkUp,
+    eventName: String,
     onClose: () -> Unit,
     onType: (String?, String?, String?, String?) -> Unit,
     onSubmit: () -> Unit,
@@ -393,52 +397,95 @@ private fun WalkUpForm(
         return
     }
 
-    YTFormDialog(
-        title = "Register for this event",
-        confirmLabel = if (form.isSubmitting) "Sending…" else "Register me",
-        onConfirm = onSubmit,
-        onDismiss = onClose,
-        confirmEnabled = form.canSubmit,
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
-            form.problem?.let { problem ->
-                Text(problem, style = YTTheme.typography.bodyMedium, color = YTTheme.colors.error)
+    // An AlertDialog rather than the form dialog, so the masthead can be the page's masthead:
+    // the mark, the name, the heading and the event, all centred. Somebody at a table may well
+    // see this and a printed card side by side, and they should be the same invitation.
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { WalkUpMasthead(eventName) },
+        confirmButton = {
+            YTTextButton(
+                text = if (form.isSubmitting) "Sending…" else "Register me",
+                onClick = onSubmit,
+                enabled = form.canSubmit,
+            )
+        },
+        dismissButton = { YTTextButton(text = "Cancel", onClick = onClose) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.small)) {
+                form.problem?.let { problem ->
+                    Text(problem, style = YTTheme.typography.bodyMedium, color = YTTheme.colors.error)
+                }
+
+                YTTextField(
+                    value = form.email,
+                    onValueChange = { onType(it, null, null, null) },
+                    label = "Email address",
+                    keyboardType = KeyboardType.Email,
+                    enabled = !form.isSubmitting,
+                )
+                YTTextField(
+                    value = form.givenName,
+                    onValueChange = { onType(null, it, null, null) },
+                    label = "First name",
+                    enabled = !form.isSubmitting,
+                )
+                YTTextField(
+                    value = form.familyName,
+                    onValueChange = { onType(null, null, it, null) },
+                    label = "Last name",
+                    enabled = !form.isSubmitting,
+                )
+                YTTextField(
+                    value = form.phone,
+                    onValueChange = { onType(null, null, null, it) },
+                    label = "Mobile number (optional)",
+                    keyboardType = KeyboardType.Phone,
+                    enabled = !form.isSubmitting,
+                )
+
+                Text(
+                    "The photographer will email your photographs when they have finished " +
+                        "with them. Your name tells them which pictures are yours.",
+                    style = YTTheme.typography.bodySmall,
+                    color = YTTheme.colors.onSurfaceVariant,
+                )
             }
+        },
+    )
+}
 
-            YTTextField(
-                value = form.email,
-                onValueChange = { onType(it, null, null, null) },
-                label = "Email address",
-                keyboardType = KeyboardType.Email,
-                enabled = !form.isSubmitting,
-            )
-            YTTextField(
-                value = form.givenName,
-                onValueChange = { onType(null, it, null, null) },
-                label = "First name",
-                enabled = !form.isSubmitting,
-            )
-            YTTextField(
-                value = form.familyName,
-                onValueChange = { onType(null, null, it, null) },
-                label = "Last name",
-                enabled = !form.isSubmitting,
-            )
-            YTTextField(
-                value = form.phone,
-                onValueChange = { onType(null, null, null, it) },
-                label = "Mobile number (optional)",
-                keyboardType = KeyboardType.Phone,
-                enabled = !form.isSubmitting,
-            )
-
-            Text(
-                "The photographer will email your photographs when they have finished with " +
-                    "them. Your name tells them which pictures are yours.",
-                style = YTTheme.typography.bodySmall,
-                color = YTTheme.colors.onSurfaceVariant,
-            )
-        }
+/**
+ * The sign-up page's masthead, on the device.
+ *
+ * Who is asking, before anything is asked for — the same reason the page carries it. Somebody
+ * about to type their name, address and telephone number into a tablet on a table deserves
+ * the same answer they would get on their own phone.
+ */
+@Composable
+private fun WalkUpMasthead(eventName: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall),
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.yellow_track_mark),
+            contentDescription = null,
+            modifier = Modifier.height(MASTHEAD_MARK_HEIGHT),
+        )
+        Text("Yellow Track", style = YTTheme.typography.titleMedium)
+        Text(
+            "Get your photographs",
+            style = YTTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            eventName,
+            style = YTTheme.typography.bodyLarge,
+            color = YTTheme.colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -458,3 +505,6 @@ private const val CODE_FRACTION_OF_SHORTER_SIDE = 0.62f
  */
 private val CODE_DARK = Color(0xFF111111)
 private val CODE_LIGHT = Color(0xFFFAB91D)
+
+/** Small enough to be a masthead rather than a picture somebody has to scroll past. */
+private val MASTHEAD_MARK_HEIGHT = 40.dp
