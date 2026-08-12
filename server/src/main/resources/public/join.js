@@ -54,9 +54,14 @@
         submission.preventDefault();
 
         var email = document.getElementById("email").value.trim();
-        var name = document.getElementById("name").value.trim();
+        var givenName = document.getElementById("given-name").value.trim();
+        var familyName = document.getElementById("family-name").value.trim();
+        var phone = document.getElementById("phone").value.trim();
 
-        if (!email) return;
+        // The browser enforces `required` on its own; this is the same rule for a browser
+        // that did not, which is every one of them with scripting quirks and a few of them
+        // with autofill.
+        if (!email || !givenName || !familyName) return;
 
         // Disabled for the length of the request. A guest on venue wifi taps a button that
         // appears to do nothing and taps it again; without this that is two sign-ups racing.
@@ -66,7 +71,12 @@
         fetch("/api/join/" + encodeURIComponent(token), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: email, name: name || null })
+            body: JSON.stringify({
+                email: email,
+                givenName: givenName,
+                familyName: familyName,
+                phone: phone || null
+            })
         })
             .then(function (response) {
                 if (response.status === 204) {

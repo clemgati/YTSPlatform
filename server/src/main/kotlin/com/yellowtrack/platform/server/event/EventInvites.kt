@@ -21,6 +21,14 @@ sealed interface SignUpRefused {
     data object BadAddress : SignUpRefused
 
     /**
+     * One or both halves of the name are missing.
+     *
+     * Distinct from [BadAddress] because the guest can fix it and needs telling which field
+     * to fix. Not a secret either: it says nothing about the event or about anybody at it.
+     */
+    data object MissingName : SignUpRefused
+
+    /**
      * This event has taken more sign-ups in the window than any real event produces.
      *
      * Deliberately not "you are going too fast" — the caller here is a guest with a phone,
@@ -169,12 +177,21 @@ class EventInvites(
     fun signUp(
         token: String,
         email: String,
-        name: String? = null,
+        givenName: String,
+        familyName: String,
+        phone: String? = null,
     ): SignUpRefused? {
         val invited = lookUp(token) ?: return SignUpRefused.NoSuchInvite
         val address = email.trim()
+        val given = givenName.trim()
+        val family = familyName.trim()
 
         if (!looksLikeAnAddress(address)) return SignUpRefused.BadAddress
+
+        // Both parts, because a queue is seated by name and half a name does not seat
+        // anybody. The form asks for them; this refuses without them, since the form is not
+        // the only thing that can post here.
+        if (given.isBlank() || family.isBlank()) return SignUpRefused.MissingName
 
         return database.inStudio(invited.studioId) { connection ->
             if (recentSignUps(connection, invited.eventId) >= limit) {
@@ -184,7 +201,15 @@ class EventInvites(
             // `register` is idempotent on the address and returns the existing registration
             // when there is one, so this is the same call either way — which is what makes
             // the answer the same either way.
-            events.register(invited.studioId, invited.eventId, address, name?.trim()?.takeIf { it.isNotBlank() })
+            events.register(
+                studioId = invited.studioId,
+                eventId = invited.eventId,
+                email = address,
+                name = "$given $family",
+                givenName = given,
+                familyName = family,
+                phone = phone?.trim()?.takeIf { it.isNotBlank() },
+            )
 
             null
         }

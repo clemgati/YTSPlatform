@@ -31,14 +31,28 @@
         <input type="email" id="email" name="email" autocomplete="email" inputmode="email"
                required placeholder="you@example.com">
 
-        <label for="name">Your name <span style="font-weight:400">(optional)</span></label>
-        <input type="text" id="name" name="name" autocomplete="name" placeholder="Ada Okafor">
+        <label for="given-name">First name</label>
+        <input type="text" id="given-name" name="given-name" autocomplete="given-name"
+               required placeholder="Ada">
+
+        <label for="family-name">Last name</label>
+        <input type="text" id="family-name" name="family-name" autocomplete="family-name"
+               required placeholder="Okafor">
+
+        <!--
+            Optional, and it says what it is for. Asking for a number without saying why is
+            how a form loses people at the last field.
+        -->
+        <label for="phone">Mobile number <span style="font-weight:400">(optional)</span></label>
+        <input type="tel" id="phone" name="phone" autocomplete="tel" inputmode="tel"
+               placeholder="+44 7700 900000">
 
         <button type="submit" id="submit">Send me my photographs</button>
 
         <p class="note">
             We will email your photographs when the photographer has finished with them. Your
-            address is used for that and nothing else.
+            name tells the photographer which pictures are yours. A mobile number is optional
+            and lets them send you the link by message instead.
         </p>
     </form>
 

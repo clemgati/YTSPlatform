@@ -16,6 +16,7 @@ import com.yellowtrack.platform.core.model.event.QrMatrix
 import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.server.event.EventInvites
+import com.yellowtrack.platform.server.event.Events
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
@@ -33,6 +34,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -187,7 +189,7 @@ class EventInviteTest {
             val event = client.createEvent(session, "Harbour Awards 2026")
             val invite = client.invite(session, event)
 
-            val response = client.join(invite.token, "guest@example.test", "Ada Okafor")
+            val response = client.join(invite.token, "guest@example.test", givenName = "Ada", familyName = "Okafor")
 
             assertEquals(HttpStatusCode.NoContent, response.status, response.bodyAsText())
             assertEquals(1, registrationCount(event))
@@ -276,7 +278,7 @@ class EventInviteTest {
                 client.post("/api/join/${invite.token}") {
                     header(HttpHeaders.Origin, "https://yellowtrackphotos.com")
                     contentType(ContentType.Application.Json)
-                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test", null)))
+                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test", "Ada", "Okafor")))
                 }
 
             assertEquals(HttpStatusCode.NoContent, response.status, response.bodyAsText())
@@ -321,7 +323,7 @@ class EventInviteTest {
                 client.post("/api/join/${invite.token}") {
                     header(HttpHeaders.Origin, "https://www.yellowtrackphotos.com")
                     contentType(ContentType.Application.Json)
-                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test")))
+                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test", "Ada", "Okafor")))
                 }
 
             assertEquals(HttpStatusCode.NoContent, response.status, response.bodyAsText())
@@ -377,7 +379,7 @@ class EventInviteTest {
                 client.post("/api/join/${invite.token}") {
                     header(HttpHeaders.Origin, "https://not-us.example.test")
                     contentType(ContentType.Application.Json)
-                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test", null)))
+                    setBody(apiJson.encodeToString(SignUpToEventRequest("guest@example.test", "Ada", "Okafor")))
                 }
 
             assertEquals(HttpStatusCode.Forbidden, response.status, response.bodyAsText())
@@ -401,32 +403,34 @@ class EventInviteTest {
             val event = client.createEvent(session, "Harbour Awards 2026")
             val invite = client.invite(session, event)
 
-            client.join(invite.token, "guest@example.test", "James")
-            client.join(invite.token, "guest@example.test", "Ralph")
+            client.join(invite.token, "guest@example.test", "James", "Okafor")
+            client.join(invite.token, "guest@example.test", "Ralph", "Okafor")
 
             val people = client.registrations(session, event)
 
             assertEquals(1, people.size, "one address must remain one person")
-            assertEquals("Ralph", people.single().name, "the corrected name was discarded")
+            assertEquals("Ralph", people.single().givenName, "the corrected name was discarded")
+            assertEquals("Ralph Okafor", people.single().name)
         }
 
     /**
-     * And a scan with no name leaves the held one alone.
+     * And a scan that leaves a field blank does not wipe what is held.
      *
-     * Absence is not a correction. Wiping a name because somebody was in a hurry the second
-     * time is the same mistake pointing the other way.
+     * Absence is not a correction. This used to be about the name, which cannot be blank any
+     * more; the phone number can, and the mistake it guards against is the same one pointing
+     * the other way — clearing something because somebody was in a hurry the second time.
      */
     @Test
-    fun `signing up again without a name keeps the one held`() =
+    fun `signing up again without the optional field keeps the one held`() =
         withServer { client ->
             val session = client.signUp()
             val event = client.createEvent(session, "Harbour Awards 2026")
             val invite = client.invite(session, event)
 
-            client.join(invite.token, "guest@example.test", "James")
-            client.join(invite.token, "guest@example.test", null)
+            client.join(invite.token, "guest@example.test", "James", "Okafor", phone = "+44 7700 900000")
+            client.join(invite.token, "guest@example.test", "James", "Okafor")
 
-            assertEquals("James", client.registrations(session, event).single().name)
+            assertEquals("+44 7700 900000", client.registrations(session, event).single().phone)
         }
 
     /** Two addresses are two people, however similar the names. */
@@ -437,8 +441,8 @@ class EventInviteTest {
             val event = client.createEvent(session, "Harbour Awards 2026")
             val invite = client.invite(session, event)
 
-            client.join(invite.token, "one@example.test", "James")
-            client.join(invite.token, "two@example.test", "James")
+            client.join(invite.token, "one@example.test", givenName = "James")
+            client.join(invite.token, "two@example.test", givenName = "James")
 
             assertEquals(2, client.registrations(session, event).size)
         }
@@ -462,12 +466,12 @@ class EventInviteTest {
             // A limit of two, so this is a test rather than a thousand HTTP requests.
             val invites = EventInvites(TestDatabase.database, limit = 2)
 
-            assertEquals(null, invites.signUp(invite.token, "one@example.test"))
-            assertEquals(null, invites.signUp(invite.token, "two@example.test"))
+            assertEquals(null, invites.signUp(invite.token, "one@example.test", "Ada", "Okafor"))
+            assertEquals(null, invites.signUp(invite.token, "two@example.test", "Ada", "Okafor"))
 
             assertEquals(
                 com.yellowtrack.platform.server.event.SignUpRefused.TooManyForNow,
-                invites.signUp(invite.token, "three@example.test"),
+                invites.signUp(invite.token, "three@example.test", "Ada", "Okafor"),
             )
             assertEquals(2, registrationCount(event))
         }
@@ -483,13 +487,17 @@ class EventInviteTest {
             val quietInvite = client.invite(session, quiet)
 
             val invites = EventInvites(TestDatabase.database, limit = 1)
-            invites.signUp(busyInvite.token, "one@example.test")
+            invites.signUp(busyInvite.token, "one@example.test", "Ada", "Okafor")
 
             assertEquals(
                 com.yellowtrack.platform.server.event.SignUpRefused.TooManyForNow,
-                invites.signUp(busyInvite.token, "two@example.test"),
+                invites.signUp(busyInvite.token, "two@example.test", "Ada", "Okafor"),
             )
-            assertEquals(null, invites.signUp(quietInvite.token, "three@example.test"), "another event was closed too")
+            assertEquals(
+                null,
+                invites.signUp(quietInvite.token, "three@example.test", "Ada", "Okafor"),
+                "another event was closed too",
+            )
         }
 
     // -- Tokens ---------------------------------------------------------------------------------
@@ -764,6 +772,150 @@ class EventInviteTest {
         return apiJson.decodeFromString(response.bodyAsText())
     }
 
+    // -- Who somebody is ------------------------------------------------------------------
+
+    /**
+     * Both halves of a name, because a queue is seated by name.
+     *
+     * The form marks them required and a browser enforces that, which is worth nothing here:
+     * this endpoint is public and a browser is not the only thing that can post to it.
+     */
+    @Test
+    fun `a sign-up without both names is refused`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            listOf("" to "Okafor", "Ada" to "", "  " to "  ").forEach { (given, family) ->
+                assertEquals(
+                    HttpStatusCode.BadRequest,
+                    client.join(invite.token, "guest@example.test", given, family).status,
+                    "'$given' '$family' was accepted",
+                )
+            }
+
+            assertEquals(0, registrationCount(event), "a refused sign-up registered somebody")
+        }
+
+    @Test
+    fun `a sign-up carries both names and a number`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "guest@example.test", "Ada", "Okafor", phone = "+44 7700 900000")
+
+            val person = client.registrations(session, event).single()
+
+            assertEquals("Ada", person.givenName)
+            assertEquals("Okafor", person.familyName)
+            assertEquals("Ada Okafor", person.name)
+            assertEquals("+44 7700 900000", person.phone)
+            assertNotNull(person.number, "no number was allocated")
+        }
+
+    /** Five digits, so it can be read out across a room. */
+    @Test
+    fun `the number is five digits`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "guest@example.test")
+
+            val number = assertNotNull(client.registrations(session, event).single().number)
+
+            assertTrue(number in 10_000..99_999, "$number is not five digits")
+        }
+
+    /** The whole point of it: two people, two numbers. */
+    @Test
+    fun `two people at one event get different numbers`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "one@example.test", "John", "Smith")
+            client.join(invite.token, "two@example.test", "John", "Smith")
+
+            val numbers = client.registrations(session, event).map { it.number }
+
+            assertEquals(2, numbers.size)
+            assertEquals(2, numbers.toSet().size, "two John Smiths got the same number: $numbers")
+        }
+
+    /**
+     * A phone number left blank on a second scan does not erase the one already given.
+     *
+     * Somebody who scans again to correct a spelling should not lose the number they typed
+     * the first time, and the form sends every field every time.
+     */
+    @Test
+    fun `a second scan does not erase what it leaves blank`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "guest@example.test", "Ada", "Okafor", phone = "+44 7700 900000")
+            client.join(invite.token, "guest@example.test", "Ada", "Okafora", phone = null)
+
+            val person = client.registrations(session, event).single()
+
+            assertEquals("Okafora", person.familyName, "the correction was ignored")
+            assertEquals("+44 7700 900000", person.phone, "the phone number was erased")
+        }
+
+    /** And the number stays theirs across a second scan. */
+    @Test
+    fun `a second scan keeps the same number`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            client.join(invite.token, "guest@example.test")
+            val first = client.registrations(session, event).single().number
+
+            client.join(invite.token, "guest@example.test")
+
+            assertEquals(first, client.registrations(session, event).single().number)
+        }
+
+    /**
+     * A number already taken is retried, not handed out twice.
+     *
+     * Five random digits collide about once in ninety thousand — for an event of a few
+     * hundred, roughly one event in three hundred. Rare enough that it would never show up in
+     * testing and common enough that a studio would eventually meet two guests holding the
+     * same number, which is precisely the thing the number exists to prevent.
+     *
+     * The generator here hands out the same number twice before moving on, so the retry is
+     * exercised rather than hoped for.
+     */
+    @Test
+    fun `a number already taken at this event is retried`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val handedOut = ArrayDeque(listOf(41_822, 41_822, 41_823))
+            val events = Events(TestDatabase.database, newNumber = { handedOut.removeFirst() })
+            val invites = EventInvites(TestDatabase.database, events = events)
+
+            assertEquals(null, invites.signUp(invite.token, "one@example.test", "John", "Smith"))
+            assertEquals(null, invites.signUp(invite.token, "two@example.test", "John", "Smith"))
+
+            val numbers = client.registrations(session, event).map { it.number }
+
+            assertEquals(setOf(41_822, 41_823), numbers.toSet(), "the collision was not retried")
+        }
+
     // -- The code as a grid ---------------------------------------------------------------
 
     /**
@@ -959,10 +1111,12 @@ class EventInviteTest {
     private suspend fun HttpClient.join(
         token: String,
         email: String,
-        name: String? = null,
+        givenName: String = "Ada",
+        familyName: String = "Okafor",
+        phone: String? = null,
     ) = post("/api/join/$token") {
         contentType(ContentType.Application.Json)
-        setBody(apiJson.encodeToString(SignUpToEventRequest(email, name)))
+        setBody(apiJson.encodeToString(SignUpToEventRequest(email, givenName, familyName, phone)))
     }
 
     private fun registrationCount(eventId: String): Int =

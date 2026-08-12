@@ -494,7 +494,12 @@ class EventsViewModelTest {
 
             // A guest scans the code. Nothing on the studio's side is touched.
             api.registrationsByEvent.getValue("event-1") +=
-                RegistrationSummary("reg-3", "barbara@example.test", "Barbara", 2_000)
+                RegistrationSummary(
+                    id = "reg-3",
+                    email = "barbara@example.test",
+                    name = "Barbara",
+                    registeredAt = 2_000,
+                )
 
             viewModel.refreshOpenEvent()
             testScheduler.advanceUntilIdle()
@@ -1227,8 +1232,13 @@ class EventsViewModelTest {
             )
         api.registrationsByEvent["event-1"] =
             mutableListOf(
-                RegistrationSummary("reg-1", "first@example.test", "Ada Okafor", 1_000),
-                RegistrationSummary("reg-2", "second@example.test", null, 900),
+                RegistrationSummary(
+                    id = "reg-1",
+                    email = "first@example.test",
+                    name = "Ada Okafor",
+                    registeredAt = 1_000,
+                ),
+                RegistrationSummary(id = "reg-2", email = "second@example.test", name = null, registeredAt = 900),
             )
 
         return api
