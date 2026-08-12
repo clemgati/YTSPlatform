@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug builds only, and only the two addresses a development server can be on. Same
+    exception the companion display needs, for the same reason: without it a debug build
+    cannot reach a server started by `:server:run`, and the failure reads in the application
+    as "could not reach the server", which is indistinguishable from the server being down.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
