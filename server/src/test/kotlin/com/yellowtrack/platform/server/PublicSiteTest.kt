@@ -86,6 +86,41 @@ class PublicSiteTest {
         }
 
     /**
+     * The script's element names and the page's are the same names.
+     *
+     * `join.js` reaches for these by identifier. Renaming one in the markup breaks the form
+     * at runtime — the field is simply never read, and a guest's name or number is silently
+     * dropped — and nothing in a Kotlin build would say a word about it. The two files are
+     * one thing and this is the only place that says so.
+     */
+    @Test
+    fun `the sign-up form has the fields the script reads`() =
+        withServer { client ->
+            val page = client.get("/join/anything").bodyAsText()
+            val script = client.get("/join.js").bodyAsText()
+
+            listOf("email", "given-name", "family-name", "phone").forEach { field ->
+                assertTrue("id=\"$field\"" in page, "the page has no $field field")
+                assertTrue("getElementById(\"$field\")" in script, "the script does not read $field")
+            }
+        }
+
+    /** Both halves of the name are required in the markup, not only on the server. */
+    @Test
+    fun `the sign-up form requires both names`() =
+        withServer { client ->
+            val page = client.get("/join/anything").bodyAsText()
+
+            val required =
+                Regex("""<input[^>]*id="(given-name|family-name)"[^>]*>""")
+                    .findAll(page)
+                    .filter { "required" in it.value }
+                    .count()
+
+            assertEquals(2, required, "a name field is not marked required in the markup")
+        }
+
+    /**
      * The sign-up page says where to look if the email does not arrive.
      *
      * The first delivery this product sent went to spam with every authentication check

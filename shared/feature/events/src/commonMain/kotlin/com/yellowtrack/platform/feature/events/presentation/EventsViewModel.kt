@@ -461,7 +461,7 @@ private fun EventSummary.toRow() = EventRow(id, name, startsAt, openStations, ph
 
 private fun StationSummary.toRow() = StationRow(id, name, sourceKey, openedAt, closedAt)
 
-private fun RegistrationSummary.toRow() = PersonRow(id, email, name)
+private fun RegistrationSummary.toRow() = PersonRow(id, email, name, number, phone)
 
 private fun SittingSummary.toRow() =
     SittingRow(

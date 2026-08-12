@@ -16,7 +16,23 @@ data class InvitedEventResponse(
 @Serializable
 data class SignUpToEventRequest(
     val email: String,
-    val name: String? = null,
+    /**
+     * Both parts, and both required.
+     *
+     * A single name field produced "John Smith" twice at one event and no way to tell the two
+     * apart. Optional produced rows with an address and nothing else, which is worse: the
+     * photographer seating people has a queue in front of them and a list that does not say
+     * who is in it.
+     */
+    val givenName: String,
+    val familyName: String,
+    /**
+     * Optional, and not used to send anything yet.
+     *
+     * Given so a guest can be sent their link by message later. Until then it is the other
+     * thing that tells two people of the same name apart, and only the studio ever sees it.
+     */
+    val phone: String? = null,
 )
 
 /** The studio's own view of an event's invite: the token, and where it points. */

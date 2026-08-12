@@ -314,7 +314,7 @@ class ClientClockTest {
             )
         post("/api/join/${invite.token}") {
             contentType(ContentType.Application.Json)
-            setBody(apiJson.encodeToString(SignUpToEventRequest(email, null)))
+            setBody(apiJson.encodeToString(SignUpToEventRequest(email, "Ada", "Okafor")))
         }
 
         val registrations =

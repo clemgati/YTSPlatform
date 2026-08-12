@@ -85,7 +85,16 @@ fun Route.inviteRoutes(
                 return@post
             }
 
-            when (val refusal = invites.signUp(token, request.email, request.name)) {
+            when (
+                val refusal =
+                    invites.signUp(
+                        token = token,
+                        email = request.email,
+                        givenName = request.givenName,
+                        familyName = request.familyName,
+                        phone = request.phone,
+                    )
+            ) {
                 null ->
                     // No body. There is nothing to tell somebody about their own sign-up that
                     // they did not just type, and a registration identifier is something the
@@ -99,6 +108,12 @@ fun Route.inviteRoutes(
                     call.respond(
                         HttpStatusCode.BadRequest,
                         ErrorResponse("That does not look like an email address."),
+                    )
+
+                SignUpRefused.MissingName ->
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Please give both your first and last name."),
                     )
 
                 SignUpRefused.TooManyForNow ->

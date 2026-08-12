@@ -7,6 +7,7 @@ import com.yellowtrack.platform.core.model.event.StationSummary
 import com.yellowtrack.platform.server.Database
 import java.sql.Connection
 import java.util.UUID
+import kotlin.random.Random
 
 /** Where a photograph ended up, and why. */
 sealed interface Routed {
@@ -83,6 +84,14 @@ class Events(
     private val database: Database,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    /**
+     * A guest's number for an event: five digits, so it can be said across a room.
+     *
+     * Injectable for the same reason the clock and the identifier are — a test that cannot
+     * force a collision cannot prove the retry works, and the retry is the only thing
+     * standing between two guests and the same number.
+     */
+    private val newNumber: () -> Int = { SMALLEST_NUMBER + Random.nextInt(NUMBER_RANGE) },
 ) {
     fun createEvent(
         studioId: String,
@@ -134,24 +143,89 @@ class Events(
         eventId: String,
         email: String,
         name: String? = null,
+        givenName: String? = null,
+        familyName: String? = null,
+        phone: String? = null,
     ): String =
         database.inStudio(studioId) { connection ->
             existingRegistration(connection, eventId, email)?.also { id ->
-                name?.takeIf { it.isNotBlank() }?.let { updated ->
-                    connection
-                        .prepareStatement("UPDATE event_registration SET name = ? WHERE id = ?")
-                        .use { statement ->
-                            statement.setString(1, updated)
-                            statement.setString(2, id)
-                            statement.executeUpdate()
-                        }
-                }
-            } ?: newId().also { id ->
+                // A second scan corrects what it carries and leaves the rest alone. Somebody
+                // who filled the form in properly the second time should not have it ignored,
+                // and somebody who left the phone blank should not lose the one they gave.
+                updateRegistration(connection, id, name, givenName, familyName, phone)
+            } ?: insertRegistration(connection, studioId, eventId, email, name, givenName, familyName, phone)
+        }
+
+    private fun updateRegistration(
+        connection: java.sql.Connection,
+        id: String,
+        name: String?,
+        givenName: String?,
+        familyName: String?,
+        phone: String?,
+    ) {
+        // `coalesce(?, column)` rather than a built statement per combination: a null means
+        // "not given", and not given must never erase what is already there.
+        connection
+            .prepareStatement(
+                """
+                UPDATE event_registration
+                SET name        = coalesce(?, name),
+                    given_name  = coalesce(?, given_name),
+                    family_name = coalesce(?, family_name),
+                    phone       = coalesce(?, phone)
+                WHERE id = ?
+                """.trimIndent(),
+            ).use { statement ->
+                statement.setString(1, name?.takeIf { it.isNotBlank() })
+                statement.setString(2, givenName?.takeIf { it.isNotBlank() })
+                statement.setString(3, familyName?.takeIf { it.isNotBlank() })
+                statement.setString(4, phone?.takeIf { it.isNotBlank() })
+                statement.setString(5, id)
+                statement.executeUpdate()
+            }
+    }
+
+    /**
+     * Inserts, allocating a number, retrying if that number is already taken at this event.
+     *
+     * Five random digits collide about once in ninety thousand, which for an event of a few
+     * hundred people is roughly one event in three hundred — rare enough to be surprising and
+     * common enough to happen. Retrying is the whole of the handling.
+     *
+     * A unique violation can also mean the address was registered by a request that arrived
+     * between the check and this insert, and retrying would never fix that. So the two are
+     * told apart by asking again rather than by reading the constraint's name out of a
+     * driver-specific exception.
+     */
+    private fun insertRegistration(
+        connection: java.sql.Connection,
+        studioId: String,
+        eventId: String,
+        email: String,
+        name: String?,
+        givenName: String?,
+        familyName: String?,
+        phone: String?,
+    ): String {
+        repeat(NUMBER_ATTEMPTS) {
+            val id = newId()
+
+            // A savepoint per attempt, because Postgres aborts the whole transaction on a
+            // failed statement and refuses everything after it until a rollback. Without
+            // this the retry issued its next insert into a dead transaction and the guest saw
+            // their sign-up fail — which is exactly the collision this loop exists to hide.
+            val attempt = connection.setSavepoint("registration")
+
+            try {
                 connection
                     .prepareStatement(
                         """
-                        INSERT INTO event_registration(id, studio_id, event_id, email, name, registered_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO event_registration(
+                            id, studio_id, event_id, email, name, given_name, family_name, phone,
+                            number, registered_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent(),
                     ).use { statement ->
                         statement.setString(1, id)
@@ -159,11 +233,30 @@ class Events(
                         statement.setString(3, eventId)
                         statement.setString(4, email)
                         statement.setString(5, name)
-                        statement.setLong(6, now())
+                        statement.setString(6, givenName)
+                        statement.setString(7, familyName)
+                        statement.setString(8, phone)
+                        statement.setInt(9, newNumber())
+                        statement.setLong(10, now())
                         statement.executeUpdate()
                     }
+
+                connection.releaseSavepoint(attempt)
+
+                return id
+            } catch (violation: java.sql.SQLException) {
+                connection.rollback(attempt)
+
+                if (violation.sqlState != "23505") throw violation
+
+                // Whoever else got there first: if the address is now registered, that is who,
+                // and the answer is the same one a second scan gets.
+                existingRegistration(connection, eventId, email)?.let { return it }
             }
         }
+
+        throw IllegalStateException("could not allocate a registration number after $NUMBER_ATTEMPTS attempts")
+    }
 
     /** Opens a station bound to [sourceKey]. One camera, one station at a time. */
     fun openStation(
@@ -321,7 +414,7 @@ class Events(
             connection
                 .prepareStatement(
                     """
-                    SELECT id, email, name, registered_at
+                    SELECT id, email, name, given_name, family_name, phone, number, registered_at
                     FROM event_registration
                     WHERE event_id = ?
                     ORDER BY registered_at DESC, id
@@ -336,7 +429,11 @@ class Events(
                                         id = rows.getString(1),
                                         email = rows.getString(2),
                                         name = rows.getString(3),
-                                        registeredAt = rows.getLong(4),
+                                        givenName = rows.getString(4),
+                                        familyName = rows.getString(5),
+                                        phone = rows.getString(6),
+                                        number = rows.getInt(7).takeUnless { rows.wasNull() },
+                                        registeredAt = rows.getLong(8),
                                     ),
                                 )
                             }
@@ -585,5 +682,14 @@ class Events(
                 statement.setString(2, stationId)
                 statement.executeUpdate()
             }
+    }
+
+    private companion object {
+        /** Five digits: 10000 through 99999. Four would collide too often to explain. */
+        const val SMALLEST_NUMBER = 10_000
+        const val NUMBER_RANGE = 90_000
+
+        /** Enough that a collision is a retry rather than a failure, and few enough to end. */
+        const val NUMBER_ATTEMPTS = 8
     }
 }

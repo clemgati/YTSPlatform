@@ -78,7 +78,24 @@ data class CreatedResponse(
 data class RegistrationSummary(
     val id: String,
     val email: String,
+    /**
+     * What to call them, assembled from the parts when there are parts.
+     *
+     * Kept alongside them because registrations taken before the form asked for two fields
+     * have only this, and a list that showed them as blank would be a list that lost people.
+     */
     val name: String? = null,
+    val givenName: String? = null,
+    val familyName: String? = null,
+    /** Shown to the studio only, and only to tell two people of the same name apart. */
+    val phone: String? = null,
+    /**
+     * Their number for this event: five digits, unique among the people at it.
+     *
+     * Short enough to say across a room, which is the whole job — "John Smith" is not an
+     * answer when there are two of them, and "John Smith, 41822" is.
+     */
+    val number: Int? = null,
     val registeredAt: Long,
 )
 

@@ -441,6 +441,16 @@ private fun Seated(
                             style = YTTheme.typography.bodySmall,
                             color = YTTheme.colors.onSurfaceVariant,
                         )
+                        // The number is already in the label; the phone is the other thing
+                        // that tells two people of one name apart, and the studio is the only
+                        // one who ever sees it.
+                        person.phone?.takeIf { it.isNotBlank() }?.let { phone ->
+                            Text(
+                                phone,
+                                style = YTTheme.typography.bodySmall,
+                                color = YTTheme.colors.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

@@ -376,10 +376,11 @@ class EventEndToEndTest {
     private suspend fun HttpClient.join(
         token: String,
         email: String,
-        name: String? = null,
+        givenName: String = "Ada",
+        familyName: String = "Okafor",
     ) = post("/api/join/$token") {
         contentType(ContentType.Application.Json)
-        setBody(apiJson.encodeToString(SignUpToEventRequest(email, name)))
+        setBody(apiJson.encodeToString(SignUpToEventRequest(email, givenName, familyName)))
     }
 
     private suspend fun HttpClient.registrations(

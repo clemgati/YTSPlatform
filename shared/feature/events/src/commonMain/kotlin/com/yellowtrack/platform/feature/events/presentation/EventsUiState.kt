@@ -95,9 +95,29 @@ internal data class PersonRow(
     val id: String,
     val email: String,
     val name: String?,
+    /**
+     * Their number for this event: five digits, unique among the people at it.
+     *
+     * Null for anybody who signed up before numbers existed, which is why nothing here
+     * assumes one.
+     */
+    val number: Int? = null,
+    /** Given by the guest, optional, and only ever shown to the studio. */
+    val phone: String? = null,
 ) {
-    /** What a photographer reads while somebody stands in front of them. */
-    val label: String get() = name?.takeIf { it.isNotBlank() } ?: email
+    /**
+     * What a photographer reads while somebody stands in front of them.
+     *
+     * The number goes in it when there is one. Two people called John Smith is not an edge
+     * case at a conference — it is the thing the number was added for — and "John Smith" is
+     * not an answer to which of them is standing there.
+     */
+    val label: String
+        get() {
+            val called = name?.takeIf { it.isNotBlank() } ?: email
+
+            return number?.let { "$called ($it)" } ?: called
+        }
 }
 
 internal data class SittingRow(
