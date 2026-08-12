@@ -17,6 +17,8 @@ import com.yellowtrack.platform.core.model.event.RegistrationSummary
 import com.yellowtrack.platform.core.model.event.SignUpToEventRequest
 import com.yellowtrack.platform.server.event.EventInvites
 import com.yellowtrack.platform.server.event.Events
+import com.yellowtrack.platform.server.mail.Email
+import com.yellowtrack.platform.server.mail.Mailer
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
@@ -915,6 +917,167 @@ class EventInviteTest {
 
             assertEquals(setOf(41_822, 41_823), numbers.toSet(), "the collision was not retried")
         }
+
+    // -- The note that says you are on the list -------------------------------------------
+
+    /**
+     * Somebody who scans a code sees a page for two seconds and then puts their phone away.
+     *
+     * Without this they have no record of having signed up, and no way to know their number —
+     * which is only useful to them if they have it. The photographer calling "John Smith,
+     * four one eight two two" needs the person to recognise it.
+     */
+    @Test
+    fun `joining sends a note with the number in it`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+            client.profile(session, "Harbourline Photography", "ada@harbourline.test")
+
+            val mailer = RecordingMailer()
+            val invites = EventInvites(TestDatabase.database, mailer = mailer, fromAddress = "photos@example.test")
+
+            assertEquals(null, invites.signUp(invite.token, "guest@example.test", "John", "Smith"))
+
+            val note = mailer.sent.single()
+            val number = assertNotNull(client.registrations(session, event).single().number)
+
+            assertEquals("guest@example.test", note.to)
+            assertTrue("Harbour Awards 2026" in note.subject, note.subject)
+            assertTrue(number.toString() in note.body, "the note does not carry their number")
+            assertTrue(number.toString() in note.html.orEmpty(), "the html does not carry their number")
+            assertTrue("John" in note.body, "the note does not greet them")
+        }
+
+    /** A reply reaches the studio, not this deployment. */
+    @Test
+    fun `the note replies to the studio`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+            client.profile(session, "Harbourline Photography", "ada@harbourline.test")
+
+            val mailer = RecordingMailer()
+            val invites = EventInvites(TestDatabase.database, mailer = mailer, fromAddress = "photos@example.test")
+
+            invites.signUp(invite.token, "guest@example.test", "John", "Smith")
+
+            val note = mailer.sent.single()
+
+            assertEquals("ada@harbourline.test", note.replyTo)
+            assertEquals("photos@example.test", note.fromAddress)
+            assertEquals("Harbourline Photography", note.fromName)
+        }
+
+    /**
+     * A second scan is not somebody joining.
+     *
+     * The same person scanning the same code again — to correct a spelling, or because they
+     * were not sure it worked — must not be welcomed twice. Two identical notes teach
+     * somebody to ignore the first.
+     */
+    @Test
+    fun `a second scan sends nothing`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+            client.profile(session, "Harbourline Photography", "ada@harbourline.test")
+
+            val mailer = RecordingMailer()
+            val invites = EventInvites(TestDatabase.database, mailer = mailer, fromAddress = "photos@example.test")
+
+            invites.signUp(invite.token, "guest@example.test", "John", "Smith")
+            invites.signUp(invite.token, "guest@example.test", "John", "Smyth")
+
+            assertEquals(1, mailer.sent.size, "the same person was welcomed twice")
+        }
+
+    /**
+     * A mail server that is down does not turn somebody away.
+     *
+     * The registration is what matters. A guest who is on the list and did not get a note is
+     * a guest who is on the list; refusing the sign-up because the mail server was
+     * unreachable is somebody standing at a table unable to join, which is a far worse
+     * failure than a missing note.
+     */
+    @Test
+    fun `a sign-up succeeds even when the note cannot be sent`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+            client.profile(session, "Harbourline Photography", "ada@harbourline.test")
+
+            val mailer = RecordingMailer().apply { refuse = true }
+            val failures = mutableListOf<Throwable>()
+            val invites =
+                EventInvites(
+                    TestDatabase.database,
+                    mailer = mailer,
+                    fromAddress = "photos@example.test",
+                    onSendFailure = { failures += it },
+                )
+
+            assertEquals(null, invites.signUp(invite.token, "guest@example.test", "John", "Smith"))
+
+            assertEquals(1, client.registrations(session, event).size, "the sign-up was lost")
+            assertEquals(1, failures.size, "the failure was swallowed without a word")
+        }
+
+    /** With nothing configured to send with, a sign-up is still a sign-up. */
+    @Test
+    fun `a deployment with no mail still takes sign-ups`() =
+        withServer { client ->
+            val session = client.signUp()
+            val event = client.createEvent(session, "Harbour Awards 2026")
+            val invite = client.invite(session, event)
+
+            val invites = EventInvites(TestDatabase.database)
+
+            assertEquals(null, invites.signUp(invite.token, "guest@example.test", "John", "Smith"))
+            assertEquals(1, client.registrations(session, event).size)
+        }
+
+    private class RecordingMailer : Mailer {
+        val sent = mutableListOf<Email>()
+        var refuse = false
+
+        override fun send(email: Email) {
+            if (refuse) throw IllegalStateException("the mail server is unreachable")
+            sent += email
+        }
+    }
+
+    /** The studio's own details, which are where a reply address comes from. */
+    private suspend fun HttpClient.profile(
+        session: SessionResponse,
+        name: String,
+        email: String,
+    ) {
+        TestDatabase.database.inStudio(session.studioId) { connection ->
+            connection
+                .prepareStatement(
+                    """
+                    INSERT INTO studio_profile(id, studio_id, name, email, created_at, updated_at, version)
+                    VALUES (?, ?, ?, ?, 0, 0, 1)
+                    """.trimIndent(),
+                ).use { statement ->
+                    statement.setString(
+                        1,
+                        java.util.UUID
+                            .randomUUID()
+                            .toString(),
+                    )
+                    statement.setString(2, session.studioId)
+                    statement.setString(3, name)
+                    statement.setString(4, email)
+                    statement.executeUpdate()
+                }
+        }
+    }
 
     // -- The code as a grid ---------------------------------------------------------------
 

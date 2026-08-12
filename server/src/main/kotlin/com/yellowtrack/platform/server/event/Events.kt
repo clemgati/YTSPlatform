@@ -146,15 +146,43 @@ class Events(
         givenName: String? = null,
         familyName: String? = null,
         phone: String? = null,
-    ): String =
+    ): Registration =
         database.inStudio(studioId) { connection ->
-            existingRegistration(connection, eventId, email)?.also { id ->
+            existingRegistration(connection, eventId, email)?.let { id ->
                 // A second scan corrects what it carries and leaves the rest alone. Somebody
                 // who filled the form in properly the second time should not have it ignored,
                 // and somebody who left the phone blank should not lose the one they gave.
                 updateRegistration(connection, id, name, givenName, familyName, phone)
+
+                Registration(id = id, number = numberOf(connection, id), isNew = false)
             } ?: insertRegistration(connection, studioId, eventId, email, name, givenName, familyName, phone)
         }
+
+    /**
+     * What a sign-up produced.
+     *
+     * [isNew] is the whole reason this is not just an identifier: a second scan of the same
+     * code by the same person is not somebody joining, and treating it as one would send them
+     * the same welcome twice.
+     */
+    data class Registration(
+        val id: String,
+        val number: Int?,
+        val isNew: Boolean,
+    )
+
+    private fun numberOf(
+        connection: java.sql.Connection,
+        id: String,
+    ): Int? =
+        connection
+            .prepareStatement("SELECT number FROM event_registration WHERE id = ?")
+            .use { statement ->
+                statement.setString(1, id)
+                statement.executeQuery().use { rows ->
+                    if (rows.next()) rows.getInt(1).takeUnless { rows.wasNull() } else null
+                }
+            }
 
     private fun updateRegistration(
         connection: java.sql.Connection,
@@ -207,9 +235,10 @@ class Events(
         givenName: String?,
         familyName: String?,
         phone: String?,
-    ): String {
+    ): Registration {
         repeat(NUMBER_ATTEMPTS) {
             val id = newId()
+            val number = newNumber()
 
             // A savepoint per attempt, because Postgres aborts the whole transaction on a
             // failed statement and refuses everything after it until a rollback. Without
@@ -236,14 +265,14 @@ class Events(
                         statement.setString(6, givenName)
                         statement.setString(7, familyName)
                         statement.setString(8, phone)
-                        statement.setInt(9, newNumber())
+                        statement.setInt(9, number)
                         statement.setLong(10, now())
                         statement.executeUpdate()
                     }
 
                 connection.releaseSavepoint(attempt)
 
-                return id
+                return Registration(id = id, number = number, isNew = true)
             } catch (violation: java.sql.SQLException) {
                 connection.rollback(attempt)
 
@@ -251,7 +280,9 @@ class Events(
 
                 // Whoever else got there first: if the address is now registered, that is who,
                 // and the answer is the same one a second scan gets.
-                existingRegistration(connection, eventId, email)?.let { return it }
+                existingRegistration(connection, eventId, email)?.let { existing ->
+                    return Registration(id = existing, number = numberOf(connection, existing), isNew = false)
+                }
             }
         }
 

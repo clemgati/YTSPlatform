@@ -1,6 +1,8 @@
 package com.yellowtrack.platform.server.event
 
 import com.yellowtrack.platform.server.Database
+import com.yellowtrack.platform.server.mail.Email
+import com.yellowtrack.platform.server.mail.Mailer
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.UUID
@@ -80,6 +82,17 @@ class EventInvites(
      */
     private val limit: Int = DEFAULT_LIMIT,
     private val window: Long = DEFAULT_WINDOW_MILLIS,
+    /**
+     * Sends the note that says somebody is on the list. Null sends nothing.
+     *
+     * Null by default so a deployment with no mail configured still takes sign-ups, and so a
+     * test about who is registered does not have to care about mail. A guest who is on the
+     * list and did not get a note is a guest who is on the list; a guest turned away because
+     * the mail server was down is a guest who is not.
+     */
+    private val mailer: Mailer? = null,
+    private val fromAddress: String? = null,
+    private val onSendFailure: (Throwable) -> Unit = {},
 ) {
     /**
      * Issues the event's invite, or returns the one it already has.
@@ -201,19 +214,169 @@ class EventInvites(
             // `register` is idempotent on the address and returns the existing registration
             // when there is one, so this is the same call either way — which is what makes
             // the answer the same either way.
-            events.register(
-                studioId = invited.studioId,
-                eventId = invited.eventId,
-                email = address,
-                name = "$given $family",
-                givenName = given,
-                familyName = family,
-                phone = phone?.trim()?.takeIf { it.isNotBlank() },
-            )
+            val registration =
+                events.register(
+                    studioId = invited.studioId,
+                    eventId = invited.eventId,
+                    email = address,
+                    name = "$given $family",
+                    givenName = given,
+                    familyName = family,
+                    phone = phone?.trim()?.takeIf { it.isNotBlank() },
+                )
+
+            // Only the first time. A second scan of the same code by the same person is not
+            // somebody joining, and sending the same welcome twice teaches them to ignore it.
+            if (registration.isNew) {
+                confirm(connection, invited, address, given, registration.number)
+            }
 
             null
         }
     }
+
+    /**
+     * Tells somebody they are on the list, and what their number is.
+     *
+     * Sent because a guest who scans a code and sees a page for two seconds has no record of
+     * having done it — and because the number is only useful to them if they have it. The
+     * photographer calling "John Smith, four one eight two two" needs the person to recognise
+     * it.
+     *
+     * Failure is logged and swallowed. The registration is the thing that matters; a note
+     * that did not arrive is a nuisance, and refusing the sign-up because the mail server was
+     * unreachable would turn it into somebody standing at a table unable to join.
+     */
+    private fun confirm(
+        connection: java.sql.Connection,
+        invited: InvitedEvent,
+        email: String,
+        givenName: String,
+        number: Int?,
+    ) {
+        val mailer = mailer ?: return
+        val from = fromAddress ?: return
+        val studio = studioDetails(connection, invited.studioId) ?: return
+        val replyTo = studio.email?.takeIf { it.isNotBlank() } ?: return
+
+        runCatching {
+            mailer.send(
+                Email(
+                    to = email,
+                    subject = "You are signed up for ${invited.eventName}",
+                    body = confirmationText(invited.eventName, studio.name, givenName, number),
+                    html = confirmationHtml(invited.eventName, studio.name, givenName, number),
+                    fromName = studio.name,
+                    fromAddress = from,
+                    replyTo = replyTo,
+                    headers = mapOf("List-Unsubscribe" to "<mailto:$replyTo?subject=Unsubscribe>"),
+                ),
+            )
+        }.onFailure(onSendFailure)
+    }
+
+    private data class StudioDetails(
+        val name: String,
+        val email: String?,
+    )
+
+    private fun studioDetails(
+        connection: java.sql.Connection,
+        studioId: String,
+    ): StudioDetails? =
+        connection
+            .prepareStatement("SELECT name, email FROM studio_profile WHERE studio_id = ? AND deleted_at IS NULL")
+            .use { statement ->
+                statement.setString(1, studioId)
+                statement.executeQuery().use { rows ->
+                    if (rows.next()) StudioDetails(rows.getString(1), rows.getString(2)) else null
+                }
+            }
+
+    /**
+     * Enough words to be a message rather than a receipt.
+     *
+     * The same lesson the delivery mail learned: a short note whose only content is a number
+     * is the shape of something a filter distrusts. Naming the event, the studio, and where
+     * the address came from tells a filter and a person the same true thing.
+     */
+    private fun confirmationText(
+        eventName: String,
+        studioName: String,
+        givenName: String,
+        number: Int?,
+    ): String =
+        buildString {
+            appendLine("Hello $givenName,")
+            appendLine()
+            appendLine(
+                "You scanned a code at $eventName and asked $studioName to send you your " +
+                    "photographs. You are on the list.",
+            )
+            appendLine()
+            number?.let {
+                appendLine("Your number for this event is $it.")
+                appendLine(
+                    "If the photographer needs to tell you apart from somebody with the same " +
+                        "name, this is what they will ask for.",
+                )
+                appendLine()
+            }
+            appendLine(
+                "Nothing else is needed from you. Your photographs will arrive by email once " +
+                    "the photographer has finished with them.",
+            )
+            appendLine()
+            appendLine(
+                "If you did not sign up for this, you can ignore this message and nothing " +
+                    "further will be sent. Replying to this email reaches $studioName directly.",
+            )
+        }
+
+    private fun confirmationHtml(
+        eventName: String,
+        studioName: String,
+        givenName: String,
+        number: Int?,
+    ): String {
+        val theirNumber =
+            number?.let {
+                """
+                <p style="font-size:20px"><strong>Your number for this event is $it.</strong></p>
+                <p>
+                    If the photographer needs to tell you apart from somebody with the same
+                    name, this is what they will ask for.
+                </p>
+                """.trimIndent()
+            } ?: ""
+
+        return """
+            <p>Hello ${escapeHtml(givenName)},</p>
+            <p>
+                You scanned a code at ${escapeHtml(eventName)} and asked
+                ${escapeHtml(studioName)} to send you your photographs. You are on the list.
+            </p>
+            $theirNumber
+            <p>
+                Nothing else is needed from you. Your photographs will arrive by email once the
+                photographer has finished with them.
+            </p>
+            <p>
+                If you did not sign up for this, you can ignore this message and nothing
+                further will be sent. Replying to this email reaches ${escapeHtml(studioName)}
+                directly.
+            </p>
+            <p>${escapeHtml(studioName)}</p>
+            """.trimIndent()
+    }
+
+    /** A guest types their own name, and it goes into a page somebody else opens. */
+    private fun escapeHtml(value: String): String =
+        value
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
 
     // -- Internals -----------------------------------------------------------------------
 
