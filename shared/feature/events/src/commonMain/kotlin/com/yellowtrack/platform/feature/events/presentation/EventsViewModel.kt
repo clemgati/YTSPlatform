@@ -457,7 +457,7 @@ internal class EventsViewModel(
     }
 }
 
-private fun EventSummary.toRow() = EventRow(id, name, startsAt, openStations, photographs)
+private fun EventSummary.toRow() = EventRow(id, name, startsAt, openStations, photographs, signUpOpen)
 
 private fun StationSummary.toRow() = StationRow(id, name, sourceKey, openedAt, closedAt)
 

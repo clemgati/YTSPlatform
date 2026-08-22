@@ -21,6 +21,7 @@ import com.yellowtrack.platform.feature.events.presentation.SittingRow
 import com.yellowtrack.platform.feature.events.presentation.StationRow
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -40,14 +41,37 @@ class EventsRenderTest {
                         EventsContent(
                             events =
                                 listOf(
+                                    // Both badges at once, which is the pairing worth looking
+                                    // at: they must not read as one thing said twice.
                                     EventRow(
                                         "event-1",
                                         "Harbour Awards 2026",
                                         null,
                                         openStations = 2,
                                         photographs = 412,
+                                        signUpOpen = true,
                                     ),
-                                    EventRow("event-2", "Saturday walk-ups", null, openStations = 0, photographs = 88),
+                                    // Sign-ups open, nothing running — the state the display
+                                    // lists and the old badge said nothing about.
+                                    EventRow(
+                                        "event-2",
+                                        "Saturday walk-ups",
+                                        null,
+                                        openStations = 0,
+                                        photographs = 88,
+                                        signUpOpen = true,
+                                    ),
+                                    // A station open and no live code: the state a studio read
+                                    // as "sign-ups are open here" and the display disagreed
+                                    // with. Singular, so the wording is looked at too.
+                                    EventRow(
+                                        "event-3",
+                                        "Grandpa's 75th",
+                                        null,
+                                        openStations = 1,
+                                        photographs = 0,
+                                        signUpOpen = false,
+                                    ),
                                 ),
                         ),
                     ),
@@ -85,7 +109,10 @@ class EventsRenderTest {
                 content =
                     UiState.Success(
                         EventsContent(
-                            events = listOf(EventRow("event-1", "Harbour Awards 2026", null, 2, 412)),
+                            events =
+                                listOf(
+                                    EventRow("event-1", "Harbour Awards 2026", null, 2, 412, signUpOpen = true),
+                                ),
                             open =
                                 OpenEvent(
                                     id = "event-1",
@@ -159,6 +186,46 @@ class EventsRenderTest {
     }
 
     @OptIn(ExperimentalComposeUiApi::class)
+    /**
+     * The sign-up badge is actually drawn from the flag.
+     *
+     * Every other test here asserts only that an image came out, which is why this gap was
+     * open in the first place: the row could ignore [EventRow.signUpOpen] entirely and nothing
+     * would redden. Rendering the same event both ways and comparing the pixels is the
+     * cheapest thing that fails when it does — the two images are identical unless the flag
+     * changes what is on screen.
+     *
+     * Deliberately not asserting *what* the difference is. That is what looking at the PNG is
+     * for; this only has to make ignoring the flag impossible to do quietly.
+     */
+    @Test
+    fun `an event with sign-ups open does not look like one without`() {
+        fun listing(signUpOpen: Boolean) =
+            EventsUiState(
+                content =
+                    UiState.Success(
+                        EventsContent(
+                            events =
+                                listOf(
+                                    EventRow(
+                                        "event-1",
+                                        "Harbour Awards 2026",
+                                        null,
+                                        openStations = 0,
+                                        photographs = 412,
+                                        signUpOpen = signUpOpen,
+                                    ),
+                                ),
+                        ),
+                    ),
+            )
+
+        assertFalse(
+            image { listing(signUpOpen = true) } contentEquals image { listing(signUpOpen = false) },
+            "the list drew the same thing whether or not people could sign up",
+        )
+    }
+
     private fun render(
         name: String,
         state: () -> EventsUiState,
@@ -167,6 +234,14 @@ class EventsRenderTest {
         outputDir.mkdirs()
         val target = File(outputDir, "$name.png")
 
+        val bytes = image(state)
+        target.writeBytes(bytes)
+
+        assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
+        println("Rendered ${target.absolutePath}")
+    }
+
+    private fun image(state: () -> EventsUiState): ByteArray {
         val scene =
             ImageComposeScene(width = 1_280, height = 2_000, density = Density(2f)) {
                 YellowTrackTheme {
@@ -192,14 +267,10 @@ class EventsRenderTest {
                 }
             }
 
-        try {
-            val bytes = requireNotNull(scene.render().encodeToData()) { "Skia produced no image data" }.bytes
-            target.writeBytes(bytes)
+        return try {
+            requireNotNull(scene.render().encodeToData()) { "Skia produced no image data" }.bytes
         } finally {
             scene.close()
         }
-
-        assertTrue(target.length() > 0, "expected a non-empty image at ${target.absolutePath}")
-        println("Rendered ${target.absolutePath}")
     }
 }
