@@ -52,6 +52,18 @@ internal data class EventRow(
     val startsAt: Long?,
     val openStations: Int,
     val photographs: Int,
+    /**
+     * Whether a scanned code would work for this event right now.
+     *
+     * The server has always reported this and the list has always thrown it away, which left
+     * the studio with no way to see where sign-ups were open without opening every event in
+     * turn — and the companion display, which shows exactly these events, looking as though it
+     * had lost most of them.
+     *
+     * No default, deliberately. A default here is how the field came to be dropped in the
+     * first place: every construction site has to say, so a new one cannot quietly say false.
+     */
+    val signUpOpen: Boolean,
 )
 
 internal data class OpenEvent(

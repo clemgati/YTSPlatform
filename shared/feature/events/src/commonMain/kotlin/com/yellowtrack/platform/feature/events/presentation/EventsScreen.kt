@@ -173,11 +173,26 @@ private fun EventList(
                     )
                 }
 
-                // The one thing worth seeing without opening an event. A station left open
-                // after everybody has gone home keeps claiming photographs for whoever was
-                // last in front of the camera.
-                if (event.openStations > 0) {
-                    YTBadge(text = "${event.openStations} open")
+                /*
+                 * The two things worth seeing without opening an event, and they are not the
+                 * same thing — which is the whole reason both are spelled out.
+                 *
+                 * This used to read "1 open", meaning stations, next to nothing at all about
+                 * sign-ups. A studio reasonably read it as "sign-ups are open here", found
+                 * the companion display listing one of the three events badged that way, and
+                 * had no way from this screen to see that the other two had no live code.
+                 */
+                Row(horizontalArrangement = Arrangement.spacedBy(YTTheme.spacing.extraSmall)) {
+                    // What the display lists, and what a printed banner would still do.
+                    if (event.signUpOpen) {
+                        YTBadge(text = "Sign-ups open")
+                    }
+
+                    // A station left open after everybody has gone home keeps claiming
+                    // photographs for whoever was last in front of the camera.
+                    if (event.openStations > 0) {
+                        YTBadge(text = stations(event.openStations))
+                    }
                 }
             }
         }
@@ -615,3 +630,11 @@ private const val SEARCH_RESULTS = 6
 
 /** "1 photograph", "4 photographs" — a screen a person reads, not a log line. */
 private fun photographs(count: Int): String = if (count == 1) "1 photograph" else "$count photographs"
+
+/**
+ * "1 station open", "2 stations open".
+ *
+ * The noun is the point. "1 open" left the reader to supply it, and the one they supplied was
+ * sign-ups.
+ */
+private fun stations(count: Int): String = if (count == 1) "1 station open" else "$count stations open"

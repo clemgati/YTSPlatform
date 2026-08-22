@@ -77,6 +77,37 @@ class EventsViewModelTest {
         }
 
     /**
+     * Whether sign-ups are open reaches the list.
+     *
+     * The server has reported this since invites existed; the mapping to a row dropped it, so
+     * the screen could not have shown it however it was drawn. Two events with opposite
+     * answers, because a mapping that hard-codes either one passes a single-event test.
+     *
+     * The pairing is the real subject: the event with a station open has *no* live code, which
+     * is exactly the combination that was unreadable before — a badge saying "1 open" and a
+     * companion display, listing only events with a code, appearing to have lost it.
+     */
+    @Test
+    fun `the list says which events people can still sign up to`() =
+        runTest(dispatcher) {
+            val api =
+                FakeApi(
+                    events =
+                        listOf(
+                            summary("event-1", "Headshot day", openStations = 1, signUpOpen = false),
+                            summary("event-2", "Saturday walk-ups", openStations = 0, signUpOpen = true),
+                        ),
+                )
+            val viewModel = viewModel(api)
+
+            testScheduler.advanceUntilIdle()
+
+            val events = viewModel.content().events
+            assertEquals(false, events.single { it.id == "event-1" }.signUpOpen)
+            assertEquals(true, events.single { it.id == "event-2" }.signUpOpen)
+        }
+
+    /**
      * A studio with no events can still create one.
      *
      * The previous version of this test asserted `UiState.Empty` and called it correct. That
@@ -1264,7 +1295,15 @@ class EventsViewModelTest {
         id: String,
         name: String,
         openStations: Int = 0,
-    ) = EventSummary(id = id, name = name, startsAt = null, openStations = openStations, photographs = 0)
+        signUpOpen: Boolean = false,
+    ) = EventSummary(
+        id = id,
+        name = name,
+        startsAt = null,
+        openStations = openStations,
+        photographs = 0,
+        signUpOpen = signUpOpen,
+    )
 
     private fun station(
         id: String,
